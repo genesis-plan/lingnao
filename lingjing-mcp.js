@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * 世界大脑 WorldBrain — 零依赖 MCP stdio server
- * 把 世界大脑.html 内核（A* 可审计推理 / IMA 素材 / 经验库 / 物理载体接入）暴露给外部 AI 智能体。
+ * 灵境 LingJing（WorldBrain）— 零依赖 MCP stdio server
+ * 把 灵境.html 内核（A* 可审计推理 / IMA 素材 / 经验库 / 物理载体接入）暴露给外部 AI 智能体。
  * 传输：JSON-RPC 2.0 + Content-Length 字节级分帧（手写，无 SDK 依赖）。
  *
  * 运行：
- *   node worldbrain-mcp.js                 # 默认载入同目录 世界大脑.html
- *   WORLDBRAIN_HTML=/path/世界大脑.html node worldbrain-mcp.js
- *   node worldbrain-mcp.js --selftest      # 内置自测，验证全部工具后退出
+ *   node lingjing-mcp.js                 # 默认载入同目录 灵境.html
+ *   LINGJING_HTML=/path/灵境.html node lingjing-mcp.js
+ *   node lingjing-mcp.js --selftest      # 内置自测，验证全部工具后退出
  *
  * 零依赖：仅用 Node 内置 vm / fs / path。内核从 HTML 抽取复用，单一真源。
  */
@@ -15,7 +15,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const HTML = process.env.WORLDBRAIN_HTML || path.join(__dirname, '世界大脑.html');
+const HTML = process.env.LINGJING_HTML || path.join(__dirname, '灵境.html');
 const SELFTEST = process.argv.includes('--selftest');
 
 // ---------- 1. 抽取并实跑内核（复用浏览器内已验证逻辑，不重写） ----------

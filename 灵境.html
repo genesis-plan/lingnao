@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>世界大脑 WorldBrain — 可审计推理引擎 · 物理载体接入</title>
+<title>灵境 LingJing（WorldBrain）— 可审计推理引擎 · 物理载体接入</title>
 <style>
   :root{ --bg:#f7f8fa; --card:#fff; --ink:#1f2933; --sub:#52606d; --line:#e4e7eb;
          --blue:#2563eb; --green:#0f9d58; --red:#d93025; --amber:#f4b400; --soft:#eef2ff; }
@@ -40,7 +40,7 @@
 </head>
 <body>
 <header>
-  <h1>🌐 世界大脑 WorldBrain</h1>
+  <h1>🌐 灵境 LingJing</h1>
   <p>可审计推理引擎 · 物理载体智能接入即服务 — 驱动所有具身设备的透明决策大脑（MVP v1.0，按开发书模块重构）</p>
 </header>
 <div class="wrap">
@@ -126,7 +126,7 @@
 </div>
 
 <script>
-// ==KERNEL START==  （WorldBrain 确定性内核；可被 Node 抽取校验，亦被 MCP server 复用）
+// ==KERNEL START==  （灵境 LingJing 确定性内核；可被 Node 抽取校验，亦被 MCP server 复用）
 // 核心数据模型（文档 3.1）：
 //   State{id,data,fingerprint,ts}  Action{id,data,cost?}  Transition{from,action,to,cost}
 //   Experience{id,transition,success,confidence,source,createdAt,meta}
@@ -291,7 +291,7 @@ function carrierReport(battery, goal, density){
   const h=[]; if(+battery<20 && Array.isArray(WORLD.nodes)) WORLD.nodes.forEach(n=>{ if(n!=='CHARGE') h.push(n); }); // 电量<20 禁止离开充电座（硬约束：禁 A/B/C）
   return {battery, goal, density, hard:h, note: h.length? '电量<20%：硬约束禁止离开 CHARGE（禁 '+h.join('/')+'）' : '电量充足'};
 }
-// 兼容 MCP / 外部调用的全局别名（与 worldbrain-mcp.js 抽取契约一致）
+// 兼容 MCP / 外部调用的全局别名（与 lingjing-mcp.js 抽取契约一致）
 function findExperience(from,to){ return KB.findExperience(from,to); }
 function updateConfidence(from,to,success,step){ return KB.updateConfidence(from,to,success,step); }
 // ==KERNEL END==
@@ -305,7 +305,7 @@ if(typeof globalThis!=='undefined'){
 const $ = id=>document.getElementById(id);
 function showMCP(){
   const box=$('mcpBox'); box.style.display='block';
-  box.innerHTML='外部智能体接入配置（stdio）：<br>node worldbrain-mcp.js<br>工具：reason / carrier_report / learn / audit / query / add';
+  box.innerHTML='外部智能体接入配置（stdio）：<br>node lingjing-mcp.js<br>工具：reason / carrier_report / learn / audit / query / add';
 }
 function carrierReportUI(){
   const r=carrierReport($('battery').value, $('goal').value, JSON.parse($('density').value||'{}'));
@@ -367,8 +367,8 @@ function loadWorld(){
   try{ const j=JSON.parse($('worldJson').value); setWorld(j); $('worldOut').innerHTML='已导入 '+j.nodes.length+' 节点 / '+j.edges.length+' 边'; }
   catch(e){ $('worldOut').innerHTML='<span class="bad">导入失败：'+e.message+'</span>'; }
 }
-const savedKey=localStorage.getItem('worldbrain_key'); if(savedKey) $('apiKey').value=savedKey;
-$('apiKey').addEventListener('change',e=>localStorage.setItem('worldbrain_key', e.target.value));
+const savedKey=localStorage.getItem('lingjing_key'); if(savedKey) $('apiKey').value=savedKey;
+$('apiKey').addEventListener('change',e=>localStorage.setItem('lingjing_key', e.target.value));
 renderKB();
 </script>
 </body>

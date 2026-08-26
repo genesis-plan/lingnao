@@ -1,7 +1,7 @@
 {
-  "name": "worldbrain-mcp",
+  "name": "lingjing-mcp",
   "version": "1.0.1",
-  "description": "世界大脑 — 可审计推理 MCP 服务：把「世界图 → A* 可审计推理 → 物理载体执行 → 学习闭环」封装为标准 MCP stdio 服务。零依赖、免费面向 AI Agent 分发。",
+  "description": "灵境 LingJing（世界通用大脑）— 可审计推理 MCP 服务：把「世界图 → A* 可审计推理 → 物理载体执行 → 学习闭环」封装为标准 MCP stdio 服务。零依赖、免费面向 AI Agent 分发。",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -10,17 +10,19 @@
     "audit",
     "a-star",
     "embodied",
-    "world-brain",
+    "lingjing",
+    "灵境",
+    "世界通用大脑",
     "可信推理",
     "物理载体"
   ],
   "bin": {
-    "worldbrain-mcp": "worldbrain-mcp.js"
+    "lingjing-mcp": "lingjing-mcp.js"
   },
-  "main": "worldbrain-mcp.js",
+  "main": "lingjing-mcp.js",
   "files": [
-    "worldbrain-mcp.js",
-    "世界大脑.html",
+    "lingjing-mcp.js",
+    "灵境.html",
     "README.md",
     "LICENSE"
   ],
@@ -30,14 +32,14 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/genesis-plan/worldbrain-mcp.git"
+    "url": "git+https://github.com/genesis-plan/lingjing.git"
   },
-  "homepage": "https://github.com/genesis-plan/worldbrain-mcp#readme",
+  "homepage": "https://github.com/genesis-plan/lingjing#readme",
   "bugs": {
-    "url": "https://github.com/genesis-plan/worldbrain-mcp/issues"
+    "url": "https://github.com/genesis-plan/lingjing/issues"
   },
   "author": "红尘灵境 / 太白",
   "scripts": {
-    "selftest": "node worldbrain-mcp.js --selftest"
+    "selftest": "node lingjing-mcp.js --selftest"
   }
 }

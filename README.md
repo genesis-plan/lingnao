@@ -1,12 +1,12 @@
-# 世界大脑 WorldBrain — 可审计推理大模型
+# 灵境 LingJing（世界通用大脑）— 可审计推理大模型
 
-> **把它当成一个大模型来做**：世界大脑是一个**本地确定性、可审计的推理大模型**，不是普通脚本、也不是概率生成式 LLM。
+> **把它当成一个大模型来做**：灵境是一个**本地确定性、可审计的推理大模型**，不是普通脚本、也不是概率生成式 LLM。
 > 内核把「世界图 → A\* 可审计推理 → 物理载体执行 → 学习闭环」封装为单一引擎，对外以 **MCP stdio / 网页演示** 两种接口暴露。
 > 零依赖 · 零服务器 · 免费面向 AI Agent 分发。
 
-- 仓库（模型主仓，独立于灵数求解器）：<https://github.com/genesis-plan/worldbrain>
+- 仓库（模型主仓，独立于灵数求解器 lingshu-solver）：<https://github.com/genesis-plan/lingjing>
 - 架构白皮书：[ARCHITECTURE.md](./ARCHITECTURE.md)
-- npm 安装：`npm install -g worldbrain-mcp`
+- npm 安装：`npm install -g lingjing-mcp`
 
 ---
 
@@ -14,7 +14,7 @@
 
 | 项 | 内容 |
 |---|---|
-| 模型名称 | 世界大脑 WorldBrain |
+| 模型名称 | 灵境 LingJing（世界通用大脑 / WorldBrain） |
 | 模型类型 | **可审计确定性推理大模型**（非概率生成式 LLM） |
 | 内核 | 本地确定性 A\* 推理 + 五段审计 + 经验知识库，不经大模型、不幻觉 |
 | 感知层 | 可选免费 LLM（OpenRouter `:free`）做 NL→JSON；无 key 可手动降级 |
@@ -37,8 +37,8 @@
 ## 快速接入
 
 ```bash
-npm install -g worldbrain-mcp      # 全局安装，自带 bin
-npx worldbrain-mcp --selftest      # 免安装验证（11/11 工具自检）
+npm install -g lingjing-mcp      # 全局安装，自带 bin
+npx lingjing-mcp --selftest      # 免安装验证（11/11 工具自检）
 ```
 
 任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制配置即可接入，**不用开网页、不用服务器**：
@@ -46,7 +46,7 @@ npx worldbrain-mcp --selftest      # 免安装验证（11/11 工具自检）
 ```json
 {
   "mcpServers": {
-    "worldbrain": { "command": "worldbrain-mcp" }
+    "lingjing": { "command": "lingjing-mcp" }
   }
 }
 ```
@@ -110,13 +110,13 @@ npx worldbrain-mcp --selftest      # 免安装验证（11/11 工具自检）
 
 | 文件 | 作用 |
 |---|---|
-| `worldbrain-mcp.js` | MCP 服务本体（stdio，零依赖，手写 JSON-RPC 2.0 分帧） |
-| `世界大脑.html` | 单文件演示 + 内控内核（MCP 从此抽取复用，单一真源） |
+| `lingjing-mcp.js` | MCP 服务本体（stdio，零依赖，手写 JSON-RPC 2.0 分帧） |
+| `灵境.html` | 单文件演示 + 内控内核（MCP 从此抽取复用，单一真源） |
 | `ARCHITECTURE.md` | 架构白皮书（七元组 / 八层 / 诚实实装映射） |
 | `README.md` | 本模型卡与接入指南 |
 | `package.json` / `LICENSE` | 可安装包定义 / MIT 许可 |
 
-> 部署时 `worldbrain-mcp.js` 与 `世界大脑.html` 需同目录（或设 `WORLDBRAIN_HTML` 环境变量）。
+> 部署时 `lingjing-mcp.js` 与 `灵境.html` 需同目录（或设 `LINGJING_HTML` 环境变量）。
 
 ---
 
