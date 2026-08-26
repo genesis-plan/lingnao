@@ -6,6 +6,16 @@
 
 ---
 
+## 零、安装（被动获客入口）
+
+```bash
+npm install -g worldbrain-mcp      # 全局安装，自带 bin
+npx worldbrain-mcp --selftest      # 免安装验证
+```
+
+- 源码 / Issue：<https://github.com/genesis-plan/worldbrain-mcp>
+- 任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制下方配置即可接入，**不用开网页、不用服务器**。
+
 ## 一、它是什么
 
 世界大脑把一份"可审计推理"能力暴露给外部智能体：
