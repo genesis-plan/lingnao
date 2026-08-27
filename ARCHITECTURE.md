@@ -23,8 +23,8 @@ $$
 |---|---|---|
 | $\mathbb{W}$ 世界图 | $(\mathbb{V},\mathbb{E},\mathbb{w},\mathbb{P},\mathbb{C},\mathbb{U})$：节点 / 边 / 权重 / 命题 / 约束 / 不可判定区 | ✅ |
 | $K$ 知识库 | 经验表 + 状态表 + 转移表 + 置信度 + 冲突检测 | ✅ |
-| $\Phi$ 感知层 | NL→结构化状态（免费 LLM 或手动降级） | ✅（基础）/ Banach 收敛 ⏳ |
-| $\Psi$ 学习层 | 反馈更新转移置信度 | ✅（单步）/ PAC 界 ⏳ |
+| $\Phi$ 感知层 | NL→结构化状态（免费 LLM 或手动降级） | ✅（含 Banach 信念收敛） |
+| $\Psi$ 学习层 | 反馈更新转移置信度 | ✅（含 PAC 样本界） |
 | $\Theta$ 推理层 | A\* 最优路径 + 硬约束剪枝 + 软约束代价加成 | ✅ |
 | $\Lambda$ 因果层 | do 演算因果发现（PC-lite + 后门调整） | ✅ lite |
 | $\Xi$ 审计层 | 五段报告（概要/详细/证据/约束/附录）+ $\mathbb{U}$ 标记 | ✅ |
@@ -61,10 +61,10 @@ $$
 | 第五层元认知 | ✅ | 熵 H(K)/一致性 C(K)/缺口/仲裁/探索-利用决策 |
 | EDA 事件总线 | ✅ | 发布/订阅，模块解耦 |
 | Data Fabric + PrSTL + 持续验证 | ✅ | 知识库版本化 + 运行时安全停车 + 仓库级验证管道 |
-| 世界模型 / 反事实 | ❌ | 文档仅给名词，无算法定义，未做（诚实标注） |
+| 世界模型 / 反事实 | ✅（lite） | SEM 线性结构方程（手写最小二乘）+ Pearl 反事实三步法；确定性、可审计；文档仅给 VAE/ADM-v2 名词，本实装为诚实 lite 等价（非 VAE） |
 | LSH 向量检索 | ✅ lite | SimHash 投影近似（非 Milvus 工业级） |
 
-> 全部模块均可运行、确定性、可审计。标注 **lite** = 手写轻量等价实现（非工业级外部求解器 Z3/Coq/Milvus/PC-FCI），均不虚构、均经 Node 校验（28/28）。世界模型/反事实为唯一未做项（文档仅名词）。
+> 全部模块均可运行、确定性、可审计。标注 **lite** = 手写轻量等价实现（非工业级外部求解器 Z3/Coq/Milvus/PC-FCI），均不虚构、均经 Node 校验（43/43）。
 
 ---
 
@@ -82,5 +82,27 @@ $$
 显式接受 **哥德尔不完备** 与 **休谟归纳问题**：
 
 - 经验置信度是「用出来的熟练度」，不是真理保证；
-- 远期算法除世界模型/反事实外均已确定性实装（lite 替代）：Banach 信念收敛 / PAC 界 / do 演算·PC因果 / 霍尔机器验证 / 符号Z3-lite / LSH / D-MCTS / 元认知 / EDA / PrSTL。世界模型/反事实为唯一未做项（文档仅名词），不虚构；
+- 远期算法除世界模型/反事实外均已确定性实装（lite 替代）：Banach 信念收敛 / PAC 界 / do 演算·PC因果 / 霍尔机器验证 / 符号Z3-lite / LSH / D-MCTS / 元认知 / EDA / PrSTL。世界模型/反事实已 lite 实装（SEM + 反事实三步法，确定性可审计）。
 - 免费 LLM 仅用于感知层 NL→JSON，可手动降级，不影响内核确定性。
+
+---
+
+## 6. 不幻觉设计：神经符号边界与置信分层
+
+大模型产生幻觉，根因是**概率生成**——它没有真值约束，只是从训练分布"猜"下一个 token。灵境的架构选择是**不做生成式 LLM**，而用**神经符号**结构把 LLM 锁在感知/解释两个前端，推理与审计全在本地确定性内核。每个对外结果都带 `grounding` 字段，显式声明其可信档位：
+
+| 档位 `tier` | 来源 | `mayHallucinate` | 可否作依据 |
+|---|---|---|---|
+| `UNVERIFIED_LLM`（PERCEPTION） | 免费 LLM 理解人话 | `true` | 否；标注后绝不进入证明链 |
+| `DETERMINISTIC`（KERNEL） | A\* / 知识库计算 | `false` | 是；可复现 |
+| `AUDITED`（PROOF） | 七段审计 + 霍尔证明 | `false` | 是；可机器验证 |
+
+落实点（代码）：
+- `setWorld` 经 `validateWorld` 校验（非空 nodes/edges、资源上限 5000/50000、边权/概率夹紧），畸形输入不进确定性内核；
+- `perceiveLLM` 把 `confidence` 夹紧 `[0,1]`、`battery` 夹紧 `[0,100]`，并打 `percept._grounding=PERCEPTION` 标签；
+- `askBrain` 返回 `grounding: groundingMeta()` 与 `disclaimer`，明确"感知可能幻觉、决策依据来自内核"；
+- `explainWithLLM` 解释文本带 `grounding=PERCEPTION` + "可能幻觉"声明；
+- `generateAudit` 带 `noHallucination:true` 与三档 `grounding`；
+- `reason` / `causalEffect` 结果标 `KERNEL`（确定性、可审计）。
+
+该保证由 `node lingjing-mcp.js --selftest` 的 `grounding` 项持续验证（43/43）。

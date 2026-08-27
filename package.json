@@ -40,6 +40,10 @@
   },
   "author": "红尘灵境 / 太白",
   "scripts": {
-    "selftest": "node lingjing-mcp.js --selftest"
+    "selftest": "node lingjing-mcp.js --selftest",
+    "test": "node lingjing-mcp.js --selftest"
+  },
+  "dependencies": {
+    "lingshu-solver": "^1.0.2"
   }
 }

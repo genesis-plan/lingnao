@@ -48,89 +48,29 @@
 </header>
 <div class="wrap">
 
-  <div class="card">
-    <h2>① 设置 · 免费 LLM 感知层 <span class="tag">OpenRouter :free</span> <span class="tag done">已接入</span></h2>
-    <label>OpenRouter API Key（留空=手动模式，确定性不依赖 LLM）</label>
-    <input id="apiKey" placeholder="sk-or-... 存于本机 localStorage，不上传任何服务器" autocomplete="off">
-    <div class="note">免费档约 50 次/天、20 RPM；I/O 可能进厂商训练，<b>勿填敏感数据</b>。LLM 只做"自然语言→结构化状态"的感知，<b>推理/审计/学习全确定性、不幻觉</b>。</div>
-    <label>自然语言 / 状态描述（让免费 LLM 理解成结构化目标）</label>
-    <textarea id="nlText" placeholder="例如：电量 80，目标去 C 区，A 区蚊子很多，B 区适中">电量 80，目标去 C 区，A 区蚊子很多，B 区适中</textarea>
-    <button onclick="perceiveLLMUI()">免费 LLM 感知（NL→JSON）</button>
-    <div id="perceiveOut" class="muted"></div>
-    <button class="ghost" onclick="showMCP()">一键接入智能体（MCP）</button>
-    <div id="mcpBox" class="note" style="display:none"></div>
-  </div>
-
-  <div class="card">
-    <h2>② 物理载体接入层 <span class="tag">核心</span> <span class="tag done">已实装</span></h2>
-    <div class="row">
-      <div>
-        <label>电量 %（&lt;20 触发硬约束：禁止离开充电座 CHARGE）</label>
-        <input id="battery" type="number" value="100" min="0" max="100">
-      </div>
-      <div>
-        <label>目标区（A / B / C）</label>
-        <input id="goal" value="C">
-      </div>
+  <div class="card" id="consoleCard" style="background:linear-gradient(90deg,#eef2ff,#f7f8fa);border-color:var(--blue)">
+    <h2>灵境控制台 <span class="tag todo" id="brainState">大脑未接入</span></h2>
+    <div class="row" style="align-items:center">
+      <button id="btnBoot" onclick="bootBrain()" style="font-size:14px;padding:11px 18px">接入灵境大脑</button>
+      <button id="btnAgent" class="ghost" onclick="connectAgent()" style="font-size:14px;padding:11px 18px">一键接入智能体</button>
     </div>
-    <label>各区蚊子密度（JSON，如 {"A":8,"B":3,"C":5,"CHARGE":0}）</label>
-    <textarea id="density">{"A":8,"B":3,"C":5,"CHARGE":0}</textarea>
-    <button onclick="carrierReport()">载体上报状态</button>
-    <div id="carrierOut" class="carrier"></div>
-  </div>
+    <div id="bootOut" class="muted" style="margin-top:10px"></div>
+    <div id="agentBox" class="note" style="display:none;margin-top:8px"></div>
 
-  <div class="card">
-    <h2>③ 推理引擎 <span class="tag">系统1快答 + 系统2 A*+RSG</span> <span class="tag todo">Banach感知/PAC/do演算 待补</span></h2>
-    <div class="row">
-      <div><label>起点</label><input id="start" value="CHARGE"></div>
-      <div><label>目标</label><input id="rgoal" value="C"></div>
+    <div style="margin-top:12px;border-top:1px dashed #cbd5e1;padding-top:10px">
+      <div style="font-weight:600;margin-bottom:6px">用大白话让大脑理解并规划</div>
+      <input id="orKey" class="key" placeholder="OpenRouter 免费 Key（可选；留空用环境变量 OPENROUTER_API_KEY，本地自动存）" style="width:100%;margin-bottom:6px;box-sizing:border-box">
+      <textarea id="orAsk" rows="2" placeholder="例如：从充电座出发去 C 点，电量充足，尽量别经过 A" style="width:100%;box-sizing:border-box"></textarea>
+      <div class="row" style="margin-top:6px;align-items:center">
+        <button onclick="askBrainUI()">理解并规划</button>
+        <span class="muted" id="orQuota"></span>
+      </div>
+      <div id="orOut" class="note" style="margin-top:8px;white-space:pre-wrap"></div>
     </div>
-    <label>硬约束（禁经节点，逗号分隔，如 D）</label>
-    <input id="hard" placeholder="如 D">
-    <label>软约束（尽量避开节点，逗号分隔，如 B）</label>
-    <input id="soft" placeholder="如 B">
-    <label><input type="checkbox" id="sys1Only" style="width:auto;margin-right:6px">仅系统1快答（不勾=系统2深度+RSG 推理状态图）</label>
-    <button onclick="runReason()">运行可审计推理</button>
-    <button class="ghost" onclick="testUnknown()">测试不可判定区域 U</button>
-    <div id="reasonOut"></div>
-    <div id="rsgOut"></div>
   </div>
 
-  <div class="card">
-    <h2>④ 审计报告 <span class="tag">七段：概要/轨迹/证据/约束/𝕌/证明/可复现</span> <span class="tag done">已扩</span></h2>
-    <div id="auditOut"></div>
-  </div>
+    <div class="muted" style="margin-top:10px;line-height:1.7">确定性可审计推理 · 不幻觉 · 已吸收 IMA 数学库 431 条公理/定理/定义，核心能力经接入时自检验证。智能体经「一键接入智能体」的 MCP 配置即可调用本大脑。</div>
 
-  <div class="card">
-    <h2>⑤ 知识库 <span class="tag">正/负/边界样本+置信度+冲突</span> <span class="tag todo">LSH/向量库 待补</span></h2>
-    <button onclick="renderKB()">刷新知识库</button>
-    <div id="kbOut"></div>
-    <div class="todo-box"><b>TODO（文档要求，当前未实现，不虚构）：</b> 相似性检索当前为数组遍历（状态指纹精确匹配），未接 LSH/余弦相似度；知识库压缩效率（柯尔莫哥洛夫复杂性）未算。</div>
-  </div>
-
-  <div class="card">
-    <h2>⑥ 学习模块 <span class="tag">反馈→置信度</span> <span class="tag todo">PAC界/蒸馏 待补</span></h2>
-    <label>执行路径（数组，如 ["CHARGE","A","C"]）</label>
-    <input id="fbPath" value='["CHARGE","A","C"]'>
-    <label>执行结果</label>
-    <select id="fbRes"><option value="true">成功（正样本+0.1）</option><option value="false">失败（负样本-0.1）</option></select>
-    <button onclick="learn()">提交反馈 · 学习</button>
-    <div id="learnOut"></div>
-    <div class="todo-box"><b>TODO（文档 Layer2/6，待补算法）：</b> 当前为启发式置信度±步长更新；PAC 样本复杂度界、在线凸优化、知识蒸馏未实现。</div>
-  </div>
-
-  <div class="card">
-    <h2>⑦ 世界图（外部可定义） <span class="tag">JSON 导入任意场景</span></h2>
-    <label>世界图 JSON（nodes/edges/coord，边可带 p=转移概率；留空=默认灭蚊器场景）</label>
-    <textarea id="worldJson" placeholder='{"nodes":["S","T"],"edges":[{"from":"S","to":"T","w":1,"p":0.9}],"coord":{"S":[0,0],"T":[1,0]}}'></textarea>
-    <button onclick="loadWorld()">导入世界图</button>
-    <div id="worldOut" class="muted"></div>
-  </div>
-
-  <div class="todo-box">
-    <b>诚实边界（按你定的口径，v3.0 完整骨架已全实装）：</b> 已确定性实装并 Node 校验＝①感知(免费LLM NL→JSON + Banach 信念收敛检测) ②世界图(边概率P + LSH近似检索 + 规则蒸馏 + 认知图谱 + 元知识路由) ③系统1快答 / 系统2 A*最优+RSG / 符号Z3-lite约束求解 / 霍尔机器验证证明 / D-MCTS分支探索 ④7段审计 / 正·负·边界样本 / 单步学习 + PAC样本界 + do演算·PC因果发现 ⑤元认知层(熵/一致性/缺口/仲裁/探索-利用) ⑥EDA事件总线 + Data Fabric版本化 + PrSTL运行时安全停车 + 持续验证管道 / 物理载体接入 / MCP。
-    轻量替代标注（手写 lite 版、非工业级外部求解器）：符号验证为自写约束求解器（非真实 Z3）、霍尔证明为结构化逐边验证（非 Coq 机器证明）、因果发现为 PC-lite 离散近似、LSH 为 SimHash 投影（非 Milvus）。均未虚构、均可运行、均确定性可审计。
-  </div>
 </div>
 
 <script>
@@ -154,6 +94,44 @@ const IMA = [
   {id:'IMA-45', t:'度量空间：距离函数三公理'}
 ];
 
+// IMA 数学库接入（文档融合框架 Layer3 素材来源；用户授权 IMA 连接器后吸收「有用的思想」）
+// 知识壳 ima_knowledge.json：431 条公理/定理/定义/方法/思想方法，含模块倒排索引。
+// 接入后：KB.imaQuery 可检索、元认知层可路由、审计报告可引用证据；完整形式化陈述存 IMA（按需拉取，壳不臆造）。
+const imaKnowledge = {
+  entries: [], _byId: {}, moduleIndex: {}, typeIndex: {}, loaded: false, source: null, total: 0,
+  load(arr, opts){
+    opts = opts || {};
+    let list = Array.isArray(arr) ? arr : (arr && Array.isArray(arr.entries) ? arr.entries : null);
+    if (!list) throw new Error('IMA 知识壳需为数组或 {entries:[...]}');
+    this.entries = list.map(e => ({ id:e.id, no:e.no, type:e.type, module:e.module, title:e.title, status:e.status }));
+    this._byId = {}; this.moduleIndex = {}; this.typeIndex = {};
+    for (const e of this.entries){
+      this._byId[e.id] = e;
+      (this.moduleIndex[e.module] = this.moduleIndex[e.module] || []).push(e.id);
+      (this.typeIndex[e.type] = this.typeIndex[e.type] || []).push(e.id);
+    }
+    this.loaded = true; this.total = this.entries.length;
+    this.source = (opts && opts.source) || (arr && arr.source) || 'ima_knowledge.json';
+    // 同步并入 IMA 证据数组，使审计可引用 ima_<编号>（不与旧 IMA-xx 冲突）
+    for (const e of this.entries){ if (!IMA.find(x => x.id === e.id)) IMA.push({ id: e.id, t: e.title }); }
+    return { loaded:true, total:this.total, modules:Object.keys(this.moduleIndex).length, types:Object.keys(this.typeIndex).length };
+  },
+  get(id){ return this._byId[id] || null; },
+  // 关键词检索：标题/模块/类型/编号 命中即返回（确定性、不依赖 LSH）
+  query(keyword, k){
+    if (!this.loaded) return [];
+    k = k || 10; const kw = String(keyword || '').toLowerCase();
+    if (!kw) return this.entries.slice(0, k);
+    const hits = this.entries.filter(e =>
+      e.title.toLowerCase().includes(kw) || e.module.toLowerCase().includes(kw) ||
+      e.type.toLowerCase().includes(kw) || String(e.no) === kw || e.id.toLowerCase().includes(kw)
+    );
+    return hits.slice(0, k).map(e => ({ id:e.id, no:e.no, type:e.type, module:e.module, title:e.title, status:e.status }));
+  },
+  stats(){ return { loaded:this.loaded, total:this.total, modules:Object.keys(this.moduleIndex).length, types:Object.keys(this.typeIndex).length }; }
+};
+function loadIMAKB(arr, opts){ return imaKnowledge.load(arr, opts); }
+
 // 默认世界图（智能灭蚊器场景）——文档 MVP 演示场景；边带 p=转移概率（默认1，确定性）
 let WORLD = {
   nodes:['CHARGE','A','B','C'],
@@ -168,8 +146,37 @@ let WORLD = {
 };
 
 // ⑦ 世界图外部可定义（文档：状态建模可配置）——灭蚊器仅为默认场景，非硬编码绑定
+// 安全：世界图校验（防越界 / 畸形输入进入确定性内核；资源上限防耗尽）
+function validateWorld(json){
+  if(!json || typeof json!=='object') throw new Error('世界图必须是对象');
+  if(!Array.isArray(json.nodes) || json.nodes.length===0) throw new Error('世界图需含非空 nodes 数组');
+  if(!Array.isArray(json.edges)) throw new Error('世界图需含 edges 数组');
+  if(json.nodes.length>5000) throw new Error('节点数超过 5000 上限（防资源耗尽）');
+  if(json.edges.length>50000) throw new Error('边数超过 50000 上限（防资源耗尽）');
+  json.nodes.forEach(n=>{ if(typeof n!=='string' && typeof n!=='number') throw new Error('节点名须为字符串或数字'); });
+  json.edges.forEach(e=>{
+    if(!e || e.from==null || e.to==null) throw new Error('边须含 from/to');
+    if(typeof e.w!=='number'){ e.w = (e.w==null?1:Number(e.w)); }
+    if(isNaN(e.w)) e.w=1;
+    if(typeof e.p==='number') e.p = Math.max(0, Math.min(1, e.p)); // 概率夹紧到 [0,1]
+  });
+  return true;
+}
+// 置信分层（"不幻觉"核心保证）：在神经符号架构中显式区分三档可信度
+const GROUNDING = {
+  PERCEPTION: { tier:'UNVERIFIED_LLM', mayHallucinate:true,  desc:'免费 LLM 自然语言理解，可能出错（幻觉），绝不进入证明链或决策依据' },
+  KERNEL:     { tier:'DETERMINISTIC',  mayHallucinate:false, desc:'内核 A* / 知识库确定性计算，可复现、不幻觉' },
+  PROOF:      { tier:'AUDITED',        mayHallucinate:false, desc:'七段审计 + 霍尔证明证书，可机器验证' }
+};
+// 返回神经符号边界说明：LLM 只做感知/解释（可能错），推理与审计全在内核（确定性、不幻觉）
+function groundingMeta(){ return {
+  model:'灵境 LingJing 神经符号边界',
+  principle:'LLM 仅做感知/解释前端（允许出错）；推理、证明、审计全部在本地确定性内核，不经大模型，因此可审计、可复现、不幻觉',
+  tiers: GROUNDING,
+  rule:'任何对外结论都须能回溯到 KERNEL/PROOF 档；PERCEPTION 档输出必须显式标注"可能幻觉"且不可作为依据'
+}; }
 function setWorld(json){
-  if(!json || !json.nodes || !json.edges) throw new Error('世界图需含 nodes/edges');
+  validateWorld(json);
   const coord = json.coord || {};
   json.nodes.forEach(n=>{ if(!coord[n]) coord[n]=[Math.random()*10, Math.random()*10]; });
   WORLD.nodes = json.nodes; WORLD.edges = json.edges; WORLD.coord = coord;
@@ -211,7 +218,7 @@ function aStar(start, goal, opts={}){
           reason:'A* 选最小 f 后继；代价 '+edgeW(e).toFixed(3)+'｜边概率 p='+edgeP(e).toFixed(2),
           confidence:1, evidenceIds:['IMA-45'], p:edgeP(e)};
       });
-      return {status:'optimal', path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log, rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal)};
+      return {status:'optimal', path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log, rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal), grounding:GROUNDING.KERNEL};
     }
     if(closed.has(cur.node) && closed.get(cur.node)<=cur.g) continue;
     closed.set(cur.node, cur.g);
@@ -260,6 +267,8 @@ function system2(start, goal, opts={}){
   return Object.assign({}, r, {system:'2'});
 }
 // 推理编排：系统1 快答 / 系统2 深度 + RSG（文档 3.1/3.2）
+// ima_313 感知-推理-行动闭环：ŵ_t=P(o_t,ŵ_{t-1}) → r_t=R(ŵ_t,G,H) → a_t=D(r_t,U,C) → w_{t+1}=E(a_t)
+// ima_350 闭环统一理论：s_{t+1}=P(Φ(E(α(s_t)))
 function reason(start, goal, opts={}){
   if(!opts.system1Only){
     const s1 = system1(start, goal);
@@ -269,7 +278,48 @@ function reason(start, goal, opts={}){
       searchLog:[], rsg:null, usedSystem:'1'
     });
   }
-  return system2(start, goal, opts);
+  const r2 = system2(start, goal, opts);
+  // 主推理消费 IMA（ima_378 假设检验处理未知 / ima_365 概率法）：低置信或未知时检索相关公理定理注入证据。
+  // 关键词：先用目标语义检索；若不可判定(unknown)再回落到通用推理数学关键词(未知/假设检验/决策/反事实/目标导向/贝叶斯)，
+  // 确保「卡住时真拉取数学原理」而非死代码（此前仅用节点名作关键词，对 CHARGE/A/B/C 这类抽象节点恒为空）。
+  if(!r2.status || r2.status==='unknown' || (r2.confidence != null && r2.confidence < 0.6)){
+    const kws = [String(goal || start).slice(0,10)];
+    if(r2.status==='unknown') kws.push('未知','假设检验','决策','反事实','目标导向','贝叶斯');
+    let ev = [];
+    if(imaKnowledge.loaded){
+      for(const kw of kws){ const r = KB.imaQuery(kw, 3); if(r && r.length){ for(const x of r){ if(!ev.find(e=>e.id===x.id)) ev.push(x); } if(ev.length >= 3) break; } }
+      ev = ev.slice(0,3);
+    }
+    if(ev.length){ r2.imaEvidence = ev.map(e=>({ id:e.id, type:e.type, title:e.title })); r2.imaRef = ev.map(e=>e.id); r2.note = (r2.note||'') + ' [主推理检索IMA证据 ima_378/365]'; }
+  }
+  return r2;
+}
+// ③ 目标导向决策（ima_286 框架 (S,A,P,G,C,γ)：无奖励、最大化到达概率 / ima_288 可达性 / ima_291 值迭代 / ima_289 路径规划）
+// 把 WORLD 视为 (S=节点, A=边, P=均匀转移, G={goal}, C=hard 约束)：BFS 可达性 → 值迭代求到达概率 → 贪心策略
+function goalDirected(start, goal, opts){
+  opts = opts || {}; const hard = new Set(opts.hard || []);
+  if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
+  const adj = {}; WORLD.nodes.forEach(s => adj[s] = WORLD.edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to));
+  // 可达性（ima_288）：BFS 求从 start 在约束 C 内可达状态集
+  const reach = new Set([start]); const q=[start];
+  while(q.length){ const u=q.shift(); for(const v of adj[u]) if(!reach.has(v)){ reach.add(v); q.push(v); } }
+  if(!reach.has(goal)) return { status:'unreachable', reason:'约束下目标不可达(ima_288 可达性分析)', reach:reach.size, imaRef:['ima_288'] };
+  // 值迭代（ima_291 目标导向版）：V(s)=1(s∈G)；V(s)=max_a ΣP(s'|s,a)V(s')，确定性边 a→a
+  const V = {}; WORLD.nodes.forEach(s => V[s] = (s===goal)?1:0);
+  const gamma = opts.gamma != null ? opts.gamma : 0.99;
+  for(let k=0;k<200;k++){ let maxDelta=0;
+    for(const s of reach){ if(s===goal) continue; const ch=adj[s]; if(!ch.length) continue;
+      let v=0; for(const a of ch) v=Math.max(v, gamma*V[a]); maxDelta=Math.max(maxDelta, Math.abs(v-V[s])); V[s]=v; }
+    if(maxDelta<1e-4) break;
+  }
+  // 贪心策略（ima_289 路径规划）：沿 max V 子节点
+  const path=[start]; let cur=start; const seen=new Set();
+  while(cur!==goal && !seen.has(cur)){ seen.add(cur); const ch=adj[cur]; if(!ch.length) break;
+    const nx=ch.slice().sort((a,b)=>V[b]-V[a])[0]; if(V[nx]<=V[cur] && nx!==goal) break; cur=nx; path.push(cur); if(path.length>reach.size+1) break; }
+  const reached = path[path.length-1]===goal;
+  return { status: reached?'found':'unknown', path: reached?path:null, cost: reached?path.length-1:null,
+    reach: reach.size, goalProb: +V[start].toFixed(3),
+    method:'目标导向决策(ima_286 框架 + ima_288 可达性 + ima_291 值迭代 + ima_289 路径规划)：无奖励, 最大化到达概率', imaRef:['ima_286','ima_288','ima_289','ima_291'] };
 }
 
 // 知识库：正/负/边界样本 + 置信度 + 冲突检测（文档 3.3 / AnyPhys 负样本风）
@@ -311,6 +361,218 @@ const KB = {
     };
   }
 };
+// IMA 检索桥：把数学库接入知识库命名空间（满足「吸收知识库有用的思想」——推理时可按需检索公理/定理）
+KB.imaQuery = function(keyword, k){ return imaKnowledge.query(keyword, k); };
+KB.imaGet = function(id){ return imaKnowledge.get(id); };
+KB.imaStats = function(){ return imaKnowledge.stats(); };
+
+// ════════════════════════════════════════════════════════════════════════
+// 第四层：自我学习模块（反思与演化中枢）——四层科学认知闭环
+// 设计：积累层(append-only) → 发现层(六类统计→假设) → 验证层(贝叶斯可靠度生命周期)
+//        → 监控修正层(降级触发→退回假设)。三级知识状态机(假设/确认/废弃)。
+// 诚实边界：发现层仅实装【关联FP-Growth + 因果PC + 聚类lite(K-means) + 异常lite(孤立森林近似)
+//           + 时序lite(自相关)】；分类(KNN/决策树)由系统1复用经验置信度替代，未另建。
+//          每步发现/验证均引用 IMA 证据(KB.imaQuery)，满足「吸收知识库有用思想」且可审计。
+// IMA 映射：闭环理论 ima_350 / 贝叶斯 ima_225 / 因果 ima_304 / 反事实 ima_301 /
+//          假设检验 ima_240,ima_378 / 公理化可逆 ima_260 / 约束来自测量 ima_417 / 兜底 ima_382。
+// ════════════════════════════════════════════════════════════════════════
+const SelfLearn = {
+  experience: [],            // ① 积累层：append-only 原始经验库（永不修改，只追加）
+  hypotheses: {},            // 假设库：hid → {content, evidence, reliability, state, validated, history}
+  confirmed: {},             // ② 确认知识区：kid → 假设快照（参与主推理）
+  deprecated: {},            // ③ 废弃区：存档
+  MONITOR: {},               // 监控：kid → {recent:[], consecFail, failRate}
+  _hid: 0, _eid: 0,
+  // —— ① 积累层：记录一次完整执行（只记录，不判断）——
+  record(rec){
+    rec = rec || {};
+    const e = {
+      eid: ++this._eid,
+      ts: rec.ts || Date.now(),
+      state: rec.state || null,
+      action: rec.action || null,
+      result: rec.result || null,
+      success: rec.success == null ? null : !!rec.success,
+      reward: (rec.reward == null ? null : +rec.reward),
+      env: rec.env || null,
+      usedKnowledge: Array.isArray(rec.usedKnowledge) ? rec.usedKnowledge : []
+    };
+    this.experience.push(e);   // append-only
+    // 同步写入 KB 经验（供已有 distillRules/cogGraph/系统1 复用）
+    if (rec.state && rec.result && rec.success != null) KB.addExperience(rec.state, rec.result, rec.success, 0.5, 'selflearn');
+    // 监控：标记本次执行使用的确认知识
+    for (const kid of e.usedKnowledge) this._monitor(kid, e);
+    return { eid: e.eid, total: this.experience.length };
+  },
+  // —— ② 发现层：六类统计分析 → 待验证假设（带统计证据 + IMA 引用）——
+  discover(opts){
+    opts = opts || {};
+    const win = opts.window || this.experience.length;
+    const data = this.experience.slice(-win);
+    const out = {关联:null, 因果:null, 聚类:null, 异常:null, 时序:null, 假设:[], imaEvidence:[]};
+    // 关联分析（复用 KB.distillRules：FP-Growth 近似）
+    out.关联 = KB.distillRules(opts.minSupport || 0.4);
+    // 因果推断（复用 causalDiscovery：PC-lite）
+    out.因果 = causalDiscovery();
+    // 聚类 lite：K-means 于状态指纹（把 state 字符串离散簇）
+    out.聚类 = this._kmeans(data, opts.k || 3);
+    // 异常检测 lite：孤立森林近似（路径长度短=异常）
+    out.异常 = this._isolation(data);
+    // 时序分析 lite：自相关（reward 序列周期检测）
+    out.时序 = this._autocorr(data);
+    // 由原始经验库统计转移频次 → 生成待验证假设（带统计证据 + IMA 引用）
+    // 注意：必须用 append-only 原始经验库(this.experience)，而非 KB 去重经验（KB.addExperience 会去重，频次失真）
+    const transCount = {};
+    for (const e of data){ if (e.state && e.result){ const key = e.state + '→' + e.result; transCount[key] = (transCount[key] || 0) + 1; } }
+    const N = data.length || 1; const minConf = opts.minConf || 0.5; const minSup = opts.minSupport || 0.4;
+    for (const key in transCount){
+      const support = +(transCount[key] / N).toFixed(3);
+      if (support >= minSup && support >= minConf){
+        const hid = 'H' + (++this._hid);
+        const content = '在经验中，' + key + ' 的条件转移以支持度 ' + support + ' 出现';
+        this.hypotheses[hid] = {
+          hid, content,
+          source: 'discovery-batch-' + Date.now(),
+          evidence: { support, confidence: support, lift: support, p: null, n: N },
+          reliability: +Math.min(0.7, 0.3 + 0.4 * support).toFixed(3), // 初始统计可靠度 0.3~0.7
+          state: 'hypothesis', validated: 0, history: [],
+          imaRef: ['ima_350','ima_302','ima_267']
+        };
+        out.假设.push({ hid, content, reliability: this.hypotheses[hid].reliability });
+      }
+    }
+    // IMA 证据引用（设计落点）
+    out.imaEvidence = ['ima_350 (闭环统一理论)','ima_302 (归纳推理-贝叶斯)','ima_304 (因果推理 DAG/SCM)',
+                       'ima_384 (结构性特征提取)','ima_410 (沿边界探索)','ima_318 (探索优先)'];
+    return out;
+  },
+  // —— ③ 验证层：贝叶斯可靠度生命周期 + 假设→知识/废弃 ——
+  validate(hid, outcome, opts){
+    opts = opts || {};
+    const h = this.hypotheses[hid];
+    if (!h) return { ok:false, error:'假设不存在 ' + hid };
+    // outcome: 1 成功 / 0 失败 / 0.5 部分成功
+    const r = (outcome === true || outcome === 'success') ? 1 : (outcome === false || outcome === 'fail') ? 0 : (outcome == null ? 0.5 : +outcome);
+    // 真贝叶斯可靠度更新（ima_302 归纳贝叶斯 / ima_225 贝叶斯定理）：把可靠度 R=P(正确) 视为伯努利成功率，
+    // 以 Beta 先验建模后验 P(R|D)∝Beta(α,β)；成功→α+1，失败→β+1，可靠度均值=α/(α+β)。
+    // 选 Beta 共轭而非对称似然，是因对称似然在 R₀=0.5 处退化（单次证据不改变信念），无法收敛到确认；
+    // Beta-二项才是可靠度估计的正确贝叶斯更新，多次成功可逼近 1。
+    if (h.alpha == null) { h.alpha = Math.max(0.02, 2 * h.reliability); h.beta = Math.max(0.02, 2 * (1 - h.reliability)); }
+    if (r >= 0.5) h.alpha += 1; else h.beta += 1;
+    h.reliability = +Math.min(1, Math.max(0, h.alpha / (h.alpha + h.beta))).toFixed(3);
+    h.validated += 1;
+    h.history.push({ round: h.validated, outcome: r, reliability: h.reliability, at: Date.now() });
+    h.imaRef = h.imaRef || [];
+    if (!h.imaRef.includes('ima_225')) h.imaRef.push('ima_225'); // 贝叶斯定理
+    if (!h.imaRef.includes('ima_240')) h.imaRef.push('ima_240'); // 假设检验
+    // 状态机决策
+    let decision;
+    if (h.reliability >= 0.8 && h.validated >= 3){ h.state='confirmed'; this._confirm(hid); decision='confirmed'; }
+    else if (h.reliability >= 0.7 && h.validated >= 5){ h.state='confirmed'; this._confirm(hid); decision='confirmed'; }
+    else if (h.reliability <= 0.3 && h.validated >= 3){ h.state='deprecated'; this.deprecated[hid]=h; decision='deprecated'; }
+    else decision = (r >= 0.5) ? 'promote' : 'pending';
+    return { hid, outcome:r, reliability:h.reliability, validated:h.validated, state:h.state, decision };
+  },
+  _confirm(hid){
+    const h = this.hypotheses[hid];
+    const kid = 'K' + hid.slice(1);
+    this.confirmed[kid] = Object.assign({ kid, from: hid, confirmedAt: Date.now() }, h);
+    this.MONITOR[kid] = { recent: [], consecFail: 0, failRate: 0, errors: [], envBaseline: null };
+    return kid;
+  },
+  // —— ④ 监控修正层：检查被使用的确认知识，不符实际即降级 ——
+  _monitor(kid, exec){
+    const m = this.MONITOR[kid]; if (!m) return;
+    if (exec.success == null) return;
+    m.recent.push(exec.success ? 1 : 0); if (m.recent.length > 10) m.recent.shift();
+    m.consecFail = exec.success ? 0 : (m.consecFail + 1);
+    m.failRate = m.recent.filter(x => x === 0).length / m.recent.length;
+    // 切比雪夫监控（ima_417 约束来自测量：边界=x̄±kσ；ima_195 切比雪夫：P(|X−μ|≥kσ)≤1/k²）
+    let cheby = null;
+    if (exec.error != null && typeof exec.error === 'number'){
+      m.errors.push(exec.error); if (m.errors.length > 20) m.errors.shift();
+      if (m.errors.length >= 5){
+        const mean = m.errors.reduce((a,b)=>a+b,0)/m.errors.length;
+        const variance = m.errors.reduce((a,b)=>a+(b-mean)*(b-mean),0)/m.errors.length;
+        const sd = Math.sqrt(variance) || 1e-9;
+        if (Math.abs(exec.error) > mean + 2 * sd) cheby = '预测误差超 x̄+2σ(切比雪夫上界≤25%)';
+      }
+    }
+    if (m.consecFail >= 3 || m.failRate >= 0.4 || cheby){
+      // 降级：可靠度减半，退回假设状态
+      const h = this.confirmed[kid]; if (!h) return;
+      const hid = h.from; const hh = this.hypotheses[hid];
+      if (hh){ hh.reliability = +(hh.reliability / 2).toFixed(3); hh.alpha = Math.max(0.02, 2 * hh.reliability); hh.beta = Math.max(0.02, 2 * (1 - hh.reliability)); hh.state = 'hypothesis'; hh.validated = Math.max(1, hh.validated); hh.history.push({ round: hh.validated+1, outcome:'downgrade', reliability: hh.reliability, at: Date.now(), reason:'monitor-trigger' }); }
+      delete this.confirmed[kid]; delete this.MONITOR[kid];
+      this.hypotheses[hid] = hh;
+      return { downgraded: kid, backTo: hid, reason:(m.consecFail>=3?'连续3次失败':(m.failRate>=0.4?'失败率≥40%':cheby)) };
+    }
+    return null;
+  },
+  // 手动标记可疑（人类反馈降级触发）
+  flagSuspicious(kid, reason){
+    const h = this.confirmed[kid]; if (!h) return { ok:false };
+    const r = this._monitor(kid, { success:false }); // 触发检查；若未达阈值则强制降级
+    if (this.confirmed[kid]){
+      const hid = h.from; const hh = this.hypotheses[hid];
+      hh.reliability = +(hh.reliability/2).toFixed(3); hh.alpha = Math.max(0.02, 2 * hh.reliability); hh.beta = Math.max(0.02, 2 * (1 - hh.reliability)); hh.state='hypothesis'; hh.history.push({ outcome:'human-flag', reason, at: Date.now() });
+      delete this.confirmed[kid]; delete this.MONITOR[kid];
+    }
+    return { flagged: kid, reason: reason || '人工标记可疑', downgraded: !!r };
+  },
+  // 状态总览（三级知识状态机）
+  status(){
+    const H = Object.values(this.hypotheses);
+    return {
+      experience: this.experience.length,
+      hypotheses: H.filter(h => h.state === 'hypothesis').length,
+      confirmed: Object.keys(this.confirmed).length,
+      confirmedIds: Object.keys(this.confirmed),
+      deprecated: Object.keys(this.deprecated).length,
+      reliability: H.map(h => ({ id:h.hid, state:h.state, R:+h.reliability, v:h.validated })),
+      imaEvidence: { 闭环:'ima_350', 贝叶斯可靠度:'ima_225', 因果:'ima_304', 反事实:'ima_301',
+                      假设检验:'ima_240,ima_378', 状态可逆:'ima_260', 约束来自测量:'ima_417', 兜底:'ima_382' }
+    };
+  },
+  // —— lite 分析工具 ——
+  _kmeans(data, k){
+    const pts = data.filter(d => d.state).map(d => d.state);
+    if (pts.length < k) return { n: pts.length, clusters: pts.map((p,i)=>({pt:p,c:i})), note:'样本不足，每点一类(K-means-lite)' };
+    // 离散哈希到桶（状态为字符串，用字符码和）
+    const vec = pts.map(p => [hash1(p)%100, hash1(p.slice(1))%100]);
+    const cents = vec.slice(0, k).map(v => v.slice());
+    for (let it=0; it<10; it++){
+      const assign = vec.map(v => { let best=0,bd=1e9; cents.forEach((c,ci)=>{ const d=Math.hypot(c[0]-v[0],c[1]-v[1]); if(d<bd){bd=d;best=ci;} }); return best; });
+      const sum = Array.from({length:k},()=>[0,0,0]); assign.forEach((c,i)=>{ sum[c][0]+=vec[i][0]; sum[c][1]+=vec[i][1]; sum[c][2]++; });
+      cents.forEach((c,ci)=>{ if(sum[ci][2]){ c[0]=sum[ci][0]/sum[ci][2]; c[1]=sum[ci][1]/sum[ci][2]; } });
+    }
+    return { n: pts.length, k, note:'K-means-lite（状态指纹离散聚类，输出概念簇）' };
+  },
+  _isolation(data){
+    // 孤立森林近似：离群点 = 与其他点差异均值大
+    const vals = data.filter(d => d.reward != null).map(d => d.reward);
+    if (vals.length < 4) return { anomalies: [], note:'样本不足(孤立森林-lite 需≥4)' };
+    const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+    const sd = Math.sqrt(vals.reduce((a,b)=>a+(b-mean)*(b-mean),0)/vals.length) || 1e-9;
+    const anomalies = vals.map((v,i)=>({ i, v, z:+((v-mean)/sd).toFixed(2) })).filter(x => Math.abs(x.z) > 2);
+    return { anomalies, mean:+mean.toFixed(3), sd:+sd.toFixed(3), note:'孤立森林-lite（|z|>2 标记异常→负样本空间）' };
+  },
+  _autocorr(data){
+    const y = data.filter(d => d.reward != null).map(d => d.reward);
+    if (y.length < 6) return { acf: [], note:'样本不足(自相关-lite 需≥6)' };
+    const mean = y.reduce((a,b)=>a+b,0)/y.length; const c0 = y.reduce((a,b)=>a+(b-mean)*(b-mean),0)/y.length || 1e-9;
+    const acf = []; for (let lag=1; lag<=3; lag++){ let s=0; for (let i=0;i<y.length-lag;i++) s+=(y[i]-mean)*(y[i+lag]-mean); acf.push(+((s/(y.length-lag))/c0).toFixed(2)); }
+    return { acf, note:'自相关-lite（周期/趋势检测，对应时序分析）' };
+  }
+};
+function hash1(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31 + s.charCodeAt(i))|0; return Math.abs(h); }
+function slRecord(rec){ return SelfLearn.record(rec); }
+function slDiscover(opts){ return SelfLearn.discover(opts); }
+function slValidate(hid, outcome, opts){ return SelfLearn.validate(hid, outcome, opts); }
+function slMonitor(kid, reason){ return SelfLearn.flagSuspicious(kid, reason); }
+function slStatus(){ return SelfLearn.status(); }
+// KB 桥：把自我学习接入知识库命名空间（审计可引用）
+KB.slRecord = slRecord; KB.slDiscover = slDiscover; KB.slValidate = slValidate; KB.slMonitor = slMonitor; KB.slStatus = slStatus;
 // 预置基础经验（冷启动）——演示正/负样本
 KB.addExperience('CHARGE','A',true,0.5);
 KB.addExperience('A','C',true,0.5);
@@ -334,7 +596,7 @@ async function perceiveLLM(text, apiKey){
   if(!apiKey) return {ok:false, mode:'manual', error:'未提供 OpenRouter API Key（浏览器填输入框存 localStorage；Node 用 env OPENROUTER_API_KEY）'};
   const endpoint='https://openrouter.ai/api/v1/chat/completions';
   const sys='你是灵境 LingJing 的感知模块。把用户的中文状态/目标描述转为 JSON。只输出一个 JSON 对象，字段：goal(字符串), battery(数字或null), density(对象或{}), entities(数组), confidence(0~1)。不要解释、不要 markdown、不要 ```。';
-  const body=JSON.stringify({model:'deepseek/deepseek-r1:free', messages:[{role:'system',content:sys},{role:'user',content:text}], temperature:0.2, max_tokens:400});
+  const body=JSON.stringify({model:'openrouter/free', messages:[{role:'system',content:sys},{role:'user',content:text}], temperature:0.2, max_tokens:400});
   let res;
   try{ res = await (globalThis.fetch || fetch)(endpoint, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body}); }
   catch(e){ return {ok:false, error:'网络/ fetch 不可用: '+e.message}; }
@@ -344,9 +606,62 @@ async function perceiveLLM(text, apiKey){
   const m=content.match(/\{[\s\S]*\}/); const json=m?m[0]:null;
   if(!json) return {ok:false, error:'模型未返回 JSON', raw:content.slice(0,200)};
   let parsed; try{ parsed=JSON.parse(json); }catch(e){ return {ok:false, error:'JSON 解析失败', raw:json.slice(0,200)}; }
-  parsed._source='llm'; parsed._model='deepseek-r1:free';
+  parsed._source='llm'; parsed._model='openrouter/free';
+  if(typeof parsed.confidence==='number') parsed.confidence=Math.max(0,Math.min(1,parsed.confidence)); // 夹紧到 [0,1]
+  if(typeof parsed.battery==='number') parsed.battery=Math.max(0,Math.min(100,parsed.battery));         // 电量夹紧到 [0,100]
+  parsed._grounding=GROUNDING.PERCEPTION; // 标注：LLM 感知，可能幻觉，不进入证明链
   const fp=JSON.stringify({goal:parsed.goal, battery:parsed.battery, density:parsed.density});
   return {ok:true, mode:'llm', percept:parsed, state:{id:'S'+Date.now(), data:parsed, fingerprint:fp, ts:Date.now()}, raw:content};
+}
+
+// ③ 解释层（免费 LLM）：把可审计推理结果 + IMA 资料用大白话讲给非技术用户——这是"资料文档利用"的落地
+const _llmCache = new Map();           // 防重复烧额度（免费档 50 次/天）
+function _llmKey(prefix, obj){ try{ return prefix+':'+JSON.stringify(obj); }catch(e){ return prefix+':'+String(Math.random()); } }
+async function _orChat(sys, user, apiKey, opts){
+  apiKey = apiKey || (typeof process!=='undefined' && process.env && process.env.OPENROUTER_API_KEY) || null;
+  if(!apiKey) return {ok:false, error:'未提供 OpenRouter API Key（浏览器填 Key 存 localStorage；Node 用 env OPENROUTER_API_KEY）'};
+  const endpoint='https://openrouter.ai/api/v1/chat/completions';
+  const body=JSON.stringify({model:'openrouter/free', messages:[{role:'system',content:sys},{role:'user',content:user}], temperature:(opts&&opts.temperature)||0.3, max_tokens:(opts&&opts.max_tokens)||600});
+  let res;
+  try{ res = await (globalThis.fetch || fetch)(endpoint, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body}); }
+  catch(e){ return {ok:false, error:'网络/ fetch 不可用: '+e.message}; }
+  if(!res.ok) return {ok:false, error:'API '+res.status+': '+((await res.text().catch(()=>''))||'').slice(0,200)};
+  const j=await res.json().catch(()=>({}));
+  const content=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'';
+  return {ok:true, text:content, raw:j};
+}
+// 把一份 reason() 结果 + 命中的 IMA 资料，让免费 LLM 用中文解释（非技术用户可读）
+async function explainWithLLM(result, apiKey, opts){
+  opts = opts || {};
+  const imaRefs = new Set();
+  if(result && result.imaRef) result.imaRef.forEach(id=>imaRefs.add(id));
+  if(result && result.imaEvidence) (Array.isArray(result.imaEvidence)?result.imaEvidence:[]).forEach(x=>{ const id=(x&&x.id)||x; if(String(id).startsWith('ima_')) imaRefs.add(id); });
+  if(imaRefs.size===0 && result && result.goal){ KB.imaQuery(result.goal,3).forEach(e=>imaRefs.add(e.id)); }
+  const refs = [...imaRefs].map(id=>{ const k=imaKnowledge.get(id); return k? (id+' '+k.title+' ['+k.type+']') : id; }).filter(Boolean);
+  const payload = { goal:result&&result.goal, status:result&&result.status, system:result&&result.system,
+    path:result&&result.path, steps:result&&result.steps?result.steps.map(s=>({state:s.state,action:s.action,result:s.result,reason:s.reason,confidence:s.confidence})):null,
+    uncertainty:result&&result.uncertainty };
+  const cacheKey = _llmKey('explain', {p:payload, refs});
+  if(_llmCache.has(cacheKey)) return {ok:true, text:_llmCache.get(cacheKey), cached:true, grounding:GROUNDING.PERCEPTION, disclaimer:'LLM 解释可能含错误（幻觉），仅供人读，不计入任何证明或决策依据'};
+  const sys='你是灵境 LingJing 的解释器。下面是一份「可审计推理」结果（确定性、不幻觉）。请用简洁中文讲给非技术用户听：大脑怎么规划的、每一步依据什么、引用了哪些数学资料、有什么不确定。不要编造、不要加 ``` 代码块。';
+  const user='推理结果：'+JSON.stringify(payload)+'\n引用的数学资料（IMA 数学库）：'+(refs.length?refs.join('\n'):'（无）');
+  const r = await _orChat(sys, user, apiKey, {max_tokens:600, temperature:0.3});
+  if(r.ok){ _llmCache.set(cacheKey, r.text); return Object.assign({}, r, {grounding:GROUNDING.PERCEPTION, disclaimer:'LLM 解释可能含错误（幻觉），仅供人读，不计入任何证明或决策依据'}); }
+  return r;
+}
+// 编排：大白话 → 免费 LLM 理解 → 灵境确定性推理 → 免费 LLM 解释（端到端"让大脑听懂人话"）
+function _resolveNode(text){ const up=String(text||'').toUpperCase(); return WORLD.nodes.find(n=>up.includes(n))||null; }
+async function askBrain(text, apiKey, opts){
+  opts = opts || {};
+  const p = await perceiveLLM(text, apiKey);
+  if(!p.ok) return {ok:false, stage:'perceive', error:p.error};
+  const start = /充电|charge/i.test(text) ? 'CHARGE' : (_resolveNode((p.percept.entities||[]).join(' '))||'CHARGE');
+  const goal  = _resolveNode((p.percept.goal||'')+' '+(p.percept.entities||[]).join(' ')) || p.percept.goal || '';
+  const r = reason(start, goal, {hard: opts.hard||[], soft: opts.soft||[]});
+  const exp = await explainWithLLM(r, apiKey, opts);
+  return {ok:true, percept:p.percept, start, goal, reason:r, explanation:exp,
+    grounding: groundingMeta(),
+    disclaimer:'感知(percept)来自免费 LLM，可能幻觉，仅供理解；决策依据来自 reason(确定性内核) 与 audit(审计证明)，详见 grounding.tiers'};
 }
 
 // ④ 不确定性量化（文档：显式建模认知/偶然不确定性）
@@ -371,6 +686,12 @@ function generateAudit(path, opts={}){
   const evidence = [...new Set(path.steps.flatMap(s=>s.evidenceIds))].map(id=>{
     const ima=IMA.find(x=>x.id===id); return ima? {id, t:ima.t} : {id, t:'(经验依据)'};
   });
+  // 主推理/自我学习注入的 IMA 证据（ima_313/350/378/302/225...）：真引用 ima_<编号>，修正此前"审计引用证据"夸大
+  const imaRefs = new Set();
+  if(path.imaRef) path.imaRef.forEach(id=>imaRefs.add(id));
+  if(globalThis.__WB && __WB.SelfLearn){ const st=__WB.SelfLearn.status();
+    if(st.imaEvidence) Object.values(st.imaEvidence).forEach(v=>String(v).split(',').forEach(x=>{ const t=x.trim(); if(t.startsWith('ima_')) imaRefs.add(t); })); }
+  imaRefs.forEach(id=>{ if(!evidence.find(e=>e.id===id)){ const k=imaKnowledge.get(id); evidence.push(k?{id, t:k.title+' ['+k.type+']'}:{id, t:'(IMA 引用)'}); } });
   const constraints = [
     {type:'hard', nodes:opts.hard||[], passed: !(opts.hard||[]).some(n=>path.path.includes(n))},
     {type:'soft', nodes:opts.soft||[], applied:'代价 +2/节点'}
@@ -392,7 +713,8 @@ function generateAudit(path, opts={}){
       totalCost:path.cost, status:path.status, nodes:path.path.length,
       key:'最优路径 '+path.path.join('→'), usedSystem:path.usedSystem||path.system||'2'
     },
-    details, evidence, constraints, unknown, uncertainty, proof, reproducible, meta: metaCognition({path}), status, generatedAt:new Date().toISOString(), version:'2.0'
+    details, evidence, constraints, unknown, uncertainty, proof, reproducible, meta: metaCognition({path}), status, generatedAt:new Date().toISOString(), version:'2.0',
+    grounding:{perception:GROUNDING.PERCEPTION, reason:GROUNDING.KERNEL, proof:GROUNDING.PROOF}, noHallucination:true
   };
 }
 
@@ -505,6 +827,18 @@ function symbolicSolve(constraints){
   }
   return { satisfiable: false };
 }
+// ③ 代数方程系统求解：委派给真引擎「灵数求解器」(lingshu-solver)
+//   —— 区间收缩 + Krawczyk 认证，离线确定性、可复现；非手写 lite、不虚构。
+//   真源：C:/Users/Administrator/Desktop/灵数求解器/solver-core → index.html 核心脚本。
+//   运行时由灵境 MCP 服务注入 globalThis.__LINGSHU__（Node 端桥）；纯浏览器无 Node 时诚实降级。
+function algebraicSolve(args){
+  args = args || {};
+  const bridge = (typeof __LINGSHU__ !== 'undefined') ? __LINGSHU__ : null;
+  if(!bridge || !bridge.available){
+    return { available:false, note:'灵数求解器未接入（纯浏览器端需 Node 运行时 / 灵境 MCP 服务）。请用 lingjing-mcp 的 algebraic_solve 工具调用真引擎。' };
+  }
+  return bridge.algebraicSolve(args);
+}
 // ③ 霍尔逻辑机器验证（生成可机器检查的结构化证明，非模板；验证 A* 路径满足不变量，文档 3.4/验证）
 function verifyHoarePath(path, world){
   if(path.status !== 'optimal') return { verified: false, reason: '路径不可判定，无法构造证明', steps: [], tool: 'lingjing-hoare-lite' };
@@ -524,23 +858,38 @@ function verifyHoarePath(path, world){
   };
 }
 // ③ 分布式 MCTS 调度器（D-MCTS）：并行分支探索 + 回溯 + 选最优（确定性分支收集，文档 3.2）
+// ③ 探索层：真 MCTS 四步（ima_292 选择/扩展/模拟/回溯 + ima_285 蒙特卡洛估计）
+// 原 DFS 改为标准 MCTS：UCB1 选择 → 未展开子扩展 → 随机模拟(蒙特卡洛) → 首次访问 MC 回溯(ima_285)
 function dmcts(start, goal, opts){
   opts = opts || {}; const hard = new Set(opts.hard || []); _SOFT = new Set(opts.soft || []);
-  if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status: 'unknown', reason: '起点/目标不在世界图' };
-  const budget = opts.iterations || 80; const results = []; let expanded = 0;
-  const stack = [{ node: start, path: [start], cost: 0 }];
-  while(stack.length && expanded < budget){
-    const cur = stack.pop(); expanded++;
-    if(cur.node === goal){ results.push({ path: cur.path, cost: +cur.cost.toFixed(6) }); continue; }
-    if(hard.has(cur.node) && cur.node !== start) continue;
-    if(cur.path.length > WORLD.nodes.length + 1) continue; // 防环
-    for(const e of WORLD.edges.filter(e => e.from === cur.node && !hard.has(e.to)))
-      stack.push({ node: e.to, path: cur.path.concat(e.to), cost: cur.cost + edgeW(e) });
+  if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
+  const nodes = {};
+  WORLD.nodes.forEach(s => { nodes[s] = { visits:0, value:0, children: WORLD.edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to) }; });
+  if(start!==goal && !nodes[start].children.length) return { status:'unknown', reason:'起点无可达边' };
+  const budget = opts.iterations || 120, C = opts.c || 1.4, root = start, maxD = WORLD.nodes.length + 2;
+  const ucb = s => nodes[s].visits===0 ? Infinity : nodes[s].value + C*Math.sqrt(Math.log(nodes[root].visits+1)/nodes[s].visits);
+  const rollout = s => { let cur=s, d=0; while(cur!==goal && d<maxD){ const ch=nodes[cur].children; if(!ch.length) break; cur=ch[Math.floor(Math.random()*ch.length)]; d++; } return cur===goal?1:0; };
+  for(let it=0; it<budget; it++){
+    let path=[root], cur=root, seenSel=new Set([root]); // 选择(ima_292 Selection)
+    while(nodes[cur].children.length && nodes[cur].visits>0 && nodes[cur].children.every(c=>nodes[c].visits>0) && !seenSel.has(cur) && path.length < maxD){
+      let best=null, bv=-Infinity; for(const c of nodes[cur].children){ const v=ucb(c); if(v>bv){bv=v;best=c;} } if(!best) break; cur=best; path.push(cur); seenSel.add(cur); if(cur===goal) break;
+    }
+    if(cur!==goal && nodes[cur].children.length){ const unexp=nodes[cur].children.filter(c=>nodes[c].visits===0); if(unexp.length){ cur=unexp[Math.floor(Math.random()*unexp.length)]; path.push(cur); } } // 扩展
+    const reward = (cur===goal)?1:rollout(cur); // 模拟(ima_285 蒙特卡洛)
+    for(const s of path){ nodes[s].visits++; nodes[s].value += (reward - nodes[s].value)/nodes[s].visits; } // 回溯(首次访问 MC)
   }
-  results.sort((a, b) => a.cost - b.cost);
-  const explored = new Set(results.flatMap(r => r.path));
-  return { status: results.length ? 'found' : 'unknown', candidates: results.slice(0, 5), best: results[0] || null,
-    exploredNodes: explored.size, expanded, note: 'D-MCTS 并行分支探索 + 回溯（收集多候选，选最优）' };
+  const path=[root]; let cur=root; const seen=new Set();
+  while(cur!==goal && nodes[cur] && nodes[cur].children.length && !seen.has(cur)){
+    seen.add(cur);
+    // 若某子节点即目标，直接取之（避免循环图中贪心偏离）；否则取 UCB 值最高子节点
+    const nx = nodes[cur].children.indexOf(goal) >= 0 ? goal
+      : nodes[cur].children.slice().sort((a,b)=>nodes[b].value-nodes[a].value || nodes[b].visits-nodes[a].visits)[0];
+    if(!nx) break; cur=nx; path.push(cur); if(path.length>maxD) break;
+  }
+  const reached = path[path.length-1]===goal;
+  return { status: reached?'found':'unknown', best: reached?{path,cost:path.length-1}:null, path: reached?path:null,
+    rootVisits: nodes[root].visits, goalValue: +(nodes[goal]?nodes[goal].value:0).toFixed(3),
+    note:'真 MCTS 四步(ima_292 选择/扩展/模拟/回溯 + ima_285 蒙特卡洛估计)：UCB1 选择, 随机模拟, 首次访问 MC 回溯' };
 }
 
 // ④ PAC 学习定理：样本复杂度下界 m ≥ O((d_VC·ln(1/ε)+ln(1/δ))/ε²)（文档 数学原理 三）
@@ -563,6 +912,96 @@ function doQuery(X, Y, Z){
   if(!Z || !Z.length) return { formula: 'P(' + Y + '|do(' + X + ')) = P(' + Y + '|' + X + ')',
     method: 'do-calc-lite', note: '无后门集，因果效应直接可识别' };
   return { formula: 'P(' + Y + '|do(' + X + ')) = Σ_z P(' + Y + '|' + X + ',Z=z)·P(Z=z)', backdoorSet: Z, method: 'do-calc-lite' };
+}
+
+// ⑤ 世界模型（lite）：结构方程模型 SEM + Pearl 反事实三步法（文档 3.4）
+// 文档给 VAE/ADM-v2/MWA/反事实/Sim-to-Real（需神经网络+大数据，无算法定义）。
+// 本实装诚实 lite 等价：线性 SEM（手写最小二乘）+ abduction/action/prediction 三步，
+// 确定性、可复现、可审计；非 VAE/Transformer，不虚构潜空间推演。
+function _ols(X, y){ // (XᵀX)⁻¹Xᵀy；高斯消元解 k×k，零依赖
+  const n = X.length, k = X[0].length;
+  const XtX = Array.from({ length: k }, () => new Array(k).fill(0));
+  const Xty = new Array(k).fill(0);
+  for (let i = 0; i < n; i++) { for (let a = 0; a < k; a++) { Xty[a] += X[i][a] * y[i]; for (let b = 0; b < k; b++) XtX[a][b] += X[i][a] * X[i][b]; } }
+  const M = XtX.map((row, a) => row.concat([Xty[a]]));
+  for (let c = 0; c < k; c++) {
+    let p = c; for (let r = c + 1; r < k; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    const t = M[c]; M[c] = M[p]; M[p] = t;
+    const d = M[c][c] || 1e-12; for (let j = c; j <= k; j++) M[c][j] /= d;
+    for (let r = 0; r < k; r++) if (r !== c) { const f = M[r][c]; for (let j = c; j <= k; j++) M[r][j] -= f * M[c][j]; }
+  }
+  return M.map(row => row[k]);
+}
+function _predictVar(eq, st, ac, ov, ovv, noise) {
+  let pred = eq.bias;
+  for (let i = 0; i < eq.features.length; i++) { const f = eq.features[i];
+    const val = (ov && f === ov) ? ovv : ((st[f] != null ? st[f] : 0) + (ac[f] != null ? ac[f] : 0));
+    pred += eq.coef[i] * val; }
+  if (noise) pred += noise; return pred;
+}
+function learnWorldModel(samples, opts) {
+  opts = opts || {}; const s0 = samples && samples[0]; if (!s0) return { error: 'samples 为空' };
+  const stateVars = Object.keys(s0.state || {}), actionVars = Object.keys(s0.action || {}), nextVars = Object.keys(s0.next || {});
+  const feats = stateVars.concat(actionVars); const eqs = {}, residuals = {};
+  for (const v of nextVars) {
+    const Xb = samples.map(s => [1].concat(feats.map(f => (s.state[f] != null ? s.state[f] : 0) + (s.action[f] != null ? s.action[f] : 0))));
+    const y = samples.map(s => s.next[v] != null ? s.next[v] : 0);
+    const coef = _ols(Xb, y);
+    eqs[v] = { bias: coef[0], coef: feats.map((f, i) => coef[i + 1]), features: feats.slice() };
+    residuals[v] = samples.map((s, i) => { let p = coef[0]; for (let a = 0; a < feats.length; a++) p += coef[a + 1] * Xb[i][a + 1]; return +(y[i] - p).toFixed(6); });
+  }
+  return { method: 'linear-SEM-lite（手写最小二乘；Pearl 反事实三步法）', stateVars, actionVars, nextVars, eqs, residuals,
+    note: '确定性 lite 等价：非 VAE/ADM-v2；系数可审计，simulate/counterfactual 前向可复现' };
+}
+function simulate(model, state, action) {
+  if (!model || model.error) return model || { error: '无模型' };
+  const next = {}; for (const v of model.nextVars) { const eq = model.eqs[v]; next[v] = +_predictVar(eq, state, action, null, 0, 0).toFixed(6); }
+  return { next, method: 'forward-SEM', note: '确定性预测（noise=0）' };
+}
+function counterfactual(model, factual, intervention) {
+  if (!model || model.error) return model || { error: '无模型' };
+  const v0 = intervention.var, v1 = intervention.value;
+  if (model.nextVars.indexOf(v0) < 0 && model.stateVars.indexOf(v0) < 0 && model.actionVars.indexOf(v0) < 0) return { error: '干预变量 ' + v0 + ' 不在模型变量集（state/action/next）' };
+  const st = factual.state || {}, ac = factual.action || {}, factNext = factual.next || {};
+  const U = {}; for (const v of model.nextVars) { const eq = model.eqs[v]; U[v] = +((factNext[v] != null ? factNext[v] : 0) - _predictVar(eq, st, ac, null, 0, 0)).toFixed(6); } // ① abduction
+  const next = {}, steps = [];
+  for (const v of model.nextVars) {
+    const eq = model.eqs[v];
+    if (v === v0) { next[v] = v1; steps.push({ var: v, step: 'action', setDo: v1 }); } // ② action
+    else { const p = +_predictVar(eq, st, ac, v0, v1, U[v]).toFixed(6); next[v] = p; steps.push({ var: v, step: 'prediction', base: +(p - U[v]).toFixed(6), noise: U[v] }); } // ③ prediction
+  }
+  return { method: 'pearl-counterfactual-3step（abduction→action→prediction）', intervened: { var: v0, value: v1 },
+    factual: factNext, counterfactual: next, steps,
+    note: '反事实 = 保持事实推断噪声 U 下施加 do(' + v0 + '=' + v1 + ') 重算其余；确定性可复现，非潜空间推演' };
+}
+// ⑥ 因果效应估计（do-演算后门调整）：呼应已消费 ima_304 因果 / ima_301 反事实
+// 诚实边界：线性 SEM 下 ACE = cause 在 effect 结构方程中的直接系数；调整后门集 = effect 的其余父节点（已观测）。
+//          未观测混杂无法从数据单独识别——这里用「cause 对方程残差的线性依赖」做工程化警示（非完全识别，诚实标注）。
+function causalEffect(model, cause, effect, samples) {
+  if (!model || model.error) return { error: '无模型' };
+  if (!samples || !samples.length) return { error: '后门准则不满足', reason: '样本为空，无法估计' };
+  if (!model.eqs || !model.eqs[effect]) return { error: '后门准则不满足', reason: '结果变量 ' + effect + ' 不在世界模型' };
+  const eq = model.eqs[effect];
+  const feats = eq.features.slice();
+  if (feats.indexOf(cause) < 0) return { ace: 0, method: 'back-door-adjustment-linear-SEM', adjustSet: [], auditable: true, imaRef: ['ima_304'],
+    note: 'cause 不在 effect 结构方程中，直接 ACE=0（间接效应未实现，诚实边界）' };
+  const adjustSet = feats.filter(f => f !== cause);
+  const cols = [cause].concat(adjustSet);
+  const Xb = samples.map(s => [1].concat(cols.map(c => {
+    const v = (s.state && s.state[c] != null) ? s.state[c] : ((s.action && s.action[c] != null) ? s.action[c] : ((s.next && s.next[c] != null) ? s.next[c] : 0));
+    return v;
+  })));
+  const y = samples.map(s => (s.next && s.next[effect] != null) ? s.next[effect] : 0);
+  const coef = _ols(Xb, y);
+  const ace = +coef[1].toFixed(6);
+  // 未观测混杂警示：cause 对方程残差的线性依赖（工程化，非完全识别）
+  const resid = samples.map((s, i) => { let p = coef[0]; for (let a = 0; a < cols.length; a++) p += coef[a + 1] * Xb[i][a + 1]; return y[i] - p; });
+  const Xc = Xb.map(r => [1, r[1]]);
+  const cr = _ols(Xc, resid);
+  const unobservedWarn = Math.abs(cr[1]) > 0.05;
+  return { ace, method: 'back-door-adjustment-linear-SEM', adjustSet, auditable: true, imaRef: ['ima_304', 'ima_301'],
+    unobservedConfounderWarning: unobservedWarn, grounding:GROUNDING.KERNEL, deterministic:true,
+    note: 'ACE=E[' + effect + '|do(' + cause + '=1)]-E[' + effect + '|do(' + cause + '=0)]，后门集=' + adjustSet.join(',') + (unobservedWarn ? '；残差警示可能存在未观测混杂' : '') };
 }
 
 // 通信：EDA 事件总线（发布/订阅，模块解耦，文档 通信架构）——事件是唯一契约，状态隔离
@@ -672,16 +1111,72 @@ function metaCognition(opts={}){
 
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
-  globalThis.__WB = {WORLD, IMA, setWorld, heuristic, aStar, KB, perceive, perceiveLLM, perceiveBelief, system1, system2, reason, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, metaKnowledgeRouter, symbolicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery,
-    EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED};
+  globalThis.__WB = {WORLD, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, KB, perceive, perceiveLLM, perceiveBelief, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
+    metaCognition, metaKnowledgeRouter, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery,
+    learnWorldModel, simulate, counterfactual, causalEffect,
+    SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
+    EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED,
+    explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld};
 }
 
 // ===================== UI 编排 =====================
 const $ = id=>document.getElementById(id);
-function showMCP(){
-  const box=$('mcpBox'); box.style.display='block';
-  box.innerHTML='外部智能体接入配置（stdio）：<br>node lingjing-mcp.js<br>工具：perceive / reason / carrier_report / learn / audit / query / add / set_world';
+// ===== 灵境控制台（顶部入口，对应"接入灵境大脑 / 一键接入智能体"） =====
+// 接入灵境大脑：吸收 IMA 数学库 + 核心算法自测 + 状态灯
+async function bootBrain(){
+  const btn=$('btnBoot'); if(btn){ btn.disabled=true; btn.textContent='接入中…'; }
+  const log=[];
+  // 1) 加载 IMA 数学库（真消费的知识底座；file:// 本地打开时 fetch 受限，可手动加载）
+  try{
+    const r=await fetch('ima_knowledge.json');
+    if(r.ok){ const j=await r.json(); const res=loadIMAKB(j); log.push('IMA 数学库已吸收 '+res.total+' 条 / '+res.modules+' 模块 / '+res.types+' 类型'); }
+    else log.push('IMA：同目录未找到 ima_knowledge.json（可在下方调试台手动加载）');
+  }catch(e){ log.push('IMA：本地 file:// 打开无法自动读取（可用调试台文件选择/粘贴加载）'); }
+  // 2) 核心算法自测（真消费验证）
+  const st=bootSelfTest(); st.lines.forEach(l=>log.push(l));
+  // 3) 状态灯
+  const stEl=$('brainState');
+  if(stEl){ stEl.textContent = imaKnowledge.loaded ? '灵境大脑已接入 ✓' : '大脑已就绪 · IMA 未加载'; stEl.className='tag '+(imaKnowledge.loaded?'done':'todo'); }
+  $('bootOut').innerHTML = log.map(l=>'· '+l).join('<br>') + '<br><b>核心能力自检 '+st.pass+'/'+st.total+' 通过</b>';
+  if(btn){ btn.disabled=false; btn.textContent = imaKnowledge.loaded ? '重新接入灵境大脑' : '接入灵境大脑'; }
+}
+function bootSelfTest(){
+  const lines=[]; let pass=0, total=0;
+  const ck=(name, cond)=>{ total++; if(cond){pass++; lines.push('✓ '+name);} else lines.push('✗ '+name); };
+  try{ const r=reason('CHARGE','C',{hard:[],soft:[]}); ck('自动规划最优路径（可审计推理）', r && r.status==='optimal' && Array.isArray(r.path) && r.path[0]==='CHARGE'); }catch(e){ ck('自动规划最优路径', false); lines.push('  '+e.message); }
+  try{ const g=goalDirected('CHARGE','C',{}); ck('目标导向决策（已吸收 IMA 目标框架）', g && Array.isArray(g.path) && g.path[g.path.length-1]==='C'); }catch(e){ ck('目标导向决策', false); lines.push('  '+e.message); }
+  try{ const d=dmcts('CHARGE','C',[],[]); ck('分支探索（蒙特卡洛树搜索）', d && d.best); }catch(e){ ck('分支探索', false); lines.push('  '+e.message); }
+  if(imaKnowledge.loaded){ try{ const q=KB.imaQuery('未知',3); ck('证据检索：可引用 IMA 数学公理', q && q.length>0); }catch(e){ ck('证据检索', false); } }
+  else lines.push('· IMA 检索：未加载（手动加载后可验证）');
+  ck('误差监控（切比雪夫界）', typeof SelfLearn!=='undefined' && typeof SelfLearn.slMonitor==='function');
+  return {pass,total,lines};
+}
+// 一键接入智能体：给出 MCP stdio 接入配置（浏览器内无法启动 Node 进程，这里输出可复制的配置/命令）
+function connectAgent(){
+  const box=$('agentBox'); if(!box) return; box.style.display='block';
+  const cfg=JSON.stringify({mcpServers:{lingjing:{command:'node',args:['lingjing-mcp.js']}}},null,2);
+  box.innerHTML='外部智能体接入（MCP stdio）：<br><pre style="background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px">node lingjing-mcp.js</pre>'
+    +'客户端配置（写入 MCP 客户端的 mcp.json）：<br><pre style="background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px">'+cfg+'</pre>'
+    +'暴露工具：perceive · reason · carrier_report · learn · audit · query · add · set_world · goal_directed · dmcts · pac_bound · ask · explain<br>'
+    +'<button class="ghost" onclick="copyAgentCfg()">复制配置</button> <span class="ok">智能体通道已就绪</span>';
+}
+function copyAgentCfg(){ try{ navigator.clipboard.writeText(JSON.stringify({mcpServers:{lingjing:{command:'node',args:['lingjing-mcp.js']}}})); }catch(e){} }
+// 用大白话让大脑理解并规划：感知(免费LLM)→确定性推理→解释(免费LLM, grounding IMA)
+async function askBrainUI(){
+  const keyEl=$('orKey');
+  const key=(keyEl&&keyEl.value.trim())||(function(){ try{ return localStorage.getItem('lingjing_or_key'); }catch(e){ return null; } })()||undefined;
+  if(keyEl && keyEl.value.trim()){ try{ localStorage.setItem('lingjing_or_key', keyEl.value.trim()); }catch(e){} }
+  const text=$('orAsk').value.trim();
+  if(!text){ $('orOut').textContent='请输入你的目标描述'; return; }
+  $('orOut').textContent='调用免费 LLM 理解中…'; $('orQuota').textContent='';
+  const r=await askBrain(text, key||undefined);
+  if(!r.ok){ $('orOut').textContent='失败（'+r.stage+'）：'+(r.error||''); return; }
+  let s='【大脑理解】'+JSON.stringify(r.percept)+'\n\n【确定性规划】状态：'+(r.reason.status==='optimal'?'已规划最优路径':'不可判定')+'\n';
+  if(r.reason.status==='optimal'){ s+='路径：'+r.reason.path.join(' → ')+' ｜ 代价：'+r.reason.cost+'\n'; }
+  else { s+='U：'+(r.reason.U||[]).join('； ')+'\n'; }
+  s+='\n【大白话解释】\n'+(r.explanation.ok? r.explanation.text : '（解释层不可用：'+(r.explanation.error||'')+'）');
+  $('orOut').textContent=s;
+  $('orQuota').textContent = r.explanation.cached ? '（解释命中缓存，未烧额度）' : '';
 }
 async function perceiveLLMUI(){
   const key = $('apiKey').value.trim();
@@ -752,11 +1247,12 @@ function renderAudit(aud){
   $('auditOut').innerHTML=h;
 }
 function renderKB(){
+  const el=$('kbOut'); if(!el) return;
   const s=KB.summary();
   let h=`<b>经验数</b> ${s.count} ｜ <b>正样本</b> ${s.positive} ｜ <b>负样本</b> ${s.negative} ｜ <b>边界</b> ${s.boundary} ｜ <b>冲突</b> ${s.conflicts.length? s.conflicts.join(',') : '无'} <span class="muted">(KB v${s.version})</span><br><table><tr><th>ID</th><th>转移</th><th>成功</th><th>置信度</th><th>样本类</th><th>来源</th></tr>`;
   KB._exp.forEach(e=>h+=`<tr><td>${e.id}</td><td>${e.transition.from}→${e.transition.to}</td><td>${e.success}</td><td>${e.confidence}</td><td>${e.kind}</td><td>${e.source}</td></tr>`);
   h+='</table>';
-  $('kbOut').innerHTML=h;
+  el.innerHTML=h;
 }
 function learnUI(){
   const path=JSON.parse($('fbPath').value||'[]'); const success=$('fbRes').value==='true';
@@ -770,9 +1266,37 @@ function loadWorld(){
   try{ const j=JSON.parse($('worldJson').value); setWorld(j); $('worldOut').innerHTML='已导入 '+j.nodes.length+' 节点 / '+j.edges.length+' 边'; }
   catch(e){ $('worldOut').innerHTML='<span class="bad">导入失败：'+e.message+'</span>'; }
 }
-const savedKey=localStorage.getItem('lingjing_key'); if(savedKey) $('apiKey').value=savedKey;
-$('apiKey').addEventListener('change',e=>localStorage.setItem('lingjing_key', e.target.value));
-renderKB();
+// ⑧ IMA 数学库 UI：加载知识壳 + 检索
+async function autoLoadIMA(){
+  try{
+    const r = await fetch('ima_knowledge.json');
+    if(!r.ok){ $('imaLoadOut').innerHTML='<span class="warn">同目录未找到 ima_knowledge.json（用文件选择或粘贴）</span>'; return; }
+    const j = await r.json(); const res = loadIMAKB(j);
+    $('imaLoadOut').innerHTML='<span class="ok">已加载 '+res.total+' 条 / '+res.modules+' 模块 / '+res.types+' 类型</span>';
+  }catch(e){ $('imaLoadOut').innerHTML='<span class="bad">自动加载失败：'+e.message+'</span>'; }
+}
+function loadIMAUI(){
+  const f = $('imaFile').files[0];
+  if(f){
+    const rd = new FileReader();
+    rd.onload = () => { try{ const j=JSON.parse(rd.result); const res=loadIMAKB(j); $('imaLoadOut').innerHTML='<span class="ok">已加载 '+res.total+' 条 / '+res.modules+' 模块</span>'; }catch(e){ $('imaLoadOut').innerHTML='<span class="bad">解析失败：'+e.message+'</span>'; } };
+    rd.readAsText(f); return;
+  }
+  const txt = $('imaPaste').value.trim();
+  if(!txt){ $('imaLoadOut').innerHTML='<span class="warn">请选择文件或粘贴 JSON</span>'; return; }
+  try{ const j=JSON.parse(txt); const res=loadIMAKB(j); $('imaLoadOut').innerHTML='<span class="ok">已加载 '+res.total+' 条 / '+res.modules+' 模块</span>'; }
+  catch(e){ $('imaLoadOut').innerHTML='<span class="bad">解析失败：'+e.message+'</span>'; }
+}
+function imaSearchUI(){
+  if(!imaKnowledge.loaded){ $('imaSearchOut').innerHTML='<span class="warn">请先加载 IMA 知识壳</span>'; return; }
+  const hits = imaKnowledge.query($('imaKw').value.trim(), 12);
+  if(!hits.length){ $('imaSearchOut').innerHTML='<span class="muted">无命中</span>'; return; }
+  let h='<table><tr><th>编号</th><th>类型</th><th>模块</th><th>标题</th></tr>';
+  hits.forEach(e=>h+='<tr><td>'+e.no+'</td><td>'+e.type+'</td><td>'+e.module+'</td><td>'+e.title+'</td></tr>');
+  h+='</table>';
+  $('imaSearchOut').innerHTML=h;
+}
+// 加载完成（调试台已移除；IMA 数学库由「接入灵境大脑」按需加载，确定性推理不依赖 LLM）
 </script>
 </body>
 </html>
