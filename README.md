@@ -8,6 +8,11 @@
 - 架构白皮书：[ARCHITECTURE.md](./ARCHITECTURE.md)
 - 直接使用：克隆仓库后 `node lingjing-mcp.js`（MCP stdio，零依赖；npm 包待发布）
 
+> 🧪 **正在求测 / 求反馈**：我们做了一个「不幻觉、可审计」的通用大脑，请做 Agent / 机器人 / 严谨 AI 的朋友来跑、来挑刺。
+> - 🟢 在线试用（零安装，双击即用）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html>
+> - 💬 求测帖 & 反馈：<https://github.com/genesis-plan/lingjing/discussions/1>
+> - 🤖 AI Agent 零安装接入：`npx github:genesis-plan/lingjing`（36 工具）
+
 ---
 
 ## 模型卡（Model Card）
