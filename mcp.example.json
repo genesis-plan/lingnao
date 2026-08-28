@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "lingjing": {
+      "command": "npx",
+      "args": ["github:genesis-plan/lingjing"],
+      "env": { "OPENROUTER_API_KEY": "填你的免费Key(可留空，留空则大脑仅用确定性内核)" }
+    }
+  }
+}

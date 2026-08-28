@@ -58,15 +58,18 @@ node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，�
 # 灵数求解器真引擎以 npm 依赖 lingshu-solver 接入（ genesis-plan/lingshu-solver ，独立仓库，已发 npm）
 ```
 
-任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制配置即可接入，**不用开网页、不用服务器**：
+任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制 [`mcp.example.json`](./mcp.example.json) 即可接入，**不用开网页、不用服务器、不用本地装包**（`npx github:genesis-plan/lingjing` 自动拉仓库并暴露 36 个工具）：
 
 ```json
 {
   "mcpServers": {
-    "lingjing": { "command": "lingjing-mcp" }
+    "lingjing": { "command": "npx", "args": ["github:genesis-plan/lingjing"], "env": { "OPENROUTER_API_KEY": "填你的免费Key(可留空)" } }
   }
 }
 ```
+
+**开发者 / 前端零安装**：`<script src="https://cdn.jsdelivr.net/gh/genesis-plan/lingjing/lingjing.umd.js"></script>` 然后 `const L = window.LingJing`（浏览器/Node 通用 UMD，零依赖、零安装）；或 `git clone` 后 `const L = require('./lingjing.umd.js')`。
+**非技术零安装**：双击 [`playground.html`](./playground.html) 即可看「规划路径 + 七段审计 + 不幻觉分层」，离线可用。
 
 ---
 
@@ -231,6 +234,11 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | `package.json` / `LICENSE` | 可安装包定义 / MIT 许可 |
 | `examples/simple-robot.js` | 极简机器人示例（免费 LLM 感知 + 确定性内核规划/审计，真可跑，证明别人能接入当大脑） |
 | `examples/real-robots.js` | 4 个真实机器人案例接入（Amazon Kiva / Aethon TUG / Starship / 废墟搜救），含硬约束改道演示，离线零成本可跑 |
+| `lingjing.umd.js` | **零安装 UMD**（浏览器/Node 通用）：`build-umd.js` 从 `灵境.html` 单一真源抽取同一份内核自动构建；`<script>` 或 `require` 一行接入，开发者/前端最易用入口 |
+| `build-umd.js` | UMD 构建脚本（抽内核→包 UMD），单一真源，改内核后重跑即同步 |
+| `selftest-umd.js` | UMD 自测（`node selftest-umd.js` 直接 require 验证 reason/审计/前门因果/不幻觉分层），别人也能跑 |
+| `playground.html` | 零安装网页 Playground（双击即用，引用 `lingjing.umd.js`），可视化规划+审计+不幻觉分层 |
+| `mcp.example.json` | 智能体零安装 MCP 配置（`npx github:genesis-plan/lingjing`），复制即用 |
 
 > 部署时 `lingjing-mcp.js` 与 `灵境.html` 需同目录（或设 `LINGJING_HTML` 环境变量）。
 
