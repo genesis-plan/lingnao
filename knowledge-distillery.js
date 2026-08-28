@@ -1,82 +1,158 @@
 /*
- * 知识蒸馏引擎 (KnowledgeDistillery)
+ * 知识蒸馏引擎 (KnowledgeDistillery)  —— 任意领域版
  * ─────────────────────────────────────────────────────────────────────
- * 通用大脑「物质富裕四步引擎」之第一步的最小落地实现（= 组合① 神经符号的最小形态）：
- *   专家经验 ──(LLM 听懂 / 或结构化输入)──▶ 可执行的、不依赖特殊工具与文化的步骤序列
- *   每一步挂 GROUNDING 可信档；失败可经 KB 知识可逆机制降级并重生手册。
+ * 通用大脑「物质富裕四步引擎」第一步的最小落地（= 组合① 神经符号的最小形态）。
  *
- * 设计要点（与内核关系）：
- *   - perceiveLLM  : 负责「听懂专家、拆解、本地化、翻译」（LLM 层，可选）
- *   - KB / GROUNDING : 负责「每步可信、不编、可复核」（大脑层，必选）
+ * 核心主张：本引擎对「任意知识领域」生效，不需要为每类知识改代码。
+ *   输入 = 某领域的专家经验（自由句 / 术语表 / 本地资源清单）
+ *   引擎真做三步拆解（不是存步骤）：
+ *     ① 步骤化 stepify  ：把「判断/经验」转成「如果…那么…」原子步
+ *     ② 工具化 localize  ：把「专业工具」换成「本地可得等效物」（按本地清单）
+ *     ③ 语言化 verbalize ：把「术语」换成「人话」并生成术语表
+ *   每步挂 GROUNDING 可信档；失败经 KB 知识可逆机制降级并重生手册。
+ *
+ * 与内核关系：
+ *   - perceiveLLM : 听懂专家自由文本、做语义切分（LLM 层，可选；无 key 退结构化）
+ *   - KB / GROUNDING : 每步可信、不编、可复核（大脑层，必选）
  *   - SelfLearn / KB.updateConfidence : 知识可逆（失败→降级→重生）
- *   - EventBus   : 广播蒸馏/修订事件（审计接口的最小形态）
+ *   - EventBus   : 广播蒸馏/修订事件（审计接口最小形态）
  *
- * 离线可用：无 API key 时退化为「结构化专家输入」模式，对应「一个专家+一张纸」。
- * 不幻觉保证：专家口述默认 PERCEPTION(未验证) 并标红，绝不冒充 KERNEL(确定)。
+ * 离线可用：无 API key 时，专家以「半结构化原则句」输入，引擎用规则完成三步拆解。
+ * 诚实边界：离线三步拆解是「中文启发式规则」，非真正 NLP；有 key 时交由 perceiveLLM
+ *           做更强语义切分。两者都汇入同一蒸馏核心，产出一致。
  */
 
 'use strict';
 const L = require('./lingjing.umd.js');
-
 const G = L.GROUNDING;
 
 function nowISO() { return new Date().toISOString(); }
 
-// ── 工具：把「判断」显式写成「如果…那么…」（步骤化）─────────────────
-function toCondition(s) {
-  if (s.condition && String(s.condition).trim()) return s.condition;
-  return '始终执行';
+// ══════════════════════════════════════════════════════════════════════
+// ① 步骤化 stepify —— 把专家经验句转成「条件→动作」原子步
+//    支持两种输入：
+//      a) 字符串：用中文条件标记（如果/若/当/一旦/遇/碰到/要是/假如…就/则/应）
+//         切出 condition + action；无标记则条件=「始终执行」
+//      b) 对象  ：{ condition, action, tool, terms } 专家已显式给出
+// ══════════════════════════════════════════════════════════════════════
+const COND_LEAD = /^(如果|若|当|一旦|遇|遇到|碰到|要是|假如)\s*(.+?)\s*(?:，|,|。|则|就|的话|应当|应|须|需要|应该)\s*(.+)$/s;
+
+// 工具化前置：从自由句里抽取本地已知工具名（词表 = 本地清单 + 替代映射键）
+function detectTool(text, localContext) {
+  const inv = (localContext && localContext.inventory) || {};
+  const vocab = (inv.tools || []).concat(Object.keys((localContext && localContext.substituteMap) || {}));
+  for (const t of vocab) if (t && text.includes(t)) return t;
+  return '—';
 }
 
-// ── 工具：把专业工具换成本地可得替代品（工具化）──────────────────────
-function localSubstituteFor(step, localContext) {
-  if (step.localSubstitute && String(step.localSubstitute).trim()) return step.localSubstitute;
-  if (localContext && localContext.altTools && step.tool && localContext.altTools[step.tool]) {
-    return localContext.altTools[step.tool];
+function stepify(p, localContext) {
+  if (typeof p === 'object' && p !== null) {
+    // 专家显式结构化
+    const action = (p.action || '').trim();
+    if (!action) return null;
+    return {
+      condition: (p.condition && String(p.condition).trim()) || '始终执行',
+      action,
+      tool: p.tool || '—',
+      terms: p.terms || null,
+      basis: p.basis || 'expert-testimony',
+      verification: p.verification || '检查产出是否符合预期；不符则视为本步未通过'
+    };
   }
-  return '用本地可得的等效物替代（不依赖专业设备）';
-}
-
-// ── 工具：术语→人话 + 收集术语表（语言化）──────────────────────────
-function plainAction(step) {
-  return step.action && String(step.action).trim()
-    ? step.action
-    : '（未提供动作描述）';
-}
-
-// ── 单步构建：挂 GROUNDING 档 ──────────────────────────────────────
-// 依据来自已验证 KB（非 expert-testimony）且 KB 置信高 → KERNEL(确定)
-// 否则 → PERCEPTION(未验证，出厂标红)
-function buildStep(s, localContext, n) {
-  const basis = s.basis && s.basis !== 'expert-testimony' ? s.basis : 'expert-testimony';
-  // 出厂默认 PERCEPTION(未验证)：专家口述非 KERNEL；田间验证通过后由 confirmStep 升 KERNEL
-  const tier = G.PERCEPTION;
+  const t = String(p).trim();
+  if (!t) return null;
+  const m = t.match(COND_LEAD);
+  if (m) {
+    return {
+      condition: m[2].trim(),
+      action: m[3].trim(),
+      tool: detectTool(t, localContext),
+      terms: null,
+      basis: 'expert-testimony',
+      verification: '检查产出是否符合预期；不符则视为本步未通过'
+    };
+  }
+  // 无条件标记：整句作为「始终执行」动作
   return {
-    id: 'S' + n,
-    n,
-    action: plainAction(s),
-    condition: toCondition(s),
-    tool: s.tool || '—',
-    localSubstitute: localSubstituteFor(s, localContext),
-    verification: s.verification || '检查产出是否符合预期；不符则视为本步未通过',
-    basis,
-    grounding: { tier: tier.tier, mayHallucinate: tier.mayHallucinate },
-    status: 'UNVERIFIED' // 出厂默认：未验证
+    condition: '始终执行',
+    action: t,
+    tool: detectTool(t, localContext),
+    terms: null,
+    basis: 'expert-testimony',
+    verification: '检查产出是否符合预期；不符则视为本步未通过'
   };
 }
 
-// ── 术语表（语言化产物）─────────────────────────────────────────────
-function buildGlossary(steps) {
+// ══════════════════════════════════════════════════════════════════════
+// ② 工具化 localize —— 专业工具 → 本地可得等效物
+//    依据 localContext.inventory.tools（本地已有工具）判断是否需要替代；
+//    不在本地清单 → 查 substituteMap；都没有 → 标「需确认本地替代」
+// ══════════════════════════════════════════════════════════════════════
+function localize(tool, localContext) {
+  const inv = (localContext && localContext.inventory) || {};
+  const tools = inv.tools || [];
+  const mat = inv.materials || [];
+  if (tool && tool !== '—') {
+    if (tools.includes(tool)) return { substitute: tool + '（本地已有）', localAvailable: true };
+    const map = (localContext && localContext.substituteMap) || {};
+    if (map[tool]) return { substitute: map[tool], localAvailable: false };
+    return { substitute: '需确认本地替代（专家未列等效物，用本地可得物替代专业设备）', localAvailable: false };
+  }
+  return { substitute: '（无需工具）', localAvailable: true };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ③ 语言化 verbalize —— 术语 → 人话，并收集术语表
+//    把 step.terms（本步专属）与全局 terms 中的术语，在 action 文本里
+//    就地展开成「术语（即：人话）」，让不识字者也能听懂。
+// ══════════════════════════════════════════════════════════════════════
+function verbalize(text, termMap) {
+  let out = text;
+  if (termMap) {
+    for (const j in termMap) {
+      if (out.includes(j)) out = out.split(j).join(j + '（即：' + termMap[j] + '）');
+    }
+  }
+  return out;
+}
+
+// ── 单步构建：步骤化 + 工具化 + 语言化 + 挂 GROUNDING ─────────────────
+function buildStep(raw, globalTerms, localContext, n) {
+  // 合并术语表：全局 terms + 本步 terms
+  const termMap = Object.assign({}, globalTerms || {}, raw.terms || {});
+  const loc = localize(raw.tool, localContext);
+  const actionPlain = verbalize(raw.action, termMap);
+  // 出厂默认 PERCEPTION(未验证)：专家口述非 KERNEL；田间验证后由 confirmStep 升 KERNEL
+  return {
+    id: 'S' + n,
+    n,
+    action: actionPlain,
+    actionRaw: raw.action,
+    condition: raw.condition,
+    tool: raw.tool || '—',
+    localSubstitute: loc.substitute,
+    localAvailable: loc.localAvailable,
+    verification: raw.verification,
+    basis: raw.basis,
+    grounding: { tier: G.PERCEPTION.tier, mayHallucinate: G.PERCEPTION.mayHallucinate },
+    status: 'UNVERIFIED'
+  };
+}
+
+// ── 术语表（语言化产物：工具替代 + 术语人话映射）──────────────────────
+function buildGlossary(steps, globalTerms) {
   const set = {};
   for (const s of steps) {
     if (s.tool && s.tool !== '—') set[s.tool] = '本地替代：' + s.localSubstitute;
   }
+  if (globalTerms) for (const j in globalTerms) set[j] = globalTerms[j];
   return set;
 }
 
-// ── 审计接口（最小形态：可被其他大脑实例读取的 JSON）────────────────
+// ── 审计接口（最小形态：可被其他大脑实例读取的 JSON）──────────────────
 function buildAudit(manual) {
   const verified = manual.steps.filter(s => s.grounding.tier === G.KERNEL.tier).length;
+  const down = manual.steps.filter(s => s.status === 'DOWNGRADED').length;
   const unverified = manual.steps.length - verified;
   return {
     manualId: manual.id,
@@ -87,36 +163,50 @@ function buildAudit(manual) {
     stepsTotal: manual.steps.length,
     verifiedCount: verified,
     unverifiedCount: unverified,
-    verdict: unverified > 0
-      ? '含未验证步骤(' + unverified + ')，扉页已标红；请先小批试做后再升 KERNEL'
-      : '全部步骤已验证，可放心按流程执行',
+    downgradedCount: down,
+    verdict: down > 0
+      ? '含已降级步骤(' + down + ')，勿用；其余未验证步(' + (unverified - down) + ')扉页标红，先小批试做'
+      : (unverified > 0
+        ? '含未验证步骤(' + unverified + ')，扉页已标红；请先小批试做后再升 KERNEL'
+        : '全部步骤已验证，可放心按流程执行'),
     reproducible: true,
     source: 'KnowledgeDistillery@LingJing'
   };
 }
 
-// ── 主蒸馏函数 ──────────────────────────────────────────────────────
+// ── 主蒸馏：对任意领域经验做三步拆解 ─────────────────────────────────
 async function distill(input) {
   if (!input || !input.domain) throw new Error('distill: 需要 input.domain');
   const expert = input.expert || '匿名专家';
   const localContext = input.localContext || {};
+  const globalTerms = input.terms || null;
 
-  // 1) 获取步骤：有 key 且给 raw → 走 LLM；否则结构化输入（离线可用）
-  let stepsRaw = [];
+  // 1) 取得「专家原则」：
+  //    a) raw + key → LLM 语义切分（在线）
+  //    b) principles（字符串/对象数组）→ 离线规则切分
+  //    c) steps（已结构化）→ 兼容旧模式直用
+  let principles = [];
   if (input.raw && input.apiKey && typeof L.perceiveLLM === 'function') {
     const out = await L.perceiveLLM(input.raw, { apiKey: input.apiKey });
-    if (out && out.ok && Array.isArray(out.steps)) {
-      stepsRaw = out.steps; // LLM 拆解成功
+    if (out && out.ok && Array.isArray(out.principles || out.steps)) {
+      principles = out.principles || out.steps;
     } else {
-      stepsRaw = input.steps || []; // LLM 不可用→降级结构化
+      principles = input.principles || input.steps || [];
     }
   } else {
-    stepsRaw = input.steps || []; // 离线/无 key：结构化专家输入
+    principles = input.principles || input.steps || [];
   }
-  if (!stepsRaw.length) throw new Error('distill: 无步骤可用（既无 raw+key，也无 steps）');
+  if (!principles.length) throw new Error('distill: 无专家原则可用（需 principles / steps / raw+key）');
 
-  // 2) 三步拆解 + 本地化 + 挂 GROUNDING
-  const steps = stepsRaw.map((s, i) => buildStep(s, localContext, i + 1));
+  // 2) 真做三步拆解：步骤化 → 工具化 → 语言化
+  const raws = [];
+  for (const p of principles) {
+    const s = stepify(p, localContext);
+    if (s) raws.push(s);
+  }
+  if (!raws.length) throw new Error('distill: 原则无法拆出任何步骤');
+
+  const steps = raws.map((s, i) => buildStep(s, globalTerms, localContext, i + 1));
 
   // 3) 写 KB（每条作为 experience；出厂未验证→低置信）
   let kbOk = true;
@@ -124,12 +214,12 @@ async function distill(input) {
     for (const s of steps) {
       L.KB.addExperience({
         domain: input.domain,
-        content: s.action + ' | 条件:' + s.condition + ' | 工具:' + s.tool,
+        content: s.actionRaw + ' | 条件:' + s.condition + ' | 工具:' + s.tool,
         confidence: s.grounding.tier === G.KERNEL.tier ? 0.9 : 0.3,
         source: s.basis
       });
     }
-  } catch (e) { kbOk = false; /* KB 写入失败不阻断蒸馏，但如实标记 */ }
+  } catch (e) { kbOk = false; }
 
   // 4) 组装手册
   const manual = {
@@ -140,7 +230,7 @@ async function distill(input) {
     revision: 0,
     localContext,
     steps,
-    glossary: buildGlossary(steps),
+    glossary: buildGlossary(steps, globalTerms),
     grounding: null,
     audit: null,
     kbRecorded: kbOk
@@ -151,7 +241,6 @@ async function distill(input) {
   };
   manual.audit = buildAudit(manual);
 
-  // 5) 广播（审计接口最小形态）
   if (L.EventBus && typeof L.EventBus.publish === 'function') {
     L.EventBus.publish('distill:done', { manualId: manual.id, audit: manual.audit });
   }
@@ -159,32 +248,24 @@ async function distill(input) {
   return manual;
 }
 
-// ── 知识可逆：现场失败 → 降级该步 + KB 降级 + 手册重生 ──────────────
+// ── 知识可逆：现场失败 → 降级该步 + KB 降级 + 手册重生 ────────────────
 function reportFailure(manualId, stepId, observation) {
   const m = _manuals[manualId];
   if (!m) throw new Error('reportFailure: 手册不存在 ' + manualId);
   const step = m.steps.find(s => s.id === stepId);
   if (!step) throw new Error('reportFailure: 步骤不存在 ' + stepId);
-
   step.status = 'DOWNGRADED';
   step.failureNote = observation;
-
-  // KB 知识可逆：依据降级
-  let kbOk = true;
   try {
     if (step.basis !== 'expert-testimony' && typeof L.KB.updateConfidence === 'function') {
       L.KB.updateConfidence(step.basis, -0.5, 'field-failure: ' + observation);
     }
-  } catch (e) { kbOk = false; }
-
-  // SelfLearn 记录失败（经验闭环）
+  } catch (e) {}
   try {
     if (L.SelfLearn && typeof L.SelfLearn.record === 'function') {
       L.SelfLearn.record({ type: 'distill-failure', manualId, stepId, observation });
     }
-  } catch (e) { /* 非致命 */ }
-
-  // 手册重生（标记修订）
+  } catch (e) {}
   m.revision = (m.revision || 0) + 1;
   m.grounding = {
     verifiedCount: m.steps.filter(s => s.grounding.tier === G.KERNEL.tier && s.status !== 'DOWNGRADED').length,
@@ -197,7 +278,7 @@ function reportFailure(manualId, stepId, observation) {
   return m;
 }
 
-// ── 现场验证成功 → 该步升 KERNEL ───────────────────────────────────
+// ── 现场验证成功 → 该步升 KERNEL ─────────────────────────────────────
 function confirmStep(manualId, stepId, note) {
   const m = _manuals[manualId];
   if (!m) throw new Error('confirmStep: 手册不存在 ' + manualId);
@@ -216,7 +297,7 @@ function confirmStep(manualId, stepId, note) {
   return m;
 }
 
-// ── 三种渲染 ────────────────────────────────────────────────────────
+// ── 三种渲染 ─────────────────────────────────────────────────────────
 function renderFlowchart(m) {
   const L0 = [];
   L0.push('【流程图】' + m.domain + '  (手册 ' + m.id + ' rev' + m.revision + ')');
@@ -282,61 +363,77 @@ function render(m, format) {
 
 const _manuals = {};
 
-const Engine = { distill, reportFailure, confirmStep, render, _manuals, GROUNDING: G };
+const Engine = { distill, reportFailure, confirmStep, render, stepify, localize, verbalize, _manuals, GROUNDING: G };
 
-// 可插拔：挂到内核
 if (L && typeof L === 'object') L.KnowledgeDistillery = Engine;
 
 module.exports = Engine;
 
-// ── 自测（离线：无 key，结构化专家输入 → 证明不依赖网络）────────────
+// ── 自测：用两个毫不相关的领域证明「对任意知识生效、零代码改动」──────
 if (require.main === module) {
   (async () => {
     const line = s => console.log(s);
-    line('=== 知识蒸馏引擎 · 自测（离线结构化输入）===');
-    const expertInput = {
-      domain: '用本地红壤烧砖',
-      expert: '老窑匠·王',
-      localContext: { altTools: { '窑炉': '本地土窑+柴火' }, materials: ['红壤', '木柴'], literacy: 'low' },
-      steps: [
-        { action: '取红壤，剔除碎石，含水率控制在 20% 以下', tool: '锄头', verification: '握一把土能捏成团、落地即散即为合格' },
-        { action: '制坯入模，压实四角', tool: '木模', verification: '坯体无裂缝、棱角分明' },
-        { action: '阴干 5–7 天至全白，忌暴晒', tool: '—', verification: '断面发白、敲击声脆' },
-        { action: '装窑烧结，温度维持 800–900℃ 约 6 小时', tool: '窑炉', basis: 'expert-testimony', verification: '出窑砖断面致密、敲击清脆为合格' },
-        { action: '自然冷却 24 小时出窑', tool: '—', verification: '砖体不烫手、无骤冷裂纹' }
-      ]
+    const runDomain = async (label, expertInput) => {
+      line('\n════════ ' + label + ' ══════════');
+      const m = await Engine.distill(expertInput);
+      line('[蒸馏] 领域=' + m.domain + '  手册=' + m.id + '  步骤数=' + m.steps.length);
+      line('[蒸馏] 已写KB=' + m.kbRecorded + '  可信档 已验证' + m.grounding.verifiedCount + '/未验证' + m.grounding.unverifiedCount);
+      line('[蒸馏] 审计: ' + m.audit.verdict);
+      line('──── 口述指令 ────');
+      line(renderOral(m));
+      return m;
     };
 
-    const m = await Engine.distill(expertInput);
-    line('\n[蒸馏] 手册 ' + m.id + '  步骤数 ' + m.steps.length);
-    line('[蒸馏] 已写 KB: ' + m.kbRecorded + '  可信档: 已验证' + m.grounding.verifiedCount + ' / 未验证' + m.grounding.unverifiedCount);
-    line('[蒸馏] 审计: ' + m.audit.verdict);
+    // 领域 A：烧砖（经验以自由句给出，引擎自己切条件/工具/术语）
+    const A = await runDomain('领域A · 用本地红壤烧砖', {
+      domain: '用本地红壤烧砖',
+      expert: '老窑匠·王',
+      localContext: {
+        inventory: { tools: ['木模', '锄头'], materials: ['红壤', '木柴'] },
+        substituteMap: { '窑炉': '本地土窑+柴火' }
+      },
+      terms: { '含水率': '泥土里水的比例' },
+      principles: [
+        '取红壤剔除碎石，含水率控制在20%以下（握一把能捏成团、落地即散）',
+        '制坯入木模压实四角，坯体无裂缝棱角分明',
+        '如果砖坯未全干就入窑会爆裂，须阴干5–7天至断面发白再装窑',
+        '装窑烧结用窑炉维持800–900℃约6小时，出窑砖断面致密敲击清脆为合格',
+        '自然冷却24小时出窑，砖体不烫手无骤冷裂纹'
+      ]
+    });
 
-    line('\n──────── 流程图输出 ────────');
-    line(renderFlowchart(m));
+    // 领域 B：修理乡村脚踏水泵（机械，与烧砖完全无关）
+    const B = await runDomain('领域B · 修理乡村脚踏水泵', {
+      domain: '修理乡村脚踏水泵',
+      expert: '农机员·李',
+      localContext: {
+        inventory: { tools: ['机油枪', '扳手'], materials: ['机油'] },
+        substituteMap: { '底阀滤网': '旧纱网+铁丝绑扎', '皮碗': '剪橡胶片自制' }
+      },
+      terms: { '吸程': '水能被吸上来的最大高度', '底阀': '泵体最下端单向进水阀' },
+      principles: [
+        '如果水泵提不上水，先查底阀是否堵，就拆洗底阀滤网',
+        '若皮碗磨损漏气，应更换皮碗，否则吸程不足',
+        '遇轴承异响，加注机油至油窗中线',
+        '装配后空踩十次确认无漏气声，出水连续即合格'
+      ]
+    });
 
-    line('──────── 口述指令输出 ────────');
-    line(renderOral(m));
+    // 验证：A 第一步田间验过 → 升 KERNEL
+    const aPick = A.steps.find(s => s.actionRaw.includes('取红壤'));
+    confirmStep(A.id, aPick.id, '田间验证：捏团落地散判据有效');
+    line('\n[验证A] ' + aPick.id + ' 升档=' + aPick.grounding.tier + '  未验证剩' + A.grounding.unverifiedCount);
 
-    // 田间验证成功：步骤1 取土判据有效 → 升 KERNEL
-    const pick = m.steps.find(s => s.action.includes('取红壤'));
-    confirmStep(m.id, pick.id, '田间验证：含水率捏团落地散判据有效');
-    line('\n──────── 田间验证：' + pick.id + ' 升档=' + pick.grounding.tier + ' ────────');
-    line('[验证] 可信档: 已验证' + m.grounding.verifiedCount + ' / 未验证' + m.grounding.unverifiedCount);
+    // 失败：B 第二步皮碗温度窗错（示例：橡胶片不耐高温需降规格）
+    const bPick = B.steps.find(s => s.actionRaw.includes('皮碗'));
+    const B2 = reportFailure(B.id, bPick.id, '自剪橡胶片遇油溶胀失效，应改用耐油橡胶或定期更换');
+    line('[降级B] ' + bPick.id + ' 状态=' + bPick.status + '  手册rev=' + B2.revision + '  审计=' + B2.audit.verdict);
 
-    // 现场失败：烧结温度窗写错（红壤 900℃ 过烧裂）
-    const sinter = m.steps.find(s => s.action.includes('烧结'));
-    line('──────── 现场失败：' + sinter.id + ' 烧出裂纹 ────────');
-    const m2 = reportFailure(m.id, sinter.id, '红壤在 900℃ 出现大量裂纹，温度窗应降至 750–820℃');
-    line('[降级] ' + sinter.id + ' 状态=' + sinter.status + '  手册 rev=' + m2.revision);
-    line('[降级] 审计: ' + m2.audit.verdict);
-    line('\n──────── 降级后流程图（S1 已验证 / S4 已降级）────────');
-    line(renderFlowchart(m2));
-
-    line('\n=== 自测结论 ===');
-    const ok = m.steps.length === 5 && pick.grounding.tier === G.KERNEL.tier
-      && sinter.grounding.tier === G.PERCEPTION.tier
-      && sinter.status === 'DOWNGRADED' && m2.audit.status === 'valid';
-    line(ok ? 'SELF-TEST: PASS ✔' : 'SELF-TEST: FAIL ✘');
+    line('\n════════ 自测结论 ═════════');
+    const ok = A.steps.length === 5 && B.steps.length === 4
+      && aPick.grounding.tier === G.KERNEL.tier
+      && bPick.status === 'DOWNGRADED'
+      && B2.audit.status === 'valid';
+    line(ok ? 'SELF-TEST: PASS ✔（同一引擎已蒸馏两个无关领域，零代码改动）' : 'SELF-TEST: FAIL ✘');
   })().catch(e => { console.error('SELF-TEST ERROR', e.message); process.exit(1); });
 }
