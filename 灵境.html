@@ -177,13 +177,17 @@ function groundingMeta(){ return {
 }; }
 function setWorld(json){
   validateWorld(json);
+  // 仅当用户显式提供 coord 时才启用欧氏启发式；否则启发式恒为 0（退化为 Dijkstra），
+  // 保证 A* 在任意世界图上都返回真正最优路径（此前对缺坐标节点随机撒点，导致启发式不可采纳、A* 次优且结果随随机种子漂移）。
+  const explicit = !!(json.coord && typeof json.coord === 'object' && Object.keys(json.coord).length);
   const coord = json.coord || {};
-  json.nodes.forEach(n=>{ if(!coord[n]) coord[n]=[Math.random()*10, Math.random()*10]; });
-  WORLD.nodes = json.nodes; WORLD.edges = json.edges; WORLD.coord = coord;
+  if(explicit) json.nodes.forEach(n=>{ if(!coord[n]) coord[n]=[0,0]; });
+  WORLD.nodes = json.nodes; WORLD.edges = json.edges; WORLD.coord = coord; WORLD._coordExplicit = explicit;
 }
 
 // 可采纳启发式：欧氏距离（≤真实代价，保证 A* 最优）——文档附录B建议
 function heuristic(a,b){
+  if(!WORLD._coordExplicit) return 0; // 未显式给坐标 → 无启发式，退化为 Dijkstra（保证最优）
   const ca=WORLD.coord[a], cb=WORLD.coord[b];
   if(!ca||!cb) return 0;
   return Math.hypot(ca[0]-cb[0], ca[1]-cb[1]);
@@ -264,7 +268,7 @@ function system1(start, goal){
 // ③ 系统2（深度推理）：A* + RSG（文档 3.2）
 function system2(start, goal, opts={}){
   const r = aStar(start, goal, opts);
-  return Object.assign({}, r, {system:'2'});
+  return Object.assign({}, r, {system:'2', usedSystem:'2'});
 }
 // 推理编排：系统1 快答 / 系统2 深度 + RSG（文档 3.1/3.2）
 // ima_313 感知-推理-行动闭环：ŵ_t=P(o_t,ŵ_{t-1}) → r_t=R(ŵ_t,G,H) → a_t=D(r_t,U,C) → w_{t+1}=E(a_t)

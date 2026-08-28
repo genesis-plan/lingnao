@@ -199,6 +199,25 @@ OPENROUTER_API_KEY=sk-or-... node examples/simple-robot.js "机器人电量低�
 
 > 内核是「单一真源」：`lingjing-mcp.js` 通过 vm 从 `灵境.html` 抽取同一份内核实跑，三种方式行为完全一致。
 
+### 真实机器人案例接入（网上真实部署，灵境当大脑）
+
+[`examples/real-robots.js`](./examples/real-robots.js) 把 **4 个真实、可考据的机器人部署案例**用灵境世界图建模后接入大脑，每个都跑「免费 LLM 感知(可能幻觉) → 灵境 A* 确定性规划(不幻觉) → 七段审计(可验证)」，并演示**硬约束改道**（通道被占/结构不稳时内核确定性重规划）。案例与公开来源：
+
+| 案例 | 真实背景（来源） | 任务（世界图建模为节点+边+代价） |
+|---|---|---|
+| **Amazon Kiva / Proteus 仓储机器人** | 2012 以 7.75 亿收购 Kiva；2025.7 破 100 万台(amalytix/aboutamazon)；SLAM 自由导航、自动回充 | 把货架货送到拣货站；硬约束演示：A1 通道被占 → 改道 `DOCK→A2→STATION`（代价 7.24→8.49） |
+| **Aethon TUG 医院配送机器人** | 全球 1000+ 站点、超 1 万台；SLAM 导航、呼叫电梯/开门、ISO 13482(robotwale/aethon) | 把药房药品送到 B 病区：`DOCK→ELEV→WARD_B`（代价 5） |
+| **Starship 校园/人行道配送机器人** | 累计超 1000 万次配送、1400 万英里；约 99% 自主 L4、载货约 10kg、单次 $1.99(starship.xyz) | 食堂取餐送宿舍：`HUB→QUAD→DORM`（代价 5，真调免费 API 实测解析出 DORM） |
+| **废墟搜救机器人（CMU / DARPA SubT / 土耳其震区）** | CMU 蛇形参与委内瑞拉震区；2023 土耳其 M7.8 部署热成像探测；DARPA SubT 多机自主建图(robotage/automate) | 基地抵疑似幸存者区；硬约束演示：COMMS 失效 → 改道 `BASE→Z2→Z3→SURV`（代价 6→7） |
+
+> 诚实边界：每个 world 是依据公开规格**简化的教学模型**（真实仓库/医院地图远比这复杂），但规划内核、审计、不幻觉保证与真实部署用的是同一套灵境代码。任何人 clone 后把 `K.reason` / `K.generateAudit` 接到自己的机器人控制器即可。
+
+```bash
+node examples/real-robots.js                 # 离线(零成本)，跑全部 4 例
+node examples/real-robots.js warehouse       # 只跑某案例
+node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知（每天 50 次免费）
+```
+
 ---
 
 ## 文件清单
@@ -211,6 +230,7 @@ OPENROUTER_API_KEY=sk-or-... node examples/simple-robot.js "机器人电量低�
 | `README.md` | 本模型卡与接入指南 |
 | `package.json` / `LICENSE` | 可安装包定义 / MIT 许可 |
 | `examples/simple-robot.js` | 极简机器人示例（免费 LLM 感知 + 确定性内核规划/审计，真可跑，证明别人能接入当大脑） |
+| `examples/real-robots.js` | 4 个真实机器人案例接入（Amazon Kiva / Aethon TUG / Starship / 废墟搜救），含硬约束改道演示，离线零成本可跑 |
 
 > 部署时 `lingjing-mcp.js` 与 `灵境.html` 需同目录（或设 `LINGJING_HTML` 环境变量）。
 
