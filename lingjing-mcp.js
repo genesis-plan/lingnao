@@ -906,8 +906,14 @@ try { K.__defaultEdges = JSON.parse(JSON.stringify(K.WORLD.edges)); } catch (e) 
 
 if (SELFTEST) {
   selftest();
-} else {
+} else if (require.main === module) {
+  // 仅当以 `node lingjing-mcp.js` 直接运行（而非被 require）时，才启动 stdio 服务
   process.stdin.on('data', c => { buf = Buffer.concat([buf, c]); pump(); });
   process.stdin.on('end', () => { /* 等 stdout 自然 flush */ });
   process.stderr.write('[lingjing-mcp] 已启动，内核载入: ' + K.WORLD.nodes.length + ' 节点 / ' + K.WORLD.edges.length + ' 边；工具 ' + TOOLS.length + ' 个\n');
+}
+
+// 库导出：让 examples / 第三方 `require('./lingjing-mcp')` 直接拿到内核（不自启 stdio 服务）
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = K;
 }

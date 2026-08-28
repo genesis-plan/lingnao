@@ -166,6 +166,41 @@ node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，�
 
 ---
 
+## 把它当机器人大脑：极简示例（别人也能直接跑）
+
+仓库内置一个**可直接运行的真示例** [`examples/simple-robot.js`](./examples/simple-robot.js)：一台在 `CHARGE / A / B / C` 网格里移动的地面机器人，接收一句中文口语指令，由灵境完成「感知 → 规划 → 执行 → 审计」。
+
+它本身就是对「不幻觉」边界的最小演示：**感知用免费 LLM（可能幻觉，标 `UNVERIFIED_LLM`），规划/审计用本地确定性内核（标 `DETERMINISTIC` / `AUDITED`，可复现、可验证）**。任何人 clone 后把 `K.reason` / `K.generateAudit` 接到自己的机器人控制器即可。
+
+```bash
+# 离线（零成本，演示确定性内核）：
+node examples/simple-robot.js "去C点"
+# 带免费 API（真正调用 OpenRouter free 做感知，每天 50 次免费额度）：
+OPENROUTER_API_KEY=sk-or-... node examples/simple-robot.js "机器人电量低，去C点充电"
+```
+
+真实运行输出（节选，已用免费 API 实测）：
+
+```
+[ROBOT] 指令(人话): 机器人电量只剩 20% 了，赶紧去C点充电
+   感知结果: {"goal":"前往C点充电","battery":20,"confidence":0.95,
+               "_grounding":{"tier":"UNVERIFIED_LLM","mayHallucinate":true}} [llm, 可能幻觉 → 仅用于理解]
+[BRAIN] 灵境规划(确定性内核):  CHARGE → A → C | 代价 7.2426 | 置信档 DETERMINISTIC
+[AUDIT] 审计: 证明 {P} C {Q} | verified: true | 自验证 PASS | 不幻觉保证: 决策依据全部来自确定性内核/审计
+```
+
+三种接入方式，任选其一即可让别人/别的项目使用灵境：
+
+| 方式 | 适用 | 怎么用 |
+|---|---|---|
+| **MCP 服务**（推荐给 AI 客户端） | Claude Desktop / Cursor / Cline 等 | 见上方 `mcpServers` 配置，`lingjing-mcp` 暴露 36 个工具 |
+| **库 require**（推荐给开发者/机器人） | Node 项目直接调内核 | `const K = require('./lingjing-mcp'); K.reason(start, goal)`（不自启服务） |
+| **浏览器单文件** | 非技术用户 / 演示 | 双击 `灵境.html`，用大白话让大脑理解并规划 |
+
+> 内核是「单一真源」：`lingjing-mcp.js` 通过 vm 从 `灵境.html` 抽取同一份内核实跑，三种方式行为完全一致。
+
+---
+
 ## 文件清单
 
 | 文件 | 作用 |
@@ -175,6 +210,7 @@ node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，�
 | `ARCHITECTURE.md` | 架构白皮书（七元组 / 八层 / 诚实实装映射） |
 | `README.md` | 本模型卡与接入指南 |
 | `package.json` / `LICENSE` | 可安装包定义 / MIT 许可 |
+| `examples/simple-robot.js` | 极简机器人示例（免费 LLM 感知 + 确定性内核规划/审计，真可跑，证明别人能接入当大脑） |
 
 > 部署时 `lingjing-mcp.js` 与 `灵境.html` 需同目录（或设 `LINGJING_HTML` 环境变量）。
 
