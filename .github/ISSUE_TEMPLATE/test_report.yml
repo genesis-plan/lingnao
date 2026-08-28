@@ -1,0 +1,40 @@
+name: 测试报告
+description: 运行 / 测试灵境后的反馈（任何人都能提交）
+title: "[test]: "
+labels: ["test-report"]
+body:
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 测试范围
+      options:
+        - "内核自测 45/45"
+        - "MCP 工具调用"
+        - "网页演示（灵境.html）"
+        - "因果模块（causal_effect 前门/后门）"
+        - "审计 / 不幻觉分层"
+        - "知识库 / 学习闭环"
+        - "其他"
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: 测试结果与发现
+      description: 你跑了什么、看到什么、是否符合预期？
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      description: node 版本、OS、浏览器（网页演示时）、commit
+    validations:
+      required: false
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: 改进建议
+      description: 对不幻觉保证 / 易用性 / 文档的任何建议
+    validations:
+      required: false

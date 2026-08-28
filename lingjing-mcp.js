@@ -196,11 +196,11 @@ function counterfactualLogic(samples, factual, intervention) {
   if (m.error) return m;
   return K.counterfactual(m, factual || {}, intervention || {});
 }
-// 因果效应估计（do-演算后门调整）：先学线性 SEM 模型，再估计 ACE(cause→effect)
-function causalEffectLogic(samples, cause, effect) {
+// 因果效应估计（do-演算：后门调整 + 前门准则，自动识别）：先学线性 SEM 模型，再估计 ACE(cause→effect)
+function causalEffectLogic(samples, cause, effect, mediator) {
   const m = K.learnWorldModel(samples || []);
   if (m.error) return m;
-  return K.causalEffect(m, cause, effect, samples);
+  return K.causalEffect(m, cause, effect, samples, mediator ? { mediator } : {});
 }
 // IMA 数学库接入：读取知识壳（默认同目录 ima_knowledge.json）并注入内核 KB / 元认知路由
 function imaLoadLogic(p) {
@@ -440,14 +440,17 @@ const TOOLS = [
     },
   },
   {
-    name: 'causal_effect', description: '因果效应估计（do-演算后门调整，呼应已消费 ima_304 因果 / ima_301 反事实）：给定观测轨迹样本 samples 与因果变量 cause / 结果变量 effect，自动学线性 SEM 世界模型并估计 ACE=E[effect|do(cause=1)]-E[effect|do(cause=0)]。调整后门集=effect 的其余父节点（已观测）；若 cause 对方程残差有显著线性依赖，返回 unobservedConfounderWarning（未观测混杂警示，非完全识别，诚实边界）。' +
-      'samples 为轨迹数组，每项 {state:{}, action:{}, next:{}}；输出 {ace, method, adjustSet, auditable, imaRef, unobservedConfounderWarning} 或 {error:"后门准则不满足", reason}。',
+    name: 'causal_effect', description: '因果效应估计（do-演算：后门调整 + 前门准则自动识别，呼应已消费 ima_304 因果 / ima_301 反事实）：给定观测轨迹样本 samples 与因果变量 cause / 结果变量 effect，自动学线性 SEM 世界模型并估计 ACE=E[effect|do(cause=1)]-E[effect|do(cause=0)]。' +
+      '· 默认后门调整：后门集=effect 的其余父节点（已观测）；若 cause 对方程残差有显著线性依赖，返回 unobservedConfounderWarning（未观测混杂警示）。' +
+      '· 前门准则：当存在未观测混杂致后门失效时，传 mediator（完全观测的中介，满足前门三条件）即可用两段式 ACE=α·β 从纯观测数据识别 do 效应（Pearl 1995 / Wienöbst-Jeong 识别算法）。' +
+      'samples 为轨迹数组，每项 {state:{}, action:{}, next:{}}；输出 {ace, method, adjustSet|mediator, auditable, imaRef} 或 {error}。',
     inputSchema: {
       type: 'object',
       properties: {
         samples: { type: 'array', items: { type: 'object' }, description: '观测轨迹样本数组，每项 {state:{}, action:{}, next:{}}' },
         cause: { type: 'string', description: '原因变量名（如 "a"）' },
         effect: { type: 'string', description: '结果变量名（如 "y"）' },
+        mediator: { type: 'string', description: '（可选）前门准则中介变量名；提供时走前门两段式估计，可处理未观测混杂' },
       },
       required: ['samples', 'cause', 'effect'],
     },
@@ -673,7 +676,7 @@ function callTool(name, args) {
     case 'sl_status': return slStatusLogic();
     case 'world_model': return worldModelLogic(args.samples, args.state, args.action);
     case 'counterfactual': return counterfactualLogic(args.samples, args.factual, args.intervention);
-    case 'causal_effect': return causalEffectLogic(args.samples, args.cause, args.effect);
+    case 'causal_effect': return causalEffectLogic(args.samples, args.cause, args.effect, args.mediator);
     default: throw new Error('未知工具：' + name);
   }
 }
@@ -732,6 +735,7 @@ function mockFetchOpenRouter() {
     text: () => Promise.resolve(''),
   });
 }
+function mulberry32(seed) { let a = seed >>> 0; return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function selftest() {
   const ok = [];
   const bad = [];
@@ -813,6 +817,12 @@ function selftest() {
     // 因果效应估计（do-演算后门调整，真消费 ima_304/ima_301）：wmSamples 中 y=2x+a，ACE(a→y) 应=1，后门集=[x]
     const ce = causalEffectLogic(wmSamples, 'a', 'y');
     T('causal-effect', ce && typeof ce.ace === 'number' && Math.abs(ce.ace - 1) < 1e-6 && Array.isArray(ce.adjustSet) && ce.adjustSet.indexOf('x') >= 0, 'ace=' + (ce && ce.ace) + ' set=' + (ce && ce.adjustSet) + ' ref=' + (ce && ce.imaRef));
+    // 前门准则（do-calculus，吸收 Pearl 1995 / Wienöbst-Jeong 识别算法）：合成前门 DAG X→M→Y，未观测混杂 U→X,U→Y；
+    // 后门失效，但前门两段式 ACE=α·β 仍可从观测数据识别真值 0.25（α=0.5 来自 M=0.5X，β=0.5 来自 Y=0.5M+0.8U）
+    const fdSamples = (function () { const r = mulberry32(20260827); const out = []; for (let i = 0; i < 4000; i++) { const U = r() < 0.5 ? 1 : 0; const X = r() < (0.3 + 0.5 * U) ? 1 : 0; const M = 0.5 * X + (r() - 0.5) * 0.2; const Y = 0.5 * M + 0.8 * U + (r() - 0.5) * 0.2; out.push({ state: { X, M }, next: { Y } }); } return out; })();
+    const fd = causalEffectLogic(fdSamples, 'X', 'Y', 'M');
+    T('causal-effect-frontdoor', fd && /front-door/.test(fd.method) && typeof fd.ace === 'number' && Math.abs(fd.ace - 0.25) < 0.05 && fd.handlesUnobservedConfounder === true,
+      'ace=' + (fd && fd.ace) + ' α=' + (fd && fd.alpha) + ' β=' + (fd && fd.beta));
     const ev = eventPublishLogic('reason', { status: 'optimal' });
     T('event-bus', ev && ev.delivered >= 1, 'delivered=' + ev.delivered);
     const fc1 = fabricLogic('commit', 'selftest'); const fc2 = fabricLogic('list');
@@ -835,6 +845,12 @@ function selftest() {
         && gm.tiers.PROOF && gm.tiers.PROOF.mayHallucinate === false;
       T('grounding', gOk && ab.grounding && ab.grounding.tiers && ab.reason && ab.reason.grounding && ab.reason.grounding.tier === 'DETERMINISTIC' && ab.disclaimer && /幻觉/.test(ab.disclaimer),
         'percept.tier=' + (ab.percept && ab.percept._grounding && ab.percept._grounding.tier) + ' reason.tier=' + (ab.reason && ab.reason.grounding && ab.reason.grounding.tier));
+      // ⑧⑨ 自验证段 + 反思闭环（吸收 CoVe / Reflexion 思想）：审计须含反向证伪与确定性复盘
+      const rp = K.reason('CHARGE', 'C');
+      const aud = K.generateAudit(rp, {});
+      T('self-verify', aud && aud.selfVerification && aud.selfVerification.checked === true && typeof aud.selfVerification.passed === 'boolean'
+        && aud.reflection && aud.reflection.verbalReinforcement === true && typeof aud.reflection.insight === 'string' && aud.reflection.insight.length > 0,
+        'passed=' + (aud.selfVerification && aud.selfVerification.passed) + ' reflection=' + (aud.reflection && aud.reflection.status));
       // IMA 知识壳接入自测（第 32 项）：注入同目录 ima_knowledge.json，并验证检索可用
       const il = imaLoadLogic({});
       const iq = imaQueryLogic('反事实', 5);

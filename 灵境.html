@@ -713,9 +713,52 @@ function generateAudit(path, opts={}){
       totalCost:path.cost, status:path.status, nodes:path.path.length,
       key:'最优路径 '+path.path.join('→'), usedSystem:path.usedSystem||path.system||'2'
     },
-    details, evidence, constraints, unknown, uncertainty, proof, reproducible, meta: metaCognition({path}), status, generatedAt:new Date().toISOString(), version:'2.0',
+    details, evidence, constraints, unknown, uncertainty, proof,
+    // ⑧ 自验证段（吸收 Chain-of-Verification / 自验证提示 思想）：对结论做反向证伪，而非直接信任前向推理
+    selfVerification: selfVerify(path, WORLD, KB),
+    // ⑨ 反思段（吸收 Reflexion: 语言式强化学习 思想）：确定性复盘写入情景记忆，不更新权重、可审计
+    reflection: reflect(path, opts.feedback),
+    reproducible, meta: metaCognition({path}), status, generatedAt:new Date().toISOString(), version:'2.0',
     grounding:{perception:GROUNDING.PERCEPTION, reason:GROUNDING.KERNEL, proof:GROUNDING.PROOF}, noHallucination:true
   };
+}
+// ⑧ 自验证（吸收 Chain-of-Verification 2024 / 自验证提示 思想）：对结论做反向证伪——
+//    独立用确定性内核复核路径与约束/知识库，而非直接信任前向推理链；幻觉被隔离在边界内。
+function selfVerify(path, world, kb) {
+  const contradictions = [];
+  // 1) 硬约束复核：路径不得经过任何禁行节点
+  const hard = (path.opts && path.opts.hard) || [];
+  hard.forEach(n => { if (path.path.includes(n)) contradictions.push({ kind: 'hard-constraint', detail: '路径经过禁行节点 ' + n }); });
+  // 2) 知识库负样本冲突复核：高置信负样本不应出现在已选转移上
+  const bad = (kb && kb._exp) || [];
+  for (const step of (path.steps || [])) {
+    bad.filter(e => e.kind === 'negative' && e.transition.from === step.state && e.transition.to === step.action && e.confidence < 0.3)
+      .forEach(e => contradictions.push({ kind: 'kb-negative', detail: '经验 ' + e.transition.from + '→' + e.transition.to + ' 为负样本(置信 ' + e.confidence + ')' }));
+  }
+  // 3) 不确定性复核：不可达/不可判定必须显式声明，不得静默通过
+  const hasUnknown = path.status === 'unknown';
+  return { checked: true, contradictions, passed: contradictions.length === 0, unknownDeclared: hasUnknown, grounding: GROUNDING.PROOF, deterministic: true };
+}
+// ⑨ 反思闭环（吸收 Reflexion: 语言式强化学习 Shinn et al. 2023 思想）：不更新模型权重，
+//    将本次运行的结构化反思写入情景记忆（ReflectionBuffer），供后续运行作为上下文——确定性、可审计、不幻觉。
+const ReflectionBuffer = [];
+function reflect(path, feedback) {
+  const r = {
+    ts: new Date().toISOString(),
+    status: path.status,
+    path: (path.path || []).join('→'),
+    cost: path.cost,
+    unknown: path.status === 'unknown' ? (path.U || []) : [],
+    feedback: feedback || null,
+    // 语言式强化：把失败/不可判定转成可行动的改进提示（语义梯度），而非标量奖励
+    insight: path.status === 'optimal'
+      ? '路径可达且代价最优；若同类任务重复，可复用此路径（系统1 快答复用）'
+      : (path.status === 'unknown' ? '当前世界图下不可达/不可判定；需补充世界图边或放宽硬约束后再试（情景记忆已记录）' : '自验证未通过，存在冲突，须复核约束与知识库后再决策'),
+    verbalReinforcement: true
+  };
+  ReflectionBuffer.push(r);
+  if (ReflectionBuffer.length > 50) ReflectionBuffer.shift();
+  return r;
 }
 
 // ⑤ 学习：反馈→置信度更新（正/负样本）+ 学习日志（文档 3.5）
@@ -944,8 +987,8 @@ function learnWorldModel(samples, opts) {
   const stateVars = Object.keys(s0.state || {}), actionVars = Object.keys(s0.action || {}), nextVars = Object.keys(s0.next || {});
   const feats = stateVars.concat(actionVars); const eqs = {}, residuals = {};
   for (const v of nextVars) {
-    const Xb = samples.map(s => [1].concat(feats.map(f => (s.state[f] != null ? s.state[f] : 0) + (s.action[f] != null ? s.action[f] : 0))));
-    const y = samples.map(s => s.next[v] != null ? s.next[v] : 0);
+    const Xb = samples.map(s => [1].concat(feats.map(f => (s.state[f] != null ? s.state[f] : 0) + (s.action && s.action[f] != null ? s.action[f] : 0))));
+    const y = samples.map(s => (s.next && s.next[v] != null) ? s.next[v] : 0);
     const coef = _ols(Xb, y);
     eqs[v] = { bias: coef[0], coef: feats.map((f, i) => coef[i + 1]), features: feats.slice() };
     residuals[v] = samples.map((s, i) => { let p = coef[0]; for (let a = 0; a < feats.length; a++) p += coef[a + 1] * Xb[i][a + 1]; return +(y[i] - p).toFixed(6); });
@@ -974,24 +1017,43 @@ function counterfactual(model, factual, intervention) {
     factual: factNext, counterfactual: next, steps,
     note: '反事实 = 保持事实推断噪声 U 下施加 do(' + v0 + '=' + v1 + ') 重算其余；确定性可复现，非潜空间推演' };
 }
-// ⑥ 因果效应估计（do-演算后门调整）：呼应已消费 ima_304 因果 / ima_301 反事实
-// 诚实边界：线性 SEM 下 ACE = cause 在 effect 结构方程中的直接系数；调整后门集 = effect 的其余父节点（已观测）。
-//          未观测混杂无法从数据单独识别——这里用「cause 对方程残差的线性依赖」做工程化警示（非完全识别，诚实标注）。
-function causalEffect(model, cause, effect, samples) {
+// ⑥ 因果效应估计（do-演算：后门调整 + 前门准则，自动识别）：呼应已消费 ima_304 因果 / ima_301 反事实。
+//    • 后门调整（默认）：effect 结构方程中 cause 的直接系数，调整后门集 = effect 的其余父节点（已观测）。
+//    • 前门准则（Pearl 1995，吸收 do-calculus 识别论文思想）：当存在未观测混杂 U→X,Y 致后门失效时，
+//      若调用方声明完全观测的中介 M 满足前门三条件（M 截断所有 X→Y 路径 / 无 X→M 后门 / X 阻断 M→Y 后门），
+//      用两段式估计 ACE = α·β（α=X→M 斜率，β=M→Y|X 斜率），从纯观测数据识别 do 效应（后门做不到）。
+//    诚实边界：线性 SEM 下两段式；M 是否满足前门三条件由调用方声明（内核不假定 DAG 已知），否则标注 inapplicable。
+function _sampVar(s, c){ return (s.state && s.state[c] != null) ? s.state[c] : ((s.action && s.action[c] != null) ? s.action[c] : ((s.next && s.next[c] != null) ? s.next[c] : undefined)); }
+function causalEffect(model, cause, effect, samples, opts) {
+  opts = opts || {};
   if (!model || model.error) return { error: '无模型' };
-  if (!samples || !samples.length) return { error: '后门准则不满足', reason: '样本为空，无法估计' };
+  if (!samples || !samples.length) return { error: '识别失败', reason: '样本为空' };
+  // —— 前门准则分支（吸收 Pearl 前门 + Wienöbst/Jeong 识别算法思想）——
+  if (opts.mediator) {
+    const M = opts.mediator;
+    const xs = samples.map(s => _sampVar(s, cause)); if (xs.some(v => v == null)) return { error: '前门不适用', reason: 'cause ' + cause + ' 在样本缺失' };
+    const ms = samples.map(s => _sampVar(s, M)); if (ms.some(v => v == null)) return { error: '前门不适用', reason: '中介 ' + M + ' 在样本缺失' };
+    const ys = samples.map(s => _sampVar(s, effect)); if (ys.some(v => v == null)) return { error: '前门不适用', reason: 'effect ' + effect + ' 在样本缺失' };
+    const Xb1 = samples.map(s => [1, _sampVar(s, cause)]);
+    const a = _ols(Xb1, ms); const alpha = +a[1].toFixed(6);           // 阶段1：M ~ 1 + X
+    const Xb2 = samples.map(s => [1, _sampVar(s, M), _sampVar(s, cause)]);
+    const b = _ols(Xb2, ys); const beta = +b[1].toFixed(6);            // 阶段2：Y ~ 1 + M + X
+    const ace = +(alpha * beta).toFixed(6);
+    return { ace, method: 'front-door-adjustment-linear-SEM', mediator: M, alpha, beta,
+      identifiability: '前门三条件由调用方声明（M 截断所有 X→Y 路径 / 无 X→M 后门 / X 阻断 M→Y 后门）',
+      handlesUnobservedConfounder: true, auditable: true, imaRef: ['ima_304', 'ima_301'], grounding: GROUNDING.KERNEL, deterministic: true,
+      note: 'ACE(前门)=α·β=' + alpha + '×' + beta + '=' + ace + '；即使存在未观测混杂 U→X,Y，只要 M 完全观测且屏蔽 U，仍可识别 do 效应' };
+  }
+  // —— 后门调整分支（默认）——
   if (!model.eqs || !model.eqs[effect]) return { error: '后门准则不满足', reason: '结果变量 ' + effect + ' 不在世界模型' };
   const eq = model.eqs[effect];
   const feats = eq.features.slice();
   if (feats.indexOf(cause) < 0) return { ace: 0, method: 'back-door-adjustment-linear-SEM', adjustSet: [], auditable: true, imaRef: ['ima_304'],
     note: 'cause 不在 effect 结构方程中，直接 ACE=0（间接效应未实现，诚实边界）' };
-  const adjustSet = feats.filter(f => f !== cause);
+  const adjustSet = opts.adjustSet || feats.filter(f => f !== cause);
   const cols = [cause].concat(adjustSet);
-  const Xb = samples.map(s => [1].concat(cols.map(c => {
-    const v = (s.state && s.state[c] != null) ? s.state[c] : ((s.action && s.action[c] != null) ? s.action[c] : ((s.next && s.next[c] != null) ? s.next[c] : 0));
-    return v;
-  })));
-  const y = samples.map(s => (s.next && s.next[effect] != null) ? s.next[effect] : 0);
+  const Xb = samples.map(s => [1].concat(cols.map(c => { const v = _sampVar(s, c); return v == null ? 0 : v; })));
+  const y = samples.map(s => { const v = _sampVar(s, effect); return v == null ? 0 : v; });
   const coef = _ols(Xb, y);
   const ace = +coef[1].toFixed(6);
   // 未观测混杂警示：cause 对方程残差的线性依赖（工程化，非完全识别）
@@ -1000,8 +1062,8 @@ function causalEffect(model, cause, effect, samples) {
   const cr = _ols(Xc, resid);
   const unobservedWarn = Math.abs(cr[1]) > 0.05;
   return { ace, method: 'back-door-adjustment-linear-SEM', adjustSet, auditable: true, imaRef: ['ima_304', 'ima_301'],
-    unobservedConfounderWarning: unobservedWarn, grounding:GROUNDING.KERNEL, deterministic:true,
-    note: 'ACE=E[' + effect + '|do(' + cause + '=1)]-E[' + effect + '|do(' + cause + '=0)]，后门集=' + adjustSet.join(',') + (unobservedWarn ? '；残差警示可能存在未观测混杂' : '') };
+    unobservedConfounderWarning: unobservedWarn, grounding: GROUNDING.KERNEL, deterministic: true,
+    note: 'ACE=E[' + effect + '|do(' + cause + '=1)]-E[' + effect + '|do(' + cause + '=0)]，后门集=' + adjustSet.join(',') + (unobservedWarn ? '；残差警示可能存在未观测混杂（可改用前门准则：传 opts.mediator）' : '') };
 }
 
 // 通信：EDA 事件总线（发布/订阅，模块解耦，文档 通信架构）——事件是唯一契约，状态隔离
@@ -1116,7 +1178,7 @@ if(typeof globalThis!=='undefined'){
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
     EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED,
-    explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld};
+    explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer};
 }
 
 // ===================== UI 编排 =====================

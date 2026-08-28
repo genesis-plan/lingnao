@@ -6,7 +6,7 @@
 
 - 仓库（模型主仓，独立于灵数求解器 lingshu-solver）：<https://github.com/genesis-plan/lingjing>
 - 架构白皮书：[ARCHITECTURE.md](./ARCHITECTURE.md)
-- npm 安装：`npm install -g lingjing-mcp`
+- 直接使用：克隆仓库后 `node lingjing-mcp.js`（MCP stdio，零依赖；npm 包待发布）
 
 ---
 
@@ -31,7 +31,7 @@
 
 **它不做什么（诚实边界）**
 - 不生成文本、不编造事实；推理结果可复现、可审计、不幻觉
-- **v3.0 完整骨架已全部确定性实装**（Node 校验 43/43）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入
+- **v3.0 完整骨架已全部确定性实装**（Node 校验 45/45）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入
 - **轻量替代标注（手写 lite 版、非工业级外部求解器，均可运行、均确定性、均不虚构）**：符号验证=自写约束求解器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq 机器证明）；因果发现=PC-lite 离散近似（非真实 PC/FCI）；LSH=SimHash 投影（非 Milvus）；**世界模型/反事实已 lite 实装**（SEM 线性结构方程 + Pearl 反事实三步法，确定性可审计；文档原仅给 VAE/ADM-v2 等名词无定义，本实装为诚实 lite 等价，非 VAE）
 
 ---
@@ -53,9 +53,9 @@
 ## 快速接入
 
 ```bash
-npm install -g lingjing-mcp      # 全局安装，自带 bin（依赖 lingshu-solver 真引擎一并装入）
-npx lingjing-mcp --selftest      # 免安装验证（43/43 工具自检，含 grounding 不幻觉分层项）
-# 灵数求解器以 npm 依赖 lingshu-solver@^1.0.2 接入（ genesis-plan/lingshu-solver ，独立仓库，已发 npm）
+git clone https://github.com/genesis-plan/lingjing && cd lingjing   # 克隆仓库（npm 包待发布，先仓库直用）
+node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，含 grounding 不幻觉分层项）
+# 灵数求解器真引擎以 npm 依赖 lingshu-solver 接入（ genesis-plan/lingshu-solver ，独立仓库，已发 npm）
 ```
 
 任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制配置即可接入，**不用开网页、不用服务器**：
@@ -91,7 +91,7 @@ npx lingjing-mcp --selftest      # 免安装验证（43/43 工具自检，含 gr
 | **代数方程求解** | `algebraic_solve` | **委派真引擎「灵数求解器」(lingshu-solver)**：区间收缩 + Krawczyk 认证，离线确定性、可复现；解实数方程组（≤6 变量，支持 sin/cos/exp/log/sqrt 等），返回 certified/tier/residual |
 | 分支探索 | `dmcts` | D-MCTS 并行分支探索 + 回溯，返回多候选最优路径 |
 | 知识检索/蒸馏 | `knowledge_ann` / `knowledge_distill` / `cog_graph` | LSH 近似检索 / FP-Growth 规则蒸馏 / 认知图谱 |
-| 因果 | `causal` | PC-lite 因果发现 + do 演算查询（后门准则） |
+| 因果 | `causal` / `causal_effect` | PC-lite 因果发现 + do 演算（后门准则 / **前门准则**，见 `causal_effect` 的 `mediator` 参数） |
 | 世界模型 | `world_model` / `counterfactual` | 学结构方程 SEM（手写最小二乘）并前向模拟下一状态；反事实推理（Pearl 三步法 abduction→action→prediction，lite 等价，确定性可审计；非 VAE/ADM-v2） |
 | 学习理论 | `pac_bound` | PAC 学习定理样本复杂度下界 |
 | 物理载体接入 | `carrier_report` | 载体上报电量/密度，自动生成硬/软约束 |
@@ -132,12 +132,21 @@ npx lingjing-mcp --selftest      # 免安装验证（43/43 工具自检，含 gr
 → `{ "ok":true, "percept":{...}, "reason":{"status":"optimal","path":["CHARGE","B","C"],"grounding":{"tier":"DETERMINISTIC"}}, "explanation":{"ok":true,"text":"…","grounding":{"tier":"UNVERIFIED_LLM"},"disclaimer":"LLM 解释可能含错误（幻觉）…"}, "grounding":{"tiers":{...}}, "disclaimer":"感知(percept)来自免费 LLM，可能幻觉…决策依据来自 reason(确定性内核) 与 audit(审计证明)" }`
 > `percept`（感知）标注 `UNVERIFIED_LLM` 可能幻觉；`reason`（推理）标注 `DETERMINISTIC` 不幻觉——这就是"不幻觉"的机器可读边界。
 
-### `causal_effect({samples, cause, effect})`（do-演算后门调整，反事实因果）
+### `causal_effect({samples, cause, effect, mediator?})`（do-演算，后门/前门准则，反事实因果）
+
+后门（默认，需 effect 的其余父节点已观测）：
 ```json
 { "samples":[{"state":{"x":1},"action":{"a":0},"next":{"y":2}}, …], "cause":"a", "effect":"y" }
 ```
 → `{ "ace":1, "adjustSet":["x"], "auditable":true, "deterministic":true, "imaRef":["ima_304","ima_301"], "grounding":{"tier":"DETERMINISTIC"} }`
 > 在 y=2x+a 的合成数据上 ACE(a→y)=1 精确还原真值；确定性、可审计，呼应 IMA 因果资料 ima_304 / ima_301。
+
+前门（存在未观测混杂、后门失效时，传 `mediator`）：
+```json
+{ "samples":[{"state":{"X":1,"M":0.5},"next":{"Y":0.9}}, …], "cause":"X", "effect":"Y", "mediator":"M" }
+```
+→ `{ "ace":0.25, "method":"front-door-adjustment-linear-SEM", "mediator":"M", "handlesUnobservedConfounder":true, "auditable":true, "imaRef":["ima_304","ima_301"], "grounding":{"tier":"DETERMINISTIC"} }`
+> 吸收 Pearl 前门准则：X→M→Y 且 U→X,U→Y（未观测混杂）时，后门失效，但前门 ACE=α·β 仍可识别（自测合成数据精确还原 0.25）。前门三条件由调用方声明。
 
 ### `learn({path, success})` / `knowledge_query` / `knowledge_add`
 经验库增查与置信度更新（成功=正样本 +0.1 / 失败=负样本 -0.1）。
@@ -174,3 +183,17 @@ npx lingjing-mcp --selftest      # 免安装验证（43/43 工具自检，含 gr
 ## 许可与分发
 
 MIT。免费、开源、面向 AI Agent 分发。可作为软著 / 专利材料与被动获客入口。
+
+---
+
+## 论文消费与学术对齐
+
+本产品持续吸收外部前沿思想并诚实标注实装状态，详见 [灵境_论文消费对照.md](./灵境_论文消费对照.md)（do-calculus 前门准则、CoVe 自验证、Reflexion 反思、Tree-of-Thoughts、神经符号边界的逐篇对照与自测证据）。
+
+## 反馈、测试与贡献（欢迎外部打磨）
+
+- **提 Bug / 测试报告 / 功能建议**：用仓库 Issue 模板（`bug` / `test-report` / `feature` 三类）。
+- **讨论与用法分享**：GitHub Discussions（仓库 Discussions 标签）。
+- **跑通自测（你也能验证不幻觉）**：`node lingjing-mcp.js --selftest` → 应看到 `SELFTEST OK — 全部 45 项`。
+- **贡献代码**：见 [CONTRIBUTING.md](./CONTRIBUTING.md)（含最小复现步骤与测试要求）。
+- **安全/漏洞报告**：见 [SECURITY.md](./SECURITY.md)（请先私信，勿公开 Issue）。
