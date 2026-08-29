@@ -3,3 +3,6 @@ npm-debug.log*
 .DS_Store
 *.log
 .workbuddy/
+
+# 灵境运行时记忆存档（神经① 持久化产物，非源码）
+.lingjing-memory.json

@@ -142,7 +142,9 @@ let WORLD = {
     {from:'CHARGE',to:'B',w:Math.hypot(3,3),p:1}, {from:'B',to:'CHARGE',w:Math.hypot(3,3),p:1},
     {from:'A',to:'C',w:Math.hypot(3,3),p:1}, {from:'C',to:'A',w:Math.hypot(3,3),p:1}
   ],
-  coord:{CHARGE:[0,0], A:[3,0], B:[3,3], C:[6,0]}
+  coord:{CHARGE:[0,0], A:[3,0], B:[3,3], C:[6,0]},
+  // 来源存证（神经②）：只记录"大脑自己感知进来"的节点/边，其中未经验证的部分绝不混入证明链
+  _prov:{node:{}, edge:{}}
 };
 
 // ⑦ 世界图外部可定义（文档：状态建模可配置）——灭蚊器仅为默认场景，非硬编码绑定
@@ -261,9 +263,15 @@ function buildRSG(path, log, rsgNodes, rsgEdges, start, goal){
 function system1(start, goal, opts={}){
   const hard = new Set(opts.hard||[]);
   if(hard.has(goal)) return {system:'1', decided:false, reason:'目标位于硬约束禁集，系统1 拒绝快答，升级系统2'};
-  const direct = WORLD.edges.some(e=>e.from===start&&e.to===goal);
+  const edge = WORLD.edges.find(e=>e.from===start&&e.to===goal);
+  const direct = !!edge;
+  // 诚实闸门：感知进来但未经验证的边，不允许走"快答"直接判定最优（须升级系统2 并走证明链）
+  if(direct && edge.perceived) return {system:'1', decided:false,
+    reason:'该边为感知未确认(perceived)，系统1 拒绝快答，升级系统2'};
   const exp = KB.findExperience(start, goal);
-  if(direct && exp && exp.success && exp.confidence>=0.8){
+  // 神经③：快答门槛不再写死 0.8，由元认知按全局不确定性动态给定（不确定性越高越谨慎）
+  const th = (typeof opts.system1Threshold === 'number') ? opts.system1Threshold : 0.8;
+  if(direct && exp && exp.success && exp.confidence>=th){
     return {system:'1', decided:true, path:[start,goal], confidence:exp.confidence, reason:'KB 高置信直接经验复用('+exp.id+')', evidenceIds:[exp.id]};
   }
   return {system:'1', decided:false, reason:'无足够置信直接经验，升级系统2'};
@@ -276,19 +284,61 @@ function system2(start, goal, opts={}){
 // 推理编排：系统1 快答 / 系统2 深度 + RSG（文档 3.1/3.2）
 // ima_313 感知-推理-行动闭环：ŵ_t=P(o_t,ŵ_{t-1}) → r_t=R(ŵ_t,G,H) → a_t=D(r_t,U,C) → w_{t+1}=E(a_t)
 // ima_350 闭环统一理论：s_{t+1}=P(Φ(E(α(s_t)))
+// 探索模式备选路径：确定性生成（逐边剔除后重跑 A*，不用随机采样 → 可复现、可审计）
+function exploreAlternatives(start, goal, bestPath, bestCost, budget, opts){
+  const alts = [];
+  if(!bestPath || bestPath.length < 2 || !(budget > 0)) return alts;
+  const hard = (opts && Array.isArray(opts.hard)) ? opts.hard.slice() : [];
+  for(let i = 0; i < bestPath.length - 1 && alts.length < budget; i++){
+    const ban = bestPath[i + 1];
+    if(ban === goal) continue;
+    const r = aStar(start, goal, Object.assign({}, opts, { hard: hard.concat([ban]) }));
+    if(r && r.status === 'optimal' && r.path && r.path.length){
+      alts.push({ avoid: ban, path: r.path, cost: r.cost, delta: +(r.cost - bestCost).toFixed(6) });
+    }
+  }
+  return alts;
+}
+
 function reason(start, goal, opts={}){
+  // ── 神经③：元认知真接管调度 —— 先问第五层"现在该怎么想"，再决定快答门槛 / 是否展开分支 ──
+  let mc = null, sched = null;
+  if(opts.meta !== false){
+    mc = metaCognition({ threshold: opts.gapThreshold, alpha: opts.alpha });
+    // 不确定性越高 → 快答门槛越高（更谨慎，倾向深度推理）；越低 → 放宽快答，提速
+    const th = Math.max(0.6, Math.min(0.95, 0.6 + 0.35 * mc.uncertainty.global));
+    sched = { system1Threshold:+th.toFixed(3), exploreExploit:mc.decision.exploreExploit,
+              globalUncertainty:mc.uncertainty.global, branchBudget: mc.resource.recommend === 'high' ? 3 : 1,
+              reason: mc.decision.reason };
+    if(typeof EventBus !== 'undefined') EventBus.publish('metacognition', { sched, gaps: mc.knowledgeGaps.length });
+  }
+  const sysOpts = sched ? Object.assign({}, opts, { system1Threshold: sched.system1Threshold }) : opts;
   if(!opts.system1Only){
-    const s1 = system1(start, goal, opts);
+    const s1 = system1(start, goal, sysOpts);
     if(s1.decided) return Object.assign({}, s1, {
       status:'optimal', cost:edgeCost(start,goal),
       steps:[{seq:1,state:start,action:'move→'+goal,result:goal,reason:s1.reason,confidence:s1.confidence,evidenceIds:s1.evidenceIds,p:1}],
       searchLog:[], rsg:null, usedSystem:'1',
-      opts:{hard:(opts.hard||[]).slice(), soft:(opts.soft||[]).slice()}
+      opts:{hard:(opts.hard||[]).slice(), soft:(opts.soft||[]).slice()},
+      meta: sched ? Object.assign({}, sched, {path:'system1', thresholdApplied:sched.system1Threshold}) : null
     });
   }
   const r2 = system2(start, goal, opts);
   // 约束单一真源：把本次推理使用的 hard/soft 挂到结果上，供 selfVerify/generateAudit 自动复核（修复自验证死分支）
   r2.opts = {hard:(opts.hard||[]).slice(), soft:(opts.soft||[]).slice()};
+  // 探索模式：给审计者看"还考虑过哪些路"（确定性生成，不随机，可复现）
+  if(sched && sched.exploreExploit === 'explore' && r2.status === 'optimal' && opts.alternatives !== false){
+    r2.alternatives = exploreAlternatives(start, goal, r2.path, r2.cost, sched.branchBudget, opts);
+  }
+  // 元认知调度结果写入推理产物，使"怎么想的"本身可审计
+  if(mc){
+    const hit = (mc.knowledgeGaps || []).filter(g => r2.path && r2.path.length > 1
+      && (g.transition.indexOf(String(start) + '→') === 0 || r2.path.slice(1).indexOf(g.transition.split('→')[1]) >= 0));
+    if(hit.length) r2.suggestExplore = hit.slice(0, 3).map(g => ({transition:g.transition, priority:g.priority, reason:g.reason}));
+    r2.meta = Object.assign({}, sched, {path:'system2', knowledgeGaps:mc.knowledgeGaps.length,
+      conflicts:mc.conflictArbitration.length, consistencyC:mc.uncertainty.consistencyC});
+  }
+  if(typeof EventBus !== 'undefined') EventBus.publish('reason', { start, goal, status:r2.status, usedSystem:r2.usedSystem || '2' });
   // 主推理消费 IMA（ima_378 假设检验处理未知 / ima_365 概率法）：低置信或未知时检索相关公理定理注入证据。
   // 关键词：先用目标语义检索；若不可判定(unknown)再回落到通用推理数学关键词(未知/假设检验/决策/反事实/目标导向/贝叶斯)，
   // 确保「卡住时真拉取数学原理」而非死代码（此前仅用节点名作关键词，对 CHARGE/A/B/C 这类抽象节点恒为空）。
@@ -583,20 +633,186 @@ function slMonitor(kid, reason){ return SelfLearn.flagSuspicious(kid, reason); }
 function slStatus(){ return SelfLearn.status(); }
 // KB 桥：把自我学习接入知识库命名空间（审计可引用）
 KB.slRecord = slRecord; KB.slDiscover = slDiscover; KB.slValidate = slValidate; KB.slMonitor = slMonitor; KB.slStatus = slStatus;
-// 预置基础经验（冷启动）——演示正/负样本
-KB.addExperience('CHARGE','A',true,0.5);
-KB.addExperience('A','C',true,0.5);
-KB.addExperience('CHARGE','B',true,0.5);
-KB.addExperience('B','C',true,0.5);
-KB.addExperience('A','B',false,0.5);   // 负样本：A→B 曾失败（边界拥挤）
+// ══════════════════════════════════════════════════════════════════════
+// 神经①：记忆持久化（Memory）—— 修复"每次醒来都失忆"
+// 此前缺陷：KB 经验与世界图全在内存，进程退出即丢失 → "持续演化的认知基质"无从谈起。
+// 设计要点：
+//   · 存 KB 经验库 + Data Fabric 版本 + 反思缓冲 + **感知增量**（大脑自己长出来的部分）
+//   · 不存外部 setWorld 注入的图——那是宿主应用的业务，不该被大脑的存档覆盖（否则跨运行污染）
+//   · Node：build-umd 注入落盘 localStorage 桩（.lingjing-memory.json）；浏览器：原生 localStorage
+// 对 KBFabric / ReflectionBuffer 的引用均为调用时惰性取用，故可安全定义于此。
+// ══════════════════════════════════════════════════════════════════════
+const Memory = {
+  KEY: 'lingjing_memory_v1',
+  _restored: false,
+  available(){ try { return typeof localStorage !== 'undefined' && !!localStorage; } catch(e){ return false; } },
+  // 感知增量：只取大脑自己感知进来的节点/边（_prov 有存证者）
+  worldDelta(){
+    const prov = WORLD._prov || {node:{},edge:{}};
+    return {
+      nodes: Object.keys(prov.node || {}),
+      edges: (WORLD.edges || []).filter(e => e.perceived)
+              .map(e => ({ from:e.from, to:e.to, w:e.w, p:e.p, perceived:true })),
+      prov
+    };
+  },
+  applyWorldDelta(d){
+    if(!d) return { addedNodes:0, addedEdges:0 };
+    let an = 0, ae = 0;
+    for(const n of (d.nodes || [])) if(!WORLD.nodes.includes(n)){ WORLD.nodes.push(n); an++; }
+    for(const e of (d.edges || [])){
+      if(!WORLD.nodes.includes(e.from)){ WORLD.nodes.push(e.from); an++; }
+      if(!WORLD.nodes.includes(e.to)){ WORLD.nodes.push(e.to); an++; }
+      const dup = WORLD.edges.find(x => x.from === e.from && x.to === e.to);
+      if(!dup){ WORLD.edges.push({ from:e.from, to:e.to, w:e.w, p:(e.p==null?1:e.p), perceived:true }); ae++; }
+    }
+    WORLD._prov = d.prov || WORLD._prov || {node:{},edge:{}};
+    return { addedNodes:an, addedEdges:ae };
+  },
+  snapshot(){
+    return { v:1, ts:new Date().toISOString(), kbVersion:KB._version,
+      exp: KB._exp, world: this.worldDelta(),
+      fabric: (typeof KBFabric !== 'undefined' ? KBFabric._versions.slice(-20) : []),
+      reflections: (typeof ReflectionBuffer !== 'undefined' ? ReflectionBuffer.slice(-20) : []) };
+  },
+  save(){
+    if(!this.available()) return { ok:false, reason:'无 localStorage（纯内存模式，退出即丢）' };
+    try {
+      const s = this.snapshot(); const str = JSON.stringify(s);
+      localStorage.setItem(this.KEY, str);
+      return { ok:true, bytes:str.length, exp:KB._exp.length,
+               perceivedNodes:s.world.nodes.length, perceivedEdges:s.world.edges.length, ts:s.ts };
+    } catch(e){ return { ok:false, reason:e.message }; }
+  },
+  load(){
+    if(!this.available()) return { ok:false, reason:'无 localStorage（纯内存模式）' };
+    let raw = null;
+    try { raw = localStorage.getItem(this.KEY); } catch(e){ return { ok:false, reason:e.message }; }
+    if(!raw) return { ok:false, reason:'无存档（首次启动）' };
+    try {
+      const s = JSON.parse(raw);
+      if(!s || !Array.isArray(s.exp)) throw new Error('存档缺少 exp 数组');
+      KB._exp = s.exp;
+      const applied = this.applyWorldDelta(s.world);
+      // 可选部分单独兜底：KBFabric / ReflectionBuffer 为 const，若自举早于其声明会落 TDZ（typeof 也会抛）
+      try { if(Array.isArray(s.fabric) && typeof KBFabric !== 'undefined') KBFabric._versions = s.fabric; } catch (e) {}
+      try {
+        if(Array.isArray(s.reflections) && typeof ReflectionBuffer !== 'undefined'){
+          ReflectionBuffer.length = 0; s.reflections.forEach(r => ReflectionBuffer.push(r));
+        }
+      } catch (e) {}
+      this._restored = true;
+      return { ok:true, exp:KB._exp.length, addedNodes:applied.addedNodes, addedEdges:applied.addedEdges, ts:s.ts };
+    } catch(e){ return { ok:false, reason:'存档损坏：' + e.message }; }
+  },
+  clear(){
+    if(!this.available()) return { ok:false, reason:'无 localStorage' };
+    try { localStorage.removeItem(this.KEY); this._restored = false; return { ok:true }; }
+    catch(e){ return { ok:false, reason:e.message }; }
+  },
+  status(){
+    const raw = this.available() ? (localStorage.getItem(this.KEY) || null) : null;
+    return { available:this.available(), hasArchive:!!raw, archiveBytes: raw ? raw.length : 0,
+             restored:this._restored, exp:KB._exp.length,
+             worldNodes:WORLD.nodes.length, worldEdges:WORLD.edges.length,
+             perceivedEdges:(WORLD.edges || []).filter(e => e.perceived).length };
+  }
+};
+function bootMemory(){
+  const r = Memory.load();
+  if(r.ok) return { restored:true, exp:r.exp, addedNodes:r.addedNodes, addedEdges:r.addedEdges, ts:r.ts };
+  return { restored:false, reason:r.reason };
+}
+// 注：冷启动自举统一在内核最末（所有 const 声明完成后）执行，见文件末尾 bootMemory() 调用处。
 
-// ① 感知接口：结构化状态 + 指纹 + 合法性校验（文档 3.1）
-// TODO(文档 Layer1): 当前为结构化 JSON 校验；Banach 不动点信念收敛未实现
+// ① 感知接口（神经②：感知 → 建图闭环，文档 Layer1）
+// 此前：只做 JSON 结构校验就返回，世界图永不自增长 —— "活的认知基质"落空。
+// 现在：接收观测（节点 / 边 / 坐标），带来源与证据写入世界图；重复与冲突都有记录，绝不静默改写。
+// 诚实边界：感知写入一律标 perceived:true 并存证，属 PERCEPTION 档（可能出错）；
+//           未经 confirmObservation 确认前不进入证明链，不谎称"已知"。
 function perceive(input){
   if(typeof input==='string'){ try{ input=JSON.parse(input); }catch(e){ return {ok:false, error:'JSON 解析失败'}; } }
-  if(!input || !input.goal) return {ok:false, error:'缺少 goal'};
-  const fp = JSON.stringify({battery:input.battery, goal:input.goal, density:input.density});
-  return {ok:true, mode:'manual', state:{id:'S'+Date.now(), data:input, fingerprint:fp, ts:Date.now()}};
+  if(!input || typeof input!=='object') return {ok:false, error:'缺少观测输入'};
+  const source = input.source || 'unknown';
+  const evidence = input.evidence || null;
+  const ts = new Date().toISOString();
+  const added = { nodes:[], edges:[] }, updated = [], rejected = [], conflicts = [];
+
+  // 兼容旧格式：{goal,battery,density} 仅作状态登记，不改图
+  if(input.goal != null && !input.observations && !input.edges){
+    const fp = JSON.stringify({battery:input.battery, goal:input.goal, density:input.density});
+    return {ok:true, mode:'manual', graphChanged:false,
+            state:{id:'S'+Date.now(), data:input, fingerprint:fp, ts:Date.now()},
+            grounding:GROUNDING.PERCEPTION};
+  }
+
+  const obs = input.observations
+    || (Array.isArray(input.edges) ? input.edges.map(e => Object.assign({type:'edge'}, e)) : null);
+  if(!Array.isArray(obs) || !obs.length) return {ok:false, error:'缺少 observations（[{type:"node"|"edge", ...}]）'};
+  if(!WORLD._prov) WORLD._prov = {node:{}, edge:{}};
+
+  for(const o of obs){
+    if(!o || typeof o!=='object'){ rejected.push({obs:o, reason:'非对象'}); continue; }
+    const type = o.type || (o.from != null && o.to != null ? 'edge' : (o.node != null ? 'node' : null));
+    if(type === 'node'){
+      const n = (o.node != null ? o.node : o.id);
+      if(n == null){ rejected.push({obs:o, reason:'缺 node 名'}); continue; }
+      if(!WORLD.nodes.includes(n)){
+        WORLD.nodes.push(n); added.nodes.push(n);
+        WORLD._prov.node[n] = {source, evidence, ts, verified:false};
+      } else if(!WORLD._prov.node[n]){
+        WORLD._prov.node[n] = {source, evidence, ts, verified:false, preExisting:true};
+      }
+      if(o.coord && WORLD.coord) WORLD.coord[n] = o.coord;
+    } else if(type === 'edge'){
+      const from = o.from, to = o.to;
+      if(from == null || to == null){ rejected.push({obs:o, reason:'边缺 from/to'}); continue; }
+      const w = (typeof o.w === 'number' && !isNaN(o.w)) ? o.w : 1;
+      const p = (typeof o.p === 'number' && !isNaN(o.p)) ? Math.max(0, Math.min(1, o.p)) : 1;
+      if(!WORLD.nodes.includes(from)){ WORLD.nodes.push(from); added.nodes.push(from); WORLD._prov.node[from] = {source, evidence, ts, verified:false}; }
+      if(!WORLD.nodes.includes(to)){ WORLD.nodes.push(to); added.nodes.push(to); WORLD._prov.node[to] = {source, evidence, ts, verified:false}; }
+      const key = from + '→' + to;
+      const dup = WORLD.edges.find(x => x.from === from && x.to === to);
+      if(!dup){
+        WORLD.edges.push({from, to, w, p, perceived:true});
+        WORLD._prov.edge[key] = {source, evidence, ts, verified:false};
+        added.edges.push(key);
+      } else if(Math.abs((dup.w == null ? 1 : dup.w) - w) > 1e-9){
+        // 与既有认知冲突：保留原值 + 登记待仲裁，绝不静默改写（可审计）
+        conflicts.push({transition:key, existingW:dup.w, observedW:w, policy:'保留原值并登记冲突，待元认知仲裁'});
+        WORLD._prov.edge[key] = Object.assign({}, WORLD._prov.edge[key] || {},
+          {conflict:{existingW:dup.w, observedW:w, source, evidence, ts}});
+      } else {
+        dup.p = p; updated.push({transition:key, field:'p', value:p});
+      }
+    } else { rejected.push({obs:o, reason:'未知 type（须 node/edge）'}); }
+  }
+
+  const changed = added.nodes.length || added.edges.length || updated.length;
+  const out = {ok:true, mode:'graph-update', source, evidence, ts, added, updated, conflicts, rejected,
+    graphChanged: !!changed, world:{nodes:WORLD.nodes.length, edges:WORLD.edges.length},
+    grounding:GROUNDING.PERCEPTION,
+    note:'感知写入属 PERCEPTION 档（可能出错），未经 confirmObservation 确认前不进证明链'};
+  if(changed && typeof EventBus !== 'undefined') EventBus.publish('perception', out);
+  return out;
+}
+
+// 感知确认：把"听来的"升为"验证过的"——清除 perceived 标记并落一条高置信经验
+function confirmObservation(key, success){
+  if(!key || typeof key !== 'string') return {ok:false, error:'key 形如 "A→B" 或节点名'};
+  const parts = String(key).split('→');
+  const prov = WORLD._prov || (WORLD._prov = {node:{}, edge:{}});
+  if(prov.edge && prov.edge[key]){
+    prov.edge[key].verified = true; prov.edge[key].verifiedAt = new Date().toISOString();
+    if(parts.length === 2) WORLD.edges.forEach(e => { if(e.from === parts[0] && e.to === parts[1]) delete e.perceived; });
+  } else if(prov.node && prov.node[key]){
+    prov.node[key].verified = true;
+  } else {
+    return {ok:false, error:'未找到该观测的存证：' + key};
+  }
+  if(parts.length === 2) KB.addExperience(parts[0], parts[1], success !== false, 0.8, 'confirmed-observation');
+  if(typeof EventBus !== 'undefined') EventBus.publish('learning', {type:'confirm-observation', key});
+  return {ok:true, key, verified:true, note:'已升级为已验证认知（可进入证明链与系统1快答）'};
 }
 
 // ① 感知层（免费 LLM）：自然语言/状态描述 → 结构化感知（文档 Layer1）
@@ -724,7 +940,7 @@ function generateAudit(path, opts={}){
   const reproducible = {kbVersion:KB._version, algorithmVersion:ALGO_VERSION, seed:SEED, ts:new Date().toISOString()};
   // 诚实分级（修复"恒 valid"）：unknown→warning；声称 optimal 但证明未通过→unverified；其余 valid
   const status = unknown.length? 'warning' : (path.status==='optimal' && proof.verified!==true ? 'unverified' : 'valid');
-  return {
+  const _rep = {
     reportId:'AUD'+Date.now(), pathId:path.id||'P', summary:{
       totalCost:path.cost, status:path.status, nodes:path.path.length,
       key:'最优路径 '+path.path.join('→'), usedSystem:path.usedSystem||path.system||'2'
@@ -739,6 +955,8 @@ function generateAudit(path, opts={}){
     // 诚实修复：noHallucination 不再恒 true——仅当结论被证明验证或已诚实声明不可判定时才声称
     noHallucination: (path.status==='unknown' || proof.verified===true)
   };
+  if(typeof EventBus !== 'undefined') EventBus.publish('audit', _rep);
+  return _rep;
 }
 // ⑧ 自验证（吸收 Chain-of-Verification 2024 / 自验证提示 思想）：对结论做反向证伪——
 //    独立用确定性内核复核路径与约束/知识库，而非直接信任前向推理链；幻觉被隔离在边界内。
@@ -783,7 +1001,10 @@ function reflect(path, feedback) {
 // TODO(文档 Layer2/6): 启发式更新；PAC 样本复杂度界、在线凸优化、知识蒸馏未实现
 function learn(path, success, step=0.1){
   const updated = path.slice(1).map((node,i)=> KB.updateConfidence(path[i], node, success, step));
-  return {updated:updated.map(e=>({id:e.id, transition:e.transition.from+'→'+e.transition.to, confidence:+e.confidence.toFixed(3), kind:e.kind})), log:'学习日志：'+path.join('→')+' 反馈='+(success?'成功(正样本)':'失败(负样本)')};
+  const out = {updated:updated.map(e=>({id:e.id, transition:e.transition.from+'→'+e.transition.to, confidence:+e.confidence.toFixed(3), kind:e.kind})), log:'学习日志：'+path.join('→')+' 反馈='+(success?'成功(正样本)':'失败(负样本)')};
+  // 神经①/③：学习即落盘（经 EventBus → 订阅者 → Memory.save），不再进程退出即失忆
+  if(typeof EventBus !== 'undefined') EventBus.publish('learning', { type:'learn', path, success });
+  return out;
 }
 
 // 物理载体接入：上报→推理约束生成（文档：物理载体智能接上要用）
@@ -1094,11 +1315,17 @@ const EventBus = {
     this.log.push({ type, ts: new Date().toISOString(), delivered: ls.length }); return { type, delivered: ls.length, results: out }; },
   reset(){ this._subs = {}; this.log = []; }
 };
-EventBus.on('perception',  p => { /* 感知事件 → 更新世界信念 */ });
-EventBus.on('reason',     r => { /* 推理事件 → 分支探索/决策生成 */ });
-EventBus.on('learning',   l => { /* 学习事件 → 经验/模型更新 */ });
-EventBus.on('audit',      a => { /* 审计事件 → 证明就绪 */ });
-EventBus.on('metacognition', m => { /* 元认知事件 → 全局状态更新 */ });
+// 神经③：订阅者做实事（此前 5 个订阅回调体全是空注释，总线内部 publish 数为 0 —— EDA 名存实亡）。
+// 现在：感知/学习事件触发记忆落盘（真正的副作用），推理/审计/元认知事件登记可观测轨迹。
+EventBus.on('perception', p => {
+  if(!p || !p.graphChanged) return { saved:false, why:'世界图无变化' };
+  return { saved:true, result: Memory.save() };
+});
+EventBus.on('reason', r => ({ noted:true, status: r && r.status, usedSystem: r && r.usedSystem }));
+EventBus.on('learning', l => ({ saved:true, trigger: (l && l.type) || 'learn', result: Memory.save() }));
+EventBus.on('audit', a => ({ noted:true, status: a && a.status, verified: !!(a && a.proof && a.proof.verified) }));
+EventBus.on('metacognition', m => ({ noted:true, mode: m && m.sched && m.sched.exploreExploit,
+                                     threshold: m && m.sched && m.sched.system1Threshold }));
 
 // 数据编排：Data Fabric 知识库版本化（git 风格快照 + diff，文档 数据架构）
 const KBFabric = {
@@ -1187,6 +1414,21 @@ function metaCognition(opts={}){
     consistencyNote:'C(K)=1-冲突率-α·H(K)；α='+(opts.alpha||0.2)
   };
 }
+// ══════════════════════════════════════════════════════════════════════
+// 冷启动自举（置于内核最末：此时所有 const 均已声明，Memory 可安全恢复全部构件）
+// 有存档 → 恢复记忆（不再从零失忆）；无存档 → 注入默认场景并建档
+// ══════════════════════════════════════════════════════════════════════
+const _boot = bootMemory();
+if(!_boot.restored){
+  // 预置基础经验（冷启动）——演示正/负样本；仅首次启动注入，有存档时由 Memory 恢复
+  KB.addExperience('CHARGE','A',true,0.5);
+  KB.addExperience('A','C',true,0.5);
+  KB.addExperience('CHARGE','B',true,0.5);
+  KB.addExperience('B','C',true,0.5);
+  KB.addExperience('A','B',false,0.5);   // 负样本：A→B 曾失败（边界拥挤）
+  Memory.save();
+}
+
 // ==KERNEL END==
 
 // 导出供 MCP / Node 校验复用
@@ -1196,7 +1438,8 @@ if(typeof globalThis!=='undefined'){
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
     EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED,
-    explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer};
+    explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer,
+    Memory, bootMemory, confirmObservation, exploreAlternatives};
 }
 
 // ===================== UI 编排 =====================

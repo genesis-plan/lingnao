@@ -25,7 +25,9 @@ const EXPORT_NAMES = [
   'SelfLearn', 'slRecord', 'slDiscover', 'slValidate', 'slMonitor', 'slStatus',
   'EventBus', 'KBFabric', 'runtimeMonitor', 'continuousVerify', 'fingerprintVec', 'simHash',
   'ALGO_VERSION', 'SEED', 'explainWithLLM', 'askBrain', 'causalEffect',
-  'groundingMeta', 'GROUNDING', 'validateWorld'
+  'groundingMeta', 'GROUNDING', 'validateWorld',
+  // 三根神经（2026-08-29）：记忆持久化 / 感知建图闭环 / 元认知调度
+  'Memory', 'bootMemory', 'confirmObservation', 'exploreAlternatives'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';
@@ -50,11 +52,23 @@ const umd = `(function (root, factory) {
   if (runtime === 'node' && typeof require === 'function') {
     // ---- Node 分支：vm 隔离执行 + 内存桩（同 lingjing-mcp.js） ----
     const vm = require('vm');
-    const store = {};
+    // 神经①：localStorage 桩落盘 —— 内核写 localStorage 即写磁盘，进程退出不再失忆。
+    // 存档路径可用环境变量 LINGJING_MEMORY 覆盖；读写失败一律降级为纯内存，不影响内核运行。
+    const _fs = require('fs'), _path = require('path');
+    const MEM_FILE = process.env.LINGJING_MEMORY || _path.join(process.cwd(), '.lingjing-memory.json');
+    let store = {};
+    try { if (_fs.existsSync(MEM_FILE)) store = JSON.parse(_fs.readFileSync(MEM_FILE, 'utf8') || '{}'); } catch (e) { store = {}; }
     const localStorageStub = {
       getItem: (k) => (k in store ? store[k] : null),
-      setItem: (k, v) => { store[k] = String(v); },
-      removeItem: (k) => { delete store[k]; }
+      setItem: (k, v) => {
+        store[k] = String(v);
+        try { _fs.writeFileSync(MEM_FILE, JSON.stringify(store)); } catch (e) { /* 只读环境下降级为内存 */ }
+      },
+      removeItem: (k) => {
+        delete store[k];
+        try { _fs.writeFileSync(MEM_FILE, JSON.stringify(store)); } catch (e) {}
+      },
+      __file: MEM_FILE
     };
     function makeProxy() {
       return new Proxy(function () {}, {

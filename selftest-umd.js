@@ -43,6 +43,41 @@ assert(rDetour.status === 'optimal' && JSON.stringify(rDetour.path) === JSON.str
 const aDetour = L.generateAudit(rDetour);
 assert(aDetour.status === 'valid' && aDetour.constraints[0].nodes.includes('B') && aDetour.constraints[0].passed === true, '审计自动继承 hard 约束并复核通过');
 
+// ── 三根神经回归锁（2026-08-29 补完"大脑"）──────────────────────────
+// 神经① 记忆持久化：存档 → 清空 → 恢复（此前进程退出即失忆）
+const beforeExp = L.KB.summary().count;
+assert(L.Memory.save().ok === true && L.Memory.status().hasArchive === true, '神经① 记忆落盘：存档已生成');
+L.KB._exp.length = 0;
+const reloaded = L.Memory.load();
+assert(reloaded.ok === true && L.KB.summary().count === beforeExp, '神经① 记忆恢复：清空后可从存档还原 ' + beforeExp + ' 条经验');
+
+// 神经② 感知建图：观测真写入世界图；冲突登记且不静默改写；未确认不进快答
+const per = L.perceive({ source:'selftest', evidence:'unit-1', observations:[
+  { type:'node', node:'ZZ' },
+  { type:'edge', from:'C', to:'ZZ', w:2.5, p:0.9 },
+  { type:'edge', from:'A', to:'B', w:999 }
+]});
+assert(per.ok && L.WORLD.nodes.includes('ZZ') && L.WORLD.edges.some(e => e.from === 'C' && e.to === 'ZZ'), '神经② 感知建图：观测真的写入世界图（图会自己长）');
+assert(per.conflicts.length === 1 && L.WORLD.edges.find(e => e.from === 'A' && e.to === 'B').w !== 999, '神经② 冲突登记：与既有认知冲突时保留原值，不静默改写');
+L.KB.addExperience('C', 'ZZ', true, 0.99, 'selftest');
+const rPer = L.reason('C', 'ZZ');
+assert((rPer.usedSystem || rPer.system) !== '1', '神经② 诚实闸门：未确认的感知边不允许系统1快答（须走证明链）');
+assert(L.confirmObservation('C→ZZ', true).ok === true, '神经② 感知确认：观测升级为已验证认知');
+
+// 神经③ 元认知接管调度：动态门槛 / 探索产出备选 / 事件总线真在跑
+const rMeta = L.reason('CHARGE', 'C');
+assert(rMeta.meta && typeof rMeta.meta.system1Threshold === 'number'
+  && rMeta.meta.system1Threshold >= 0.6 && rMeta.meta.system1Threshold <= 0.95,
+  '神经③ 元认知调度：系统1门槛按不确定性动态给定 = ' + (rMeta.meta && rMeta.meta.system1Threshold) + '（旧版写死 0.8）');
+// 探索模式备选路径：换一个"有两条路可走"的世界，并抬高缺口阈值强制进入 explore
+L.setWorld({ nodes:['S','M','T'], edges:[{from:'S',to:'M',w:1},{from:'M',to:'T',w:1},{from:'S',to:'T',w:5}] });
+const rAlt = L.reason('S', 'T', { gapThreshold: 0.99 });
+assert(rAlt.meta && rAlt.meta.exploreExploit === 'explore', '神经③ 元认知调度：知识缺口高 → 进入探索模式');
+assert(Array.isArray(rAlt.alternatives) && rAlt.alternatives.length === 1
+  && rAlt.alternatives[0].avoid === 'M' && rAlt.alternatives[0].path.join('→') === 'S→T',
+  '神经③ 探索模式：确定性产出备选路径（避开M → S→T，代价+' + (rAlt.alternatives[0] && rAlt.alternatives[0].delta) + '）');
+assert(L.EventBus.log.length > 0, '神经③ 事件总线：内核内部已产生 ' + L.EventBus.log.length + ' 条事件（不再是空转装饰）');
+
 // 前门准则因果（未观测混杂识别 ACE）——内核原始签名 causalEffect(model, cause, effect, samples, opts)
 const ce = L.causalEffect(
   { eqs: {} }, 'X', 'Y',
