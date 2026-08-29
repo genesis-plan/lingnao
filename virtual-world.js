@@ -56,9 +56,12 @@
         }))
       };
     }
-    // 在虚拟空间内落一笔调拨（确定性、可审计）
+    // 在虚拟空间内落一笔调拨（确定性、可审计；库存校验防透支/负数）
     applyTransfer(fromId, toId, resource, amount, route, grounding) {
       const from = this.getEntity(fromId), to = this.getEntity(toId);
+      if (!from || !to) throw new Error('applyTransfer：主体不存在 ' + fromId + '→' + toId);
+      if (!(amount > 0)) throw new Error('applyTransfer：调拨量必须为正数，收到 ' + amount);
+      if ((from.resources[resource] || 0) < amount) throw new Error('applyTransfer：' + fromId + ' 的 ' + resource + ' 库存不足（持 ' + (from.resources[resource] || 0) + '，拨 ' + amount + '）');
       from.resources[resource] = (from.resources[resource] || 0) - amount;
       to.resources[resource] = (to.resources[resource] || 0) + amount;
       to.needs[resource] = Math.max(0, (to.needs[resource] || 0) - amount);
@@ -113,28 +116,34 @@
     for (const m of mismatches) {
       const supplier = (m.direct[0] && m.direct[0].entity) || (m.makers[0] && m.makers[0].entity);
       if (!supplier) { plans.push({ matchId: m.id, resource: m.resource, status: 'NO_SUPPLIER', route: [] }); continue; }
-      let route = null, cost = null;
+      let route = null, cost = null, reasonResult = null;
       try {
         const r = L.reason(supplier, m.deficitEntity);  // 大脑求最优路径
-        if (r && r.path) { route = r.path; cost = r.cost; }
-      } catch (_) { /* reason 失败时退回经中枢 */ }
+        if (r && r.path && r.path.length) { route = r.path; cost = r.cost; reasonResult = r; }
+      } catch (e) { console.warn('[coordinate] 直连推理失败:', e.message); }
       if (!route) {
         try {
           const a = L.reason(supplier, world.hub);
           const b = L.reason(world.hub, m.deficitEntity);
-          if (a && a.path && b && b.path) {
+          if (a && a.path && a.path.length && b && b.path && b.path.length) {
             route = a.path.slice(0, -1).concat(b.path);
             cost = (a.cost || 0) + (b.cost || 0);
+            // 合并两段真实推理结果供逐边审计（保留各自 steps 与约束）
+            reasonResult = { status: 'optimal', path: route, cost,
+              steps: (a.steps || []).concat(b.steps || []),
+              usedSystem: (a.usedSystem || '2') + '+' + (b.usedSystem || '2'),
+              opts: a.opts || { hard: [], soft: [] }, viaHub: world.hub };
           }
-        } catch (_) {}
+        } catch (e) { console.warn('[coordinate] 经中枢推理失败:', e.message); }
       }
       plans.push({
         matchId: m.id, resource: m.resource,
         from: supplier, to: m.deficitEntity,
         via: (route && route.includes(world.hub) && route.length > 2) ? world.hub : null,
-        route: route || [supplier, m.deficitEntity],
-        cost: cost == null ? 1 : cost,
-        grounding: G.PROOF   // 路径由大脑推理求得，可验证
+        route: route || null,
+        cost: cost,  // 无推理结果时如实为 null，不用魔法数冒充实测值
+        reasonResult,
+        grounding: reasonResult ? G.PROOF : G.PERCEPTION  // 有大脑推理结果才声称"可证明"
       });
     }
     return plans;
@@ -153,10 +162,10 @@
       const need = to.needs[p.resource] || 0;
       const amount = Math.max(0, Math.min(avail, need));
       if (amount <= 0) { allocs.push({ ...p, amount: 0, status: 'BLOCKED' }); continue; }
-      const entry = world.applyTransfer(p.from, p.to, p.resource, amount, p.route, G.KERNEL);
-      // 大脑可观测 / 可学习
-      try { L.EventBus && L.EventBus.emit && L.EventBus.emit('alloc', entry); } catch (_) {}
-      try { L.KB && L.KB.addExperience && L.KB.addExperience({ id: entry.id, kind: 'alloc', success: true, source: 'virtual-world' }); } catch (_) {}
+      const entry = world.applyTransfer(p.from, p.to, p.resource, amount, p.route, p.grounding);
+      // 大脑可观测 / 可学习（EventBus 真方法为 publish；KB 签名为 (from,to,success,conf,source)）
+      try { if (L.EventBus && L.EventBus.publish) L.EventBus.publish('alloc', entry); } catch (e) { console.warn('[virtual-world] EventBus 投递失败:', e.message); }
+      try { if (L.KB && L.KB.addExperience) L.KB.addExperience(entry.from, entry.to, true, 0.5, 'virtual-world'); } catch (e) { console.warn('[virtual-world] KB 记录失败:', e.message); }
       allocs.push({ ...p, amount, status: amount < need ? 'PARTIAL' : 'ALLOCATED', tx: entry.id });
     }
     return allocs;
@@ -175,18 +184,23 @@
     const plans = coordinateResources(world, mismatches);
     const allocations = allocateResources(world, plans);
 
-    // 审计：把本轮所有路径拼成一个计划交给大脑审计（可验证、不幻觉）
-    let audit;
-    try {
-      const planLike = {
-        path: plans.flatMap(p => p.route || []),
-        cost: plans.reduce((s, p) => s + (p.cost || 0), 0),
-        steps: allocations.map(a => ({ action: 'alloc:' + a.resource, result: a.status, conf: 1 }))
-      };
-      audit = L.generateAudit(planLike);
-    } catch (_) {
-      audit = { status: 'valid', noHallucination: true, note: '确定性仿真路径（内核自证）', proof: null };
-    }
+    // 审计：对每条真实的大脑推理结果逐条 generateAudit（fail-closed——审计异常=audit_failed，绝不自证 valid）
+    const perRoute = plans.map(p => {
+      if (p.status === 'NO_SUPPLIER') return { route: null, status: 'unverified', noHallucination: false, note: '无供给方，无推理结果，不声称证明' };
+      if (!p.reasonResult) return { route: p.route, status: 'unverified', noHallucination: false, note: '无大脑推理结果，不声称证明' };
+      try {
+        const a = L.generateAudit(p.reasonResult);
+        return { route: p.reasonResult.path, status: a.status, noHallucination: a.noHallucination, verified: a.proof.verified, reportId: a.reportId };
+      } catch (e) { return { route: p.route, status: 'audit_failed', noHallucination: false, note: '审计异常：' + e.message }; }
+    });
+    const audit = {
+      status: (perRoute.length > 0 && perRoute.every(a => a.status === 'valid')) ? 'valid'
+        : (perRoute.some(a => a.status === 'audit_failed') ? 'audit_failed' : 'unverified'),
+      noHallucination: perRoute.length > 0 && perRoute.every(a => a.noHallucination === true),
+      proofPassed: perRoute.filter(a => a.verified === true).length,
+      proofTotal: perRoute.length,
+      perRoute
+    };
 
     return { tick: world.tick, before, mismatches, plans, allocations, audit, perceive };
   }
@@ -235,8 +249,8 @@
       r.plans.forEach(p => line('      ' + p.from + ' → ' + p.to + '（' + p.resource + '）路径[' + p.route.join('→') + '] 损耗 ' + p.cost));
       line('  [③分配资源] 账本：');
       r.allocations.forEach(a => { total += a.amount; line('      ' + (a.tx || '—') + ' ' + a.from + ' → ' + a.to + '  ' + a.resource + ' ×' + a.amount + '  [' + a.status + ']'); });
-      line('  [审计] ' + (r.audit.status === 'valid' ? 'valid ✔' : r.audit.status) + '  不幻觉：'
-        + (r.audit.noHallucination ? '是 ✔' : '否 ✘') + (r.audit.proof ? '  霍尔证明：是 ✔' : ''));
+      line('  [审计] ' + r.audit.status + (r.audit.status === 'valid' ? ' ✔' : ' ✘') + '  不幻觉：'
+        + (r.audit.noHallucination ? '是 ✔' : '否 ✘') + '  霍尔证明通过：' + r.audit.proofPassed + '/' + r.audit.proofTotal + ' 条路径');
     });
 
     hr('资源守恒校验（调拨不改变总量，仅易主）');
@@ -252,10 +266,11 @@
     line('  大脑在青木村这个虚拟空间里，自主完成了「发现谁缺什么→找最优流转路径→确定性分配」，');
     line('  且每轮都带可审计报告。这就是把"物质富裕引擎"放进一个可观测、可审计的沙盘里跑。');
 
-    // 断言（自测）
+    // 断言（自测）：闭环可跑 + 资源守恒 + 审计诚实（声称不幻觉当且仅当审计 valid）
     const ok = world.ledger.length > 0
       && ['粮食', '农具', '竹'].every(res => Math.abs(
-        qingmu.entities.reduce((s, e) => s + (e.resources[res] || 0), 0) - world.totalResource(res)) < 1e-9);
+        qingmu.entities.reduce((s, e) => s + (e.resources[res] || 0), 0) - world.totalResource(res)) < 1e-9)
+      && rounds.every(r => r.audit.noHallucination === (r.audit.status === 'valid'));
     line('\n  [自测] ' + (ok ? 'PASS ✔ 虚拟空间闭环可跑、资源守恒、可审计' : 'FAIL ✘'));
     return ok;
   }

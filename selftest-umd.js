@@ -23,7 +23,25 @@ if (r.grounding) { assert(r.grounding.tier === 'DETERMINISTIC', 'reason 标注 D
 else { console.log('  (reason 未直接带 grounding，由 askBrain/audit 提供分层)'); }
 
 const a = L.generateAudit(r, { hard: [], soft: [] });
-assert(a.status === 'valid' && a.proof && a.proof.hoare, '七段审计 valid + 霍尔证明证书存在');
+assert(a.status === 'valid' && a.proof && a.proof.verified === true && a.proof.hoare, '七段审计 valid + 霍尔证明真验证(verified=true)');
+assert(a.noHallucination === true, '证明通过 ⇒ noHallucination=true');
+
+// ── 诚实契约回归锁（2026-08-29 专家审查 P0 修复）────────────────────
+// ① 拼凑 planLike 输入 → unverified，绝不发 valid（修复"审计兜底伪造 valid"）
+const fake = L.generateAudit({ status: 'optimal', path: ['X', 'Y'], cost: 1, steps: [{ seq: 1, state: 'X', action: 'move→Y', result: 'Y', reason: '拼凑', confidence: 1, evidenceIds: [] }] });
+assert(fake.status === 'unverified' && fake.noHallucination === false && fake.proof.hoare === null, '伪造输入审计 fail-closed: unverified + 不幻觉=false + 无霍尔记号');
+
+// ② system1 不得绕过硬约束（KB 高置信经验 + hard 禁目标 → 必须 unknown）
+L.KB.addExperience('CHARGE', 'C', true, 0.95, 'selftest');
+const rBypass = L.reason('CHARGE', 'C', { hard: ['C'] });
+assert(rBypass.status === 'unknown' && (rBypass.U || []).includes('目标位于硬约束禁集'), 'system1 尊重 hard 约束(高置信经验不再绕禁集)');
+
+// ③ 禁中间节点绕行 + reason 结果携带 opts + 审计自动继承 hard 并复核
+const rDetour = L.reason('CHARGE', 'C', { hard: ['B'] });
+assert(rDetour.status === 'optimal' && JSON.stringify(rDetour.path) === JSON.stringify(['CHARGE', 'C'])
+  && rDetour.opts && rDetour.opts.hard && rDetour.opts.hard[0] === 'B', 'hard 禁 B 绕行直连 + 结果携带 opts');
+const aDetour = L.generateAudit(rDetour);
+assert(aDetour.status === 'valid' && aDetour.constraints[0].nodes.includes('B') && aDetour.constraints[0].passed === true, '审计自动继承 hard 约束并复核通过');
 
 // 前门准则因果（未观测混杂识别 ACE）——内核原始签名 causalEffect(model, cause, effect, samples, opts)
 const ce = L.causalEffect(

@@ -150,22 +150,24 @@ function buildGlossary(steps, globalTerms) {
 }
 
 // ── 审计接口（最小形态：可被其他大脑实例读取的 JSON）──────────────────
+// 诚实分级（修复"恒 valid"）：含降级步→degraded；含未验证步→unverified；全部验证→valid。
+// noHallucination 不再恒 true——只要存在未验证/降级步骤，就不声称"无幻觉"。
 function buildAudit(manual) {
-  const verified = manual.steps.filter(s => s.grounding.tier === G.KERNEL.tier).length;
+  const verified = manual.steps.filter(s => s.grounding.tier === G.KERNEL.tier && s.status !== 'DOWNGRADED').length;
   const down = manual.steps.filter(s => s.status === 'DOWNGRADED').length;
-  const unverified = manual.steps.length - verified;
+  const unverified = manual.steps.length - verified - down;
   return {
     manualId: manual.id,
     domain: manual.domain,
     generatedAt: manual.createdAt,
-    status: 'valid',
-    noHallucination: true,
+    status: down > 0 ? 'degraded' : (unverified > 0 ? 'unverified' : 'valid'),
+    noHallucination: down === 0 && unverified === 0,
     stepsTotal: manual.steps.length,
     verifiedCount: verified,
     unverifiedCount: unverified,
     downgradedCount: down,
     verdict: down > 0
-      ? '含已降级步骤(' + down + ')，勿用；其余未验证步(' + (unverified - down) + ')扉页标红，先小批试做'
+      ? '含已降级步骤(' + down + ')，勿用；其余未验证步(' + unverified + ')扉页标红，先小批试做'
       : (unverified > 0
         ? '含未验证步骤(' + unverified + ')，扉页已标红；请先小批试做后再升 KERNEL'
         : '全部步骤已验证，可放心按流程执行'),
@@ -209,17 +211,15 @@ async function distill(input) {
   const steps = raws.map((s, i) => buildStep(s, globalTerms, localContext, i + 1));
 
   // 3) 写 KB（每条作为 experience；出厂未验证→低置信）
+  //    KB 真实签名为 addExperience(from,to,success,confidence,source)：from=领域, to=步骤id，
+  //    供 reportFailure/confirmStep 以同一键做知识可逆升降级。
   let kbOk = true;
   try {
     for (const s of steps) {
-      L.KB.addExperience({
-        domain: input.domain,
-        content: s.actionRaw + ' | 条件:' + s.condition + ' | 工具:' + s.tool,
-        confidence: s.grounding.tier === G.KERNEL.tier ? 0.9 : 0.3,
-        source: s.basis
-      });
+      L.KB.addExperience(input.domain, s.id, true,
+        s.grounding.tier === G.KERNEL.tier ? 0.9 : 0.3, s.basis);
     }
-  } catch (e) { kbOk = false; }
+  } catch (e) { kbOk = false; console.warn('[distillery] KB 写入失败:', e.message); }
 
   // 4) 组装手册
   const manual = {
@@ -256,16 +256,18 @@ function reportFailure(manualId, stepId, observation) {
   if (!step) throw new Error('reportFailure: 步骤不存在 ' + stepId);
   step.status = 'DOWNGRADED';
   step.failureNote = observation;
+  // 知识可逆：现场失败 → KB 该转移降置信（键与 distill 写入一致：domain→stepId）。
+  // 修复：此前被 basis!=='expert-testimony' 门挡死，而所有步骤恰是该 basis，降级从未真实发生。
   try {
-    if (step.basis !== 'expert-testimony' && typeof L.KB.updateConfidence === 'function') {
-      L.KB.updateConfidence(step.basis, -0.5, 'field-failure: ' + observation);
+    if (typeof L.KB.updateConfidence === 'function') {
+      L.KB.updateConfidence(m.domain, stepId, false, 0.5);
     }
-  } catch (e) {}
+  } catch (e) { console.warn('[distillery] KB 降级失败:', e.message); }
   try {
     if (L.SelfLearn && typeof L.SelfLearn.record === 'function') {
       L.SelfLearn.record({ type: 'distill-failure', manualId, stepId, observation });
     }
-  } catch (e) {}
+  } catch (e) { console.warn('[distillery] SelfLearn 记录失败:', e.message); }
   m.revision = (m.revision || 0) + 1;
   m.grounding = {
     verifiedCount: m.steps.filter(s => s.grounding.tier === G.KERNEL.tier && s.status !== 'DOWNGRADED').length,
@@ -286,9 +288,12 @@ function confirmStep(manualId, stepId, note) {
   if (!step) throw new Error('confirmStep: 步骤不存在 ' + stepId);
   step.status = 'VERIFIED';
   step.grounding = { tier: G.KERNEL.tier, mayHallucinate: G.KERNEL.mayHallucinate };
-  if (step.basis !== 'expert-testimony' && typeof L.KB.updateConfidence === 'function') {
-    try { L.KB.updateConfidence(step.basis, 0.4, 'field-success: ' + (note || '')); } catch (e) {}
-  }
+  // KB 升置信（键与 distill 写入一致：domain→stepId；真实签名 from,to,success,step）
+  try {
+    if (typeof L.KB.updateConfidence === 'function') {
+      L.KB.updateConfidence(m.domain, stepId, true, 0.4);
+    }
+  } catch (e) { console.warn('[distillery] KB 升级失败:', e.message); }
   m.grounding = {
     verifiedCount: m.steps.filter(s => s.grounding.tier === G.KERNEL.tier).length,
     unverifiedCount: m.steps.filter(s => s.grounding.tier === G.PERCEPTION.tier).length
@@ -365,7 +370,8 @@ const _manuals = {};
 
 const Engine = { distill, reportFailure, confirmStep, render, stepify, localize, verbalize, _manuals, GROUNDING: G };
 
-if (L && typeof L === 'object') L.KnowledgeDistillery = Engine;
+// 注：不再回写 L.KnowledgeDistillery（修复依赖方向——能力模块不得污染内核命名空间），
+// 消费方请显式 require('./knowledge-distillery.js')。
 
 module.exports = Engine;
 
@@ -430,10 +436,13 @@ if (require.main === module) {
     line('[降级B] ' + bPick.id + ' 状态=' + bPick.status + '  手册rev=' + B2.revision + '  审计=' + B2.audit.verdict);
 
     line('\n════════ 自测结论 ═════════');
+    // 审计诚实断言：含降级步 → degraded 且不声称无幻觉；含未验证步 → unverified
     const ok = A.steps.length === 5 && B.steps.length === 4
       && aPick.grounding.tier === G.KERNEL.tier
       && bPick.status === 'DOWNGRADED'
-      && B2.audit.status === 'valid';
-    line(ok ? 'SELF-TEST: PASS ✔（同一引擎已蒸馏两个无关领域，零代码改动）' : 'SELF-TEST: FAIL ✘');
+      && B2.audit.status === 'degraded'
+      && B2.audit.noHallucination === false
+      && A.audit.status === 'unverified';
+    line(ok ? 'SELF-TEST: PASS ✔（同一引擎已蒸馏两个无关领域，零代码改动；审计诚实分级）' : 'SELF-TEST: FAIL ✘');
   })().catch(e => { console.error('SELF-TEST ERROR', e.message); process.exit(1); });
 }

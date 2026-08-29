@@ -760,7 +760,7 @@ function selftest() {
     T('kb-summary', lr.knowledgeBase && typeof lr.knowledgeBase.positive === 'number' && lr.knowledgeBase.negative >= 1, 'kb=' + JSON.stringify(lr.knowledgeBase));
     const au = auditLogic('S', 'T', [], []);
     T('audit-7sec', au.summary && au.details && au.evidence && au.constraints && 'unknown' in au && au.proof && au.reproducible && au.uncertainty, 'status=' + au.status);
-    T('audit-proof', au.proof.hoare === '{P} C {Q}' && au.proof.verified === true);
+    T('audit-proof', au.proof.verified === true && typeof au.proof.hoare === 'string' && au.proof.hoare.length > 0, 'hoare=' + au.proof.hoare);
     const q = knowledgeQueryLogic('S', 'T');
     T('knowledge_query', Array.isArray(q) && q.length >= 1);
     const a = knowledgeAddLogic('X', 'Y', true, 0.7, 'selftest', 'boundary');

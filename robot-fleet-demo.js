@@ -42,11 +42,11 @@ rounds.forEach((r, i) => {
   r.mismatches.forEach(m => line('      ' + m.id + ' ' + m.resource + '：' + m.deficitEntity + ' 缺 ' + m.deficit
     + (m.direct[0] ? ' ← 直供 ' + m.direct[0].entity : ' ← 暂无解')));
   line('  [②协调资源] 大脑 reason() 求路径：');
-  r.plans.forEach(p => p.route.length && line('      ' + p.from + ' → ' + p.to + '（' + p.resource + '）路径[' + p.route.join('→') + '] 损耗 ' + p.cost));
+  r.plans.forEach(p => p.route && p.route.length && line('      ' + p.from + ' → ' + p.to + '（' + p.resource + '）路径[' + p.route.join('→') + '] 损耗 ' + p.cost));
   line('  [③分配资源] 调度账本：');
   r.allocations.forEach(a => a.amount > 0 && line('      ' + a.tx + ' ' + a.from + ' → ' + a.to + '  ' + a.resource + ' ×' + a.amount + '  [' + a.status + ']'));
-  line('  [审计] ' + (r.audit.status === 'valid' ? 'valid ✔' : r.audit.status) + '  不幻觉：'
-    + (r.audit.noHallucination ? '是 ✔' : '否 ✘') + (r.audit.proof ? '  霍尔证明：是 ✔' : ''));
+  line('  [审计] ' + r.audit.status + (r.audit.status === 'valid' ? ' ✔' : ' ✘') + '  不幻觉：'
+    + (r.audit.noHallucination ? '是 ✔' : '否 ✘') + '  霍尔证明通过：' + r.audit.proofPassed + '/' + r.audit.proofTotal + ' 条路径');
 });
 
 hr('调度后机队状态（资源守恒：任务只在机队内易主，电量不"凭空转移"——物理诚实）');

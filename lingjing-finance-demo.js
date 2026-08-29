@@ -57,11 +57,14 @@ const samples = [
   { state: { X: 0.1, M: 500 }, next: { Y: 204000 } }
 ];
 const ace = L.causalEffect({ eqs: {} }, 'X', 'Y', samples, { mediator: 'M' });
-const fullCutACE = (typeof ace === 'object' && ace.ace != null) ? ace.ace : 120000;
-const cut30 = 0.3 * fullCutACE; // 前门线性 SEM：效应随削减比例线性
+// 诚实修复（审查 P0）：删除 ": 120000" 硬编码兜底——计算失败就明说，不许静默冒充计算结果
+if (!(typeof ace === 'object' && ace != null && ace.ace != null)) throw new Error('causalEffect 未返回 ACE（fail-closed，拒绝伪造因果数字）');
+const fullCutACE = ace.ace;
+const cut30 = 0.3 * fullCutACE; // 线性外推：效应按削减比例线性缩放
 line('\n  [因果·反事实] 前门准则识别 ACE(X:0→1 全砍外出就餐)=' + fullCutACE + ' 元/24月');
-line('                应用到"砍 30%"：24月总储蓄增量 ≈ ' + Math.round(cut30) + ' 元（非相关性，含未观测混杂仍可识别）');
-line('  [因果·解读] 这是 LLM 给不出、但大脑能用前门准则证的因果结论。');
+line('                线性外推到"砍 30%"：24月总储蓄增量 ≈ ' + Math.round(cut30) + ' 元');
+line('  [诚实边界] 以上 4 个样本为按假设线性关系【合成的演示数据】，仅验证识别机制可用；');
+line('             ' + Math.round(cut30) + ' 元是"假设→机制→外推"的演示值，不是对真实财务的估计。真实使用须接入真实账单数据。');
 
 // ---------- 4. 可审计报告（每步可追溯） ----------
 const audit = L.generateAudit(planSafe);
@@ -80,6 +83,6 @@ hr('结论（给小王）');
 line('  ① 在"不动应急金、不逾期债务"硬约束下，最优资金路径：' + planSafe.path.join(' → ') +
      '，调拨损耗最低（' + planSafe.cost + '）。');
 line('  ② 反事实：仅把"外出就餐"砍 30%，24 个月可多存约 ' + Math.round(cut30) +
-     ' 元（前门准则因果增量，非拍脑袋），离 40 万首付更近一步。');
+     ' 元（合成数据上的前门准则机制演示，非真实估计，接入真实账单后才会变准）。');
 line('  ③ 全部结论均带可审计报告与霍尔证明——你能拿来给家人/理财顾问复核，而非"AI 说能行"。');
 line('  —— 这就是"通用大脑 + LLM = 既聪明（听得懂）又可靠（算得清、证得了）"。');
