@@ -10,6 +10,7 @@
 
 > 🧪 **正在求测 / 求反馈**：我们做了一个「不幻觉、可审计」的通用大脑，请做 Agent / 机器人 / 严谨 AI 的朋友来跑、来挑刺。
 > - 🟢 在线试用（零安装，双击即用）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html>
+> - 🟢 在线试用「开始干活」控制台（三步接入身体/大模型/大脑 + 真实身体）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/lingjing-console.html>
 > - 💬 求测帖 & 反馈：<https://github.com/genesis-plan/lingjing/discussions/1>
 > - 🤖 AI Agent 零安装接入：`npx github:genesis-plan/lingjing`（46 工具）
 
@@ -283,7 +284,7 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | **GitHub（主仓）** | 已推 `genesis-plan/lingjing`（`worldbrain` 远端） | <https://github.com/genesis-plan/lingjing> — 克隆即跑，零安装 |
 | **MCP 市场：Smithery** | 在 smithery.ai 粘贴本仓库 URL，或待 Smithery Key 就绪后导入 `smithery.yaml` | 仓库已备 `smithery.yaml` |
 | **MCP 市场：mcp.so / Glama / PulseMCP** | 在对应站点粘贴下方 `mcpServers` 配置或本仓库 GitHub URL 即收录 | 见上方「快速接入」`mcpServers` 片段 |
-| **在线试用（免安装）** | 双击 `lingjing-console.html`（同目录需 `lingjing.umd.js`）；或静态托管后给链接 | 见上 COS 镜像：`https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html` |
+| **在线试用（免安装）** | 双击 `lingjing-console.html`（同目录需 `lingjing.umd.js`）；或静态托管后给链接 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/lingjing-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html> |
 | **npm** | 包 `lingjing-mcp` **暂未发布**（`npm publish` 待放行）；当前以仓库直用 + `npx github:genesis-plan/lingjing` 为主 | — |
 
 > 让别人用的三种方式（任选其一）：① 双击 `lingjing-console.html`（人）② `node lingjing-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
