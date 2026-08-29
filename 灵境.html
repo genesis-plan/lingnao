@@ -750,6 +750,17 @@ const Memory = {
     try { localStorage.removeItem(this.KEY); this._restored = false; return { ok:true }; }
     catch(e){ return { ok:false, reason:e.message }; }
   },
+  // 回到出厂状态：删存档 + 清空内存中的经验与感知增量。
+  // 注意 clear() 只删档——冷启动自举时的 load 若已发生，内存里的经验仍在，
+  // 故"重新开始"必须用 reset()（自测/回归需要确定性起点）。
+  reset(){
+    const c = this.clear();
+    KB._exp = [];
+    WORLD._prov = { node:{}, edge:{} };
+    WORLD.edges = (WORLD.edges || []).filter(e => !e.perceived);
+    this._restored = false;
+    return { ok:true, cleared:!!(c && c.ok), note:'清档并回到出厂状态（经验与感知增量全清）' };
+  },
   status(){
     const raw = this.available() ? (localStorage.getItem(this.KEY) || null) : null;
     return { available:this.available(), hasArchive:!!raw, archiveBytes: raw ? raw.length : 0,

@@ -4,7 +4,8 @@ function assert(c, msg) { if (!c) { console.error('FAIL: ' + msg); process.exit(
 
 // 自测必须从确定状态起步：神经① 会把学到的经验落盘，若不清理，上一轮学到的
 // 高置信经验会让本轮走系统1快答，使 A*/编排类断言产生"上一次能过、这一次不过"的漂移。
-if (L.Memory && typeof L.Memory.clear === 'function') L.Memory.clear();
+// 注意必须用 reset() 而非 clear()：clear 只删存档，而冷启动自举时的 load 已把经验读进内存。
+if (L.Memory && typeof L.Memory.reset === 'function') L.Memory.reset();
 
 assert(typeof L === 'object' && typeof L.reason === 'function', 'UMD 导出为内核对象(reason 可用)');
 assert(typeof L.groundingMeta === 'function' && typeof L.GROUNDING === 'object', '不幻觉置信分层已导出(groundingMeta/GROUNDING)');
