@@ -195,6 +195,38 @@ function heuristic(a,b){
   return Math.hypot(ca[0]-cb[0], ca[1]-cb[1]);
 }
 function edgeP(e){ return (e && typeof e.p==='number') ? e.p : 1; }
+
+// ★ 世界图第四分量 ℙ = 命题（proposition），不是概率 —— 依 ARCHITECTURE.md 七元组定义 𝕎=(𝕍,𝔼,𝕨,ℙ,ℂ,𝕌)
+// 边携带"这条转移成立的条件"：{var, op, val} 或字符串。用已知事实集 facts 判定：
+//   true = 命题成立，可通行；false = 命题不成立，剪枝；null = 已知事实不足，命题不可判定 → 归入 𝕌，绝不猜。
+function evaluateProposition(P, facts){
+  if(P == null) return true;                       // 无命题 = 无条件可通行
+  if(typeof P === 'string'){
+    if(!facts || !(P in facts)) return null;       // 事实缺失 = 不可判定（不猜）
+    const v = facts[P];
+    return (v === true || v === 1) ? true : (v === false || v === 0 ? false : null);
+  }
+  if(typeof P === 'object'){
+    const f = (facts || {})[P.var];
+    if(f === undefined || f === null) return null; // 事实缺失 = 不可判定
+    switch(P.op){
+      case '>':  return f >  P.val;
+      case '>=': return f >= P.val;
+      case '<':  return f <  P.val;
+      case '<=': return f <= P.val;
+      case '==': case '=': return f === P.val;
+      case '!=': return f !== P.val;
+      default:   return null;                      // 未知算子 = 不可判定
+    }
+  }
+  return null;
+}
+// 边在当前事实下是否成立：返回 true/false/null（null=不可判定，须进 𝕌）
+function edgeHolds(e, facts){
+  const P = (e && (e.P !== undefined ? e.P : e.proposition)) !== undefined
+    ? (e.P !== undefined ? e.P : e.proposition) : null;
+  return evaluateProposition(P, facts);
+}
 let _SOFT = new Set(), _SOFT_PENALTY = 2;
 function edgeW(e){ return e.w + (_SOFT.has(e.to)? _SOFT_PENALTY : 0); }
 function edgeCost(a,b){ const e=WORLD.edges.find(e=>e.from===a&&e.to===b); return e? edgeW(e):0; }
@@ -210,6 +242,7 @@ function aStar(start, goal, opts={}){
   if(hard.has(goal)) return unknownReturn('目标位于硬约束禁集', log, rsgNodes, rsgEdges);
   const open=[{node:start, g:0, f:heuristic(start,goal), parent:null}];
   const closed=new Map();
+  const undecided=[];   // ℙ 命题不可判定的边（已知事实不足）—— 诚实归入 𝕌，不猜
   let expanded=0;
   while(open.length){
     open.sort((x,y)=>x.f-y.f);
@@ -221,8 +254,8 @@ function aStar(start, goal, opts={}){
       const steps=path.slice(1).map((node,i)=>{
         const e=WORLD.edges.find(e=>e.from===path[i]&&e.to===node);
         return {seq:i+1, state:path[i], action:'move→'+node, result:node,
-          reason:'A* 选最小 f 后继；代价 '+edgeW(e).toFixed(3)+'｜边概率 p='+edgeP(e).toFixed(2),
-          confidence:1, evidenceIds:[], p:edgeP(e)};
+          reason:'A* 选最小 f 后继；代价 '+edgeW(e).toFixed(3)+'｜命题 ℙ='+(edgeHolds(e, opts.facts)===true?'成立':'—'),
+          confidence:1, evidenceIds:[], proposition:(e && (e.P !== undefined ? e.P : e.proposition)) || null};
       });
       return {status:'optimal', path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log, rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal), grounding:GROUNDING.KERNEL};
     }
@@ -231,6 +264,10 @@ function aStar(start, goal, opts={}){
     if(hard.has(cur.node) && cur.node!==start) continue;
     for(const e of WORLD.edges.filter(e=>e.from===cur.node)){
       if(hard.has(e.to)) continue;
+      // ℙ 命题闸门：命题为假 → 剪枝；命题不可判定（事实不足）→ 不进解，记入 𝕌
+      const holds = edgeHolds(e, opts.facts || {});
+      if(holds === false) continue;
+      if(holds === null){ undecided.push(e.from + '→' + e.to); continue; }
       rsgNodes.add(e.to);
       const ng=cur.g+edgeW(e);
       const pruned = closed.has(e.to) && closed.get(e.to)<=ng;
@@ -239,10 +276,13 @@ function aStar(start, goal, opts={}){
       open.push({node:e.to, g:ng, f:ng+heuristic(e.to,goal), parent:cur});
     }
   }
-  return unknownReturn('世界图中无满足约束的可达路径', log, rsgNodes, rsgEdges);
+  return unknownReturn('世界图中无满足约束的可达路径', log, rsgNodes, rsgEdges, undecided);
 }
-function unknownReturn(msg, log, rsgNodes, rsgEdges){
-  return {status:'unknown', U:[msg], path:[], cost:0, steps:[], searchLog:log, rsg:buildRSG([], log, rsgNodes, rsgEdges, null, null)};
+function unknownReturn(msg, log, rsgNodes, rsgEdges, extraU){
+  const U = [msg];
+  if(extraU && extraU.length)
+    U.push('命题不可判定（已知事实不足，未猜测）：' + extraU.join('，'));
+  return {status:'unknown', U, path:[], cost:0, steps:[], searchLog:log, rsg:buildRSG([], log, rsgNodes, rsgEdges, null, null)};
 }
 // RSG 构建：把搜索过程转成可审计的推理状态图（节点=思维态，边=推理动作；含分支与剪枝/回溯）
 function buildRSG(path, log, rsgNodes, rsgEdges, start, goal){
@@ -1744,6 +1784,64 @@ if(!_boot.restored){
   Memory.save();
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 七元组 𝔹 = (𝕎, K, Φ, Ψ, Θ, Λ, Ξ) —— 依 ARCHITECTURE.md 第 1 节形式化定义
+// 八层（同文档第 2 节）：感知Φ → 学习Ψ → 知识库K → 推理Θ → 因果Λ → 演化 → 审计Ξ → 统一
+//
+// ★ 重要澄清：村庄 / 机队 / 账本 / 手册这类"场景"，属于【虚拟模拟空间】——
+//   它是建立在第二层（𝕎 世界图 + K 知识库）之上的一个应用/沙盘模块，
+//   **不是大脑的结构层**。大脑本身只认 𝕎 上的图、命题、约束与不可判定区。
+// ══════════════════════════════════════════════════════════════════════
+const Brain = {
+  name: '灵境 LingJing（世界通用大脑）', version: 'v3.0',
+  // 𝕎 世界图 = (𝕍 节点, 𝔼 边, 𝕨 权重, ℙ 命题, ℂ 约束, 𝕌 不可判定区)
+  W: {
+    get V(){ return WORLD.nodes; },
+    get E(){ return WORLD.edges; },
+    w: (a, b) => { const e = WORLD.edges.find(x => x.from === a && x.to === b); return e ? edgeW(e) : 0; },
+    P: (e) => (e && (e.P !== undefined ? e.P : e.proposition)) || null,   // ℙ = 命题
+    holds: (e, facts) => edgeHolds(e, facts || {}),                       // 命题判定：true/false/null
+    C: (opts) => ({ hard:(opts && opts.hard) || [], soft:(opts && opts.soft) || [] }),
+    U: (r) => (r && r.status === 'unknown') ? (r.U || []) : [],
+    setWorld, validateWorld, allPairsCost, reconstructPath,
+    note: '第四分量 ℙ = 命题（转移成立的条件），不是概率；命题不可判定 → 归入 𝕌，绝不猜测'
+  },
+  K: KB,
+  Phi:   { perceive, perceiveLLM, perceiveBelief, confirmObservation,
+           note:'感知属 PERCEPTION 档（可能幻觉），绝不进证明链' },
+  Psi:   { learn, pacSampleBound, SelfLearn, slRecord,
+           note:'学习只更新置信度（休谟归纳：是用出来的熟练度，非真理保证）' },
+  Theta: { reason, aStar, system1, system2, dmcts, goalDirected, symbolicSolve, buildRSG,
+           note:'A* + 可采纳启发式 ⇒ 有限图上完备且最优（ARCHITECTURE.md 第 4 节定理）' },
+  Lambda:{ causalDiscovery, doQuery, causalEffect, counterfactual, learnWorldModel, simulate,
+           note:'do 演算 / PC-lite / 后门-前门调整（lite 实装）' },
+  Xi:    { generateAudit, verifyHoarePath, selfVerify, runtimeMonitor, continuousVerify, reflect,
+           note:'审计层是 IMA 431 条映射中唯一 0 条支撑的层——灵境自创，无数学库可借，全靠确定性构造' }
+};
+// 八层清单（第 6 层"演化"与第 8 层"统一"此前未被独立出来，是本次纠正的关键）
+const Layers = [
+  { n:1, id:'Phi',     name:'感知',   impl:'perceive / perceiveLLM / perceiveBelief' },
+  { n:2, id:'Psi',     name:'学习',   impl:'learn / pacSampleBound / SelfLearn' },
+  { n:3, id:'K',       name:'知识库', impl:'KB（经验表/状态表/转移表/置信度/冲突检测）' },
+  { n:4, id:'Theta',   name:'推理',   impl:'reason / aStar / system1·2 / dmcts / symbolicSolve' },
+  { n:5, id:'Lambda',  name:'因果',   impl:'causalDiscovery / doQuery / causalEffect（lite）' },
+  { n:6, id:'Evolve',  name:'演化',   impl:'ensureChannels / attachResources / Memory / confirmObservation（图随经验在线更新）' },
+  { n:7, id:'Xi',      name:'审计',   impl:'generateAudit / verifyHoarePath / runtimeMonitor' },
+  { n:8, id:'Unified', name:'统一',   impl:'cognitiveCycle / Capabilities（MCP·Web 一致接口）' }
+];
+function brainManifest(){
+  return {
+    tuple: ['W', 'K', 'Phi', 'Psi', 'Theta', 'Lambda', 'Xi'],
+    layers: Layers.map(l => l.n + '·' + l.name + '(' + l.id + ')'),
+    world: { V:WORLD.nodes.length, E:WORLD.edges.length,
+             withProposition: WORLD.edges.filter(e => e.P !== undefined || e.proposition !== undefined).length },
+    kb: KB.summary(),
+    capabilities: (typeof Capabilities !== 'undefined') ? Capabilities.list().length : 0,
+    theorem: 'A* + 可采纳启发式 ⇒ 有限世界图上完备且最优；否则诚实标 𝕌',
+    caveat: '村庄/机队/账本等场景属「虚拟模拟空间」模块（第二层之上的沙盘），不是大脑结构层'
+  };
+}
+
 // ==KERNEL END==
 
 // 导出供 MCP / Node 校验复用
@@ -1756,7 +1854,8 @@ if(typeof globalThis!=='undefined'){
     explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer,
     Memory, bootMemory, confirmObservation, exploreAlternatives,
     Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch,
-    planTransport, applyAllocations, allPairsCost, reconstructPath, transportation};
+    planTransport, applyAllocations, allPairsCost, reconstructPath, transportation,
+    Brain, Layers, brainManifest, evaluateProposition, edgeHolds};
 }
 
 // ===================== UI 编排 =====================

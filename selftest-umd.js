@@ -90,6 +90,22 @@ assert(cyc.layer.L1_action.total > 0 && cyc.summary.mismatches > 0
   && cyc.layer.L5_metacognition && cyc.layer.L4_learning.saved === true,
   '融合：统一认知循环端到端可跑（感知→状态→元认知→推理→行动→学习→审计）');
 
+// ── 七元组 / 八层 / ℙ命题 回归锁（依 ARCHITECTURE.md 原始定义，非 v3.0 五层）──
+assert(L.Brain && ['W','K','Phi','Psi','Theta','Lambda','Xi'].every(k => L.Brain[k]),
+  '七元组 𝔹=(𝕎,K,Φ,Ψ,Θ,Λ,Ξ)：七个分量均已实装且可索引');
+assert(L.Layers.length === 8 && L.Layers[5].id === 'Evolve' && L.Layers[7].id === 'Unified',
+  '八层齐备：第6层「演化」与第8层「统一」已独立出来（此前被混入自建编排）');
+L.setWorld({ nodes:['H','F','O'],
+  edges:[{ from:'H', to:'F', w:1, P:{ var:'船开', op:'==', val:true } }, { from:'F', to:'O', w:1 }] });
+const u1 = L.reason('H', 'O');
+assert(u1.status === 'unknown' && (u1.U || []).some(x => x.indexOf('命题不可判定') >= 0),
+  'ℙ=命题（非概率）：唯一通道命题不可判定 → 归入 𝕌，绝不猜着走');
+const u2 = L.reason('H', 'O', { facts:{ '船开': true } });
+assert(u2.status === 'optimal' && u2.path.join('→') === 'H→F→O',
+  'ℙ 命题成立 → 通道开放（补上事实即可解）');
+const u3 = L.reason('H', 'O', { facts:{ '船开': false } });
+assert(u3.status === 'unknown', 'ℙ 命题不成立 → 通道剪枝');
+
 // 探索模式备选路径：换一个"有两条路可走"的世界，并抬高缺口阈值强制进入 explore
 L.setWorld({ nodes:['S','M','T'], edges:[{from:'S',to:'M',w:1},{from:'M',to:'T',w:1},{from:'S',to:'T',w:5}] });
 const rAlt = L.reason('S', 'T', { gapThreshold: 0.99 });

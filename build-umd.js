@@ -31,7 +31,9 @@ const EXPORT_NAMES = [
   // 认知操作系统（切片融合）：统一编排 + 能力注册 + 图上资源流
   'Capabilities', 'cognitiveCycle', 'attachResources', 'discoverMismatch',
   'coordinateMismatch', 'planTransport', 'applyAllocations',
-  'allPairsCost', 'reconstructPath', 'transportation'
+  'allPairsCost', 'reconstructPath', 'transportation',
+  // 七元组 𝔹=(𝕎,K,Φ,Ψ,Θ,Λ,Ξ) 与八层（依 ARCHITECTURE.md）；ℙ=命题
+  'Brain', 'Layers', 'brainManifest', 'evaluateProposition', 'edgeHolds'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';
