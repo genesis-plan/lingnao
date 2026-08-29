@@ -10,4 +10,6 @@ npm-debug.log*
 # 不入库：备份/打包产物/内部改写脚本
 *.bak
 *.zip
+*.tgz
+lingjing-mcp-*.tgz
 refactor-lingjing.js

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "lingjing": {
+      "command": "npx",
+      "args": ["-y", "lingjing-mcp"],
+      "env": {
+        "OPENROUTER_API_KEY": "填你的免费 Key（可留空；留空则大脑仅用确定性内核，不接 LLM 理解层）"
+      }
+    }
+  }
+}

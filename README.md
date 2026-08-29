@@ -6,7 +6,7 @@
 
 - 仓库（模型主仓，独立于灵数求解器 lingshu-solver）：<https://github.com/genesis-plan/lingjing>
 - 架构白皮书：[ARCHITECTURE.md](./ARCHITECTURE.md)
-- 直接使用：克隆仓库后 `node lingjing-mcp.js`（MCP stdio，零依赖；npm 包待发布）
+- 直接使用：克隆仓库后 `node lingjing-mcp.js`（MCP stdio，零依赖）；或 npm 包 `npx lingjing-mcp`（已发布 `lingjing-mcp@3.1.0`）
 
 > 🧪 **正在求测 / 求反馈**：我们做了一个「不幻觉、可审计」的通用大脑，请做 Agent / 机器人 / 严谨 AI 的朋友来跑、来挑刺。
 > - 🟢 在线试用（零安装，双击即用）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html>
@@ -59,7 +59,7 @@
 ## 快速接入
 
 ```bash
-git clone https://github.com/genesis-plan/lingjing && cd lingjing   # 克隆仓库（npm 包待发布，先仓库直用）
+git clone https://github.com/genesis-plan/lingjing && cd lingjing   # 或直接使用 npm 包：npx lingjing-mcp
 node lingjing-mcp.js --selftest      # 零依赖验证（51/51 工具自检，含 grounding 不幻觉分层项 + 具身层 6 项）
 # 灵数求解器真引擎以 npm 依赖 lingshu-solver 接入（ genesis-plan/lingshu-solver ，独立仓库，已发 npm）
 ```
@@ -271,6 +271,7 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | `lingjing-body-sim-server.js` | 零依赖真身体仿真服务端（手工 RFC6455），模拟 AGV，供端到端验证真实桥 |
 | `test-console-wiring.js` / `test-real-bridge.js` | 控制台接线 / 真实桥无头验证（9/9 通过），别人可复跑 |
 | `smithery.yaml` | Smithery MCP 市场清单（stdio 启动 + 可选 OPENROUTER_API_KEY） |
+| `mcp.json` | 标准 MCP 客户端一键配置（`npx -y lingjing-mcp`，可选 OPENROUTER_API_KEY） |
 | `LingJing_Brain_Review_Brief_EN.md` | 英文外部评审简报（Embodied Brain 契约最小实装说明） |
 
 > 部署时 `lingjing-mcp.js` 与 `灵境.html` 需同目录（或设 `LINGJING_HTML` 环境变量）。
@@ -282,10 +283,10 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | 渠道 | 怎么上 | 状态 / 入口 |
 |---|---|---|
 | **GitHub（主仓）** | 已推 `genesis-plan/lingjing`（`worldbrain` 远端） | <https://github.com/genesis-plan/lingjing> — 克隆即跑，零安装 |
-| **MCP 市场：Smithery** | 在 smithery.ai 粘贴本仓库 URL，或待 Smithery Key 就绪后导入 `smithery.yaml` | 仓库已备 `smithery.yaml` |
-| **MCP 市场：mcp.so / Glama / PulseMCP** | 在对应站点粘贴下方 `mcpServers` 配置或本仓库 GitHub URL 即收录 | 见上方「快速接入」`mcpServers` 片段 |
+| **MCP 市场：Smithery** | 已备 `smithery.yaml`（stdio + 可选 Key）；登录 smithery.ai → Import from npm: `lingjing-mcp`，或给我 Smithery Key 我来跑 | 仓库已备 `smithery.yaml` |
+| **MCP 市场：mcp.so / Glama / PulseMCP** | 已随 npm 包 `lingjing-mcp` 自动收录（关键词 mcp）；也可在站点粘贴仓库 URL 或根目录 `mcp.json` | 搜索 `lingjing-mcp` 或访问仓库 |
 | **在线试用（免安装）** | 双击 `lingjing-console.html`（同目录需 `lingjing.umd.js`）；或静态托管后给链接 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/lingjing-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html> |
-| **npm** | 包 `lingjing-mcp` **暂未发布**（`npm publish` 待放行）；当前以仓库直用 + `npx github:genesis-plan/lingjing` 为主 | — |
+| **npm** | ✅ 已发布 `lingjing-mcp@3.1.0`：`npm i -g lingjing-mcp` 或 `npx lingjing-mcp`（自测 51/51 通过） | `npx -y lingjing-mcp` |
 
 > 让别人用的三种方式（任选其一）：① 双击 `lingjing-console.html`（人）② `node lingjing-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
 
