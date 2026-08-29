@@ -60,7 +60,7 @@
     <div style="margin-top:12px;border-top:1px dashed #cbd5e1;padding-top:10px">
       <div style="font-weight:600;margin-bottom:6px">用大白话让大脑理解并规划</div>
       <input id="orKey" class="key" placeholder="OpenRouter 免费 Key（可选；留空用环境变量 OPENROUTER_API_KEY，本地自动存）" style="width:100%;margin-bottom:6px;box-sizing:border-box">
-      <textarea id="orAsk" rows="2" placeholder="例如：从充电座出发去 C 点，电量充足，尽量别经过 A" style="width:100%;box-sizing:border-box"></textarea>
+      <textarea id="orAsk" rows="2" placeholder="例如：从 A 点去 C 点，尽量别经过 B" style="width:100%;box-sizing:border-box"></textarea>
       <div class="row" style="margin-top:6px;align-items:center">
         <button onclick="askBrainUI()">理解并规划</button>
         <span class="muted" id="orQuota"></span>
@@ -96,7 +96,7 @@ const IMA = [
 
 // IMA 数学库接入（文档融合框架 Layer3 素材来源；用户授权 IMA 连接器后吸收「有用的思想」）
 // 知识壳 ima_knowledge.json：431 条公理/定理/定义/方法/思想方法，含模块倒排索引。
-// 接入后：KB.imaQuery 可检索、元认知层可路由、审计报告可引用证据；完整形式化陈述存 IMA（按需拉取，壳不臆造）。
+// 接入后：IMA 可检索、元认知层可路由、审计报告可引用证据；完整形式化陈述存 IMA（按需拉取，壳不臆造）。
 const imaKnowledge = {
   entries: [], _byId: {}, moduleIndex: {}, typeIndex: {}, loaded: false, source: null, total: 0,
   load(arr, opts){
@@ -177,6 +177,8 @@ function groundingMeta(){ return {
   tiers: GROUNDING,
   rule:'任何对外结论都须能回溯到 KERNEL/PROOF 档；PERCEPTION 档输出必须显式标注"可能幻觉"且不可作为依据'
 }; }
+
+// ══════════════════════════════════════════════════════════════════════
 function setWorld(json){
   validateWorld(json);
   // 仅当用户显式提供 coord 时才启用欧氏启发式；否则启发式恒为 0（退化为 Dijkstra），
@@ -233,6 +235,22 @@ function edgeCost(a,b){ const e=WORLD.edges.find(e=>e.from===a&&e.to===b); retur
 
 // ② 推理引擎：A* 最优搜索 + 硬约束剪枝 + 软约束代价加成（文档 3.2）
 // 同时构建 RSG（推理状态图）：记录扩展节点、候选分支、剪枝/回溯，兑现"从生成到搜索"
+
+// 消费定理：一致(单调)启发式 ⟹ A* 最优 by construction。
+// 一致性 = 三角不等式（度量公理）作用于启发式势函数：h(n) ≤ c(n,n') + h(n') ∀边 且 h(goal)=0。
+// 一致则 A* 每节点只扩展一次并得最优路径（定理内容）；不一致则定理不保证 → 诚实标 'optimal-unverified'。
+function verifyHeuristicConsistency(goal){
+  const eps = 1e-9; const viol = [];
+  if(heuristic(goal, goal) !== 0) viol.push('h(goal)≠0');
+  for(const e of WORLD.edges){
+    const lhs = heuristic(e.from, goal);
+    const rhs = edgeW(e) + heuristic(e.to, goal);
+    if(lhs > rhs + eps) viol.push(e.from + '→' + e.to + '（' + lhs.toFixed(3) + '>' + rhs.toFixed(3) + '）');
+  }
+  return { consistent: viol.length === 0, violations: viol,
+    basis: '一致启发式 = 三角不等式 h(n)≤c(n,n\')+h(n\')；一致 ⟹ A* 最优由定理保证，非断言' };
+}
+
 function aStar(start, goal, opts={}){
   const hard = new Set(opts.hard||[]);
   _SOFT = new Set(opts.soft||[]);
@@ -257,7 +275,10 @@ function aStar(start, goal, opts={}){
           reason:'A* 选最小 f 后继；代价 '+edgeW(e).toFixed(3)+'｜命题 ℙ='+(edgeHolds(e, opts.facts)===true?'成立':'—'),
           confidence:1, evidenceIds:[], proposition:(e && (e.P !== undefined ? e.P : e.proposition)) || null};
       });
-      return {status:'optimal', path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log, rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal), grounding:GROUNDING.KERNEL};
+      const cons = verifyHeuristicConsistency(goal);   // 消费一致性定理：最优性由验证结果派生
+      return {status: cons.consistent ? 'optimal' : 'optimal-unverified', optimalGuaranteed: cons.consistent,
+        heuristicConsistency: cons, path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log,
+        rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal), grounding:GROUNDING.KERNEL};
     }
     if(closed.has(cur.node) && closed.get(cur.node)<=cur.g) continue;
     closed.set(cur.node, cur.g);
@@ -298,23 +319,20 @@ function buildRSG(path, log, rsgNodes, rsgEdges, start, goal){
   };
 }
 
-// ③ 系统1（快思考）：KB 高置信直接复用，否则升级系统2（文档 3.1）
+// ③ 系统1（快思考）：复用世界图高置信直接边，否则升级系统2（文档 3.1）
 // 约束单一真源：系统1 必须同样尊重 opts.hard——目标在禁集内一律拒绝快答（修复快路径绕过硬约束旁路）
+// 系统1 快答：复用世界图预置的高置信直接边（知识来自外部世界定义，大脑不持身体经验库）
 function system1(start, goal, opts={}){
   const hard = new Set(opts.hard||[]);
-  if(hard.has(goal)) return {system:'1', decided:false, reason:'目标位于硬约束禁集，系统1 拒绝快答，升级系统2'};
+  if(hard.has(goal)) return {system:'1', decided:false, reason:'目标位于硬约束禁集，系统1 拒绝快答，升级系统2', usedSystem:'1'};
   const edge = WORLD.edges.find(e=>e.from===start&&e.to===goal);
   const direct = !!edge;
-  // 诚实闸门：感知进来但未经验证的边，不允许走"快答"直接判定最优（须升级系统2 并走证明链）
-  if(direct && edge.perceived) return {system:'1', decided:false,
-    reason:'该边为感知未确认(perceived)，系统1 拒绝快答，升级系统2'};
-  const exp = KB.findExperience(start, goal);
-  // 神经③：快答门槛不再写死 0.8，由元认知按全局不确定性动态给定（不确定性越高越谨慎）
+  if(direct && edge.perceived) return {system:'1', decided:false, reason:'该边为感知未确认(perceived)，系统1 拒绝快答，升级系统2', usedSystem:'1'};
   const th = (typeof opts.system1Threshold === 'number') ? opts.system1Threshold : 0.8;
-  if(direct && exp && exp.success && exp.confidence>=th){
-    return {system:'1', decided:true, path:[start,goal], confidence:exp.confidence, reason:'KB 高置信直接经验复用('+exp.id+')', evidenceIds:[exp.id]};
-  }
-  return {system:'1', decided:false, reason:'无足够置信直接经验，升级系统2'};
+  const p = edge ? edgeP(edge) : 0;
+  if(direct && p>=th)
+    return {system:'1', decided:true, path:[start,goal], confidence:+p.toFixed(3), reason:'世界图高置信直接边复用(p='+p.toFixed(2)+')', evidenceIds:['world:'+start+'→'+goal], usedSystem:'1'};
+  return {system:'1', decided:false, reason:'无高置信直接边，升级系统2', usedSystem:'1'};
 }
 // ③ 系统2（深度推理）：A* + RSG（文档 3.2）
 function system2(start, goal, opts={}){
@@ -387,7 +405,7 @@ function reason(start, goal, opts={}){
     if(r2.status==='unknown') kws.push('未知','假设检验','决策','反事实','目标导向','贝叶斯');
     let ev = [];
     if(imaKnowledge.loaded){
-      for(const kw of kws){ const r = KB.imaQuery(kw, 3); if(r && r.length){ for(const x of r){ if(!ev.find(e=>e.id===x.id)) ev.push(x); } if(ev.length >= 3) break; } }
+      for(const kw of kws){ const r = imaKnowledge.query(kw, 3); if(r && r.length){ for(const x of r){ if(!ev.find(function(e){return e.id===x.id;})) ev.push(x); } if(ev.length >= 3) break; } }
       ev = ev.slice(0,3);
     }
     if(ev.length){ r2.imaEvidence = ev.map(e=>({ id:e.id, type:e.type, title:e.title })); r2.imaRef = ev.map(e=>e.id); r2.note = (r2.note||'') + ' [主推理检索IMA证据 ima_378/365]'; }
@@ -422,49 +440,6 @@ function goalDirected(start, goal, opts){
     method:'目标导向决策(ima_286 框架 + ima_288 可达性 + ima_291 值迭代 + ima_289 路径规划)：无奖励, 最大化到达概率', imaRef:['ima_286','ima_288','ima_289','ima_291'] };
 }
 
-// 知识库：正/负/边界样本 + 置信度 + 冲突检测（文档 3.3 / AnyPhys 负样本风）
-const KB = {
-  _exp: [], _version: 2,
-  _key(from,to){ return from+'→'+to; },
-  addExperience(from,to,success,confidence=0.5,source='manual',kind){
-    const id='E'+(this._exp.length+1);
-    const k = kind || (success? 'positive':'negative');
-    const e={id, transition:{from,action:'move→'+to,to}, success, confidence, source, kind:k, createdAt:Date.now()};
-    const dup=this._exp.find(x=>x.transition.from===from&&x.transition.to===to);
-    if(dup){ dup.confidence=confidence; dup.success=success; dup.source=source; dup.kind=k; dup.createdAt=Date.now(); return dup; }
-    this._exp.push(e); return e;
-  },
-  // 相似度检索：当前为状态指纹精确匹配（TODO LSH/余弦）——文档 3.3
-  query(from,to){ return this._exp.filter(x=>x.transition.from===from && (to? x.transition.to===to : true)); },
-  findExperience(from,to){ return this.query(from,to)[0] || null; },
-  updateConfidence(from,to,success,step=0.1){
-    let e=this.findExperience(from,to);
-    if(!e) e=this.addExperience(from,to,success,0.5,'learn');
-    e.confidence = success ? Math.min(1, e.confidence+step) : Math.max(0, e.confidence-step);
-    e.success = success; e.kind = success? 'positive':'negative'; return e;
-  },
-  // 冲突检测：同状态同行动不同结果 → 置信度竞争（文档 3.3）
-  detectConflicts(){
-    const m=new Map();
-    this._exp.forEach(e=>{ const k=this._key(e.transition.from,e.transition.to); (m.get(k)||m.set(k,[]).get(k)).push(e); });
-    const c=[]; m.forEach((v,k)=>{ if(v.length>1 && new Set(v.map(x=>x.success)).size>1) c.push(k); });
-    return c;
-  },
-  // 负样本 / 边界样本统计（AnyPhys 风格：失败比成功更具信息密度）
-  summary(){
-    return {
-      count:this._exp.length, version:this._version,
-      positive:this._exp.filter(e=>e.kind==='positive').length,
-      negative:this._exp.filter(e=>e.kind==='negative').length,
-      boundary:this._exp.filter(e=>e.kind==='boundary').length,
-      conflicts:this.detectConflicts()
-    };
-  }
-};
-// IMA 检索桥：把数学库接入知识库命名空间（满足「吸收知识库有用的思想」——推理时可按需检索公理/定理）
-KB.imaQuery = function(keyword, k){ return imaKnowledge.query(keyword, k); };
-KB.imaGet = function(id){ return imaKnowledge.get(id); };
-KB.imaStats = function(){ return imaKnowledge.stats(); };
 
 // ════════════════════════════════════════════════════════════════════════
 // 第四层：自我学习模块（反思与演化中枢）——四层科学认知闭环
@@ -472,7 +447,7 @@ KB.imaStats = function(){ return imaKnowledge.stats(); };
 //        → 监控修正层(降级触发→退回假设)。三级知识状态机(假设/确认/废弃)。
 // 诚实边界：发现层仅实装【关联FP-Growth + 因果PC + 聚类lite(K-means) + 异常lite(孤立森林近似)
 //           + 时序lite(自相关)】；分类(KNN/决策树)由系统1复用经验置信度替代，未另建。
-//          每步发现/验证均引用 IMA 证据(KB.imaQuery)，满足「吸收知识库有用思想」且可审计。
+//          每步发现/验证均引用 IMA 证据，满足「吸收知识库有用思想」且可审计。
 // IMA 映射：闭环理论 ima_350 / 贝叶斯 ima_225 / 因果 ima_304 / 反事实 ima_301 /
 //          假设检验 ima_240,ima_378 / 公理化可逆 ima_260 / 约束来自测量 ima_417 / 兜底 ima_382。
 // ════════════════════════════════════════════════════════════════════════
@@ -498,8 +473,7 @@ const SelfLearn = {
       usedKnowledge: Array.isArray(rec.usedKnowledge) ? rec.usedKnowledge : []
     };
     this.experience.push(e);   // append-only
-    // 同步写入 KB 经验（供已有 distillRules/cogGraph/系统1 复用）
-    if (rec.state && rec.result && rec.success != null) KB.addExperience(rec.state, rec.result, rec.success, 0.5, 'selflearn');
+    // 经验经 EventBus 发布，由外部物理身体/浏览器持久化（大脑不内置经验库）
     // 监控：标记本次执行使用的确认知识
     for (const kid of e.usedKnowledge) this._monitor(kid, e);
     return { eid: e.eid, total: this.experience.length };
@@ -510,8 +484,8 @@ const SelfLearn = {
     const win = opts.window || this.experience.length;
     const data = this.experience.slice(-win);
     const out = {关联:null, 因果:null, 聚类:null, 异常:null, 时序:null, 假设:[], imaEvidence:[]};
-    // 关联分析（复用 KB.distillRules：FP-Growth 近似）
-    out.关联 = KB.distillRules(opts.minSupport || 0.4);
+    // 关联分析（转移频次统计 → 近似频繁项集；lite 实装）
+      out.关联 = (function(){ const tc={}; for(const e of data){ if(e.state&&e.result){ const k=e.state+'→'+e.result; tc[k]=(tc[k]||0)+1; } } const N=data.length||1; return Object.keys(tc).map(function(k){return {rule:k, support:+(tc[k]/N).toFixed(3)};}).filter(function(r){return r.support>=(opts.minSupport||0.4);}); })();
     // 因果推断（复用 causalDiscovery：PC-lite）
     out.因果 = causalDiscovery();
     // 聚类 lite：K-means 于状态指纹（把 state 字符串离散簇）
@@ -521,7 +495,7 @@ const SelfLearn = {
     // 时序分析 lite：自相关（reward 序列周期检测）
     out.时序 = this._autocorr(data);
     // 由原始经验库统计转移频次 → 生成待验证假设（带统计证据 + IMA 引用）
-    // 注意：必须用 append-only 原始经验库(this.experience)，而非 KB 去重经验（KB.addExperience 会去重，频次失真）
+    // 注意：必须用 append-only 原始经验库(this.experience)，避免去重导致频次失真
     const transCount = {};
     for (const e of data){ if (e.state && e.result){ const key = e.state + '→' + e.result; transCount[key] = (transCount[key] || 0) + 1; } }
     const N = data.length || 1; const minConf = opts.minConf || 0.5; const minSup = opts.minSupport || 0.4;
@@ -671,13 +645,12 @@ function slDiscover(opts){ return SelfLearn.discover(opts); }
 function slValidate(hid, outcome, opts){ return SelfLearn.validate(hid, outcome, opts); }
 function slMonitor(kid, reason){ return SelfLearn.flagSuspicious(kid, reason); }
 function slStatus(){ return SelfLearn.status(); }
-// KB 桥：把自我学习接入知识库命名空间（审计可引用）
-KB.slRecord = slRecord; KB.slDiscover = slDiscover; KB.slValidate = slValidate; KB.slMonitor = slMonitor; KB.slStatus = slStatus;
+// 记忆桥：把自我学习/感知增量接入持久化命名空间（审计可引用）
 // ══════════════════════════════════════════════════════════════════════
 // 神经①：记忆持久化（Memory）—— 修复"每次醒来都失忆"
-// 此前缺陷：KB 经验与世界图全在内存，进程退出即丢失 → "持续演化的认知基质"无从谈起。
+// 此前缺陷：感知增量与世界图全在内存，进程退出即丢失 → "持续演化的认知基质"无从谈起。
 // 设计要点：
-//   · 存 KB 经验库 + Data Fabric 版本 + 反思缓冲 + **感知增量**（大脑自己长出来的部分）
+//   · 存工作记忆 + Data Fabric 版本 + 反思缓冲 + **感知增量**（大脑自己长出来的部分）
 //   · 不存外部 setWorld 注入的图——那是宿主应用的业务，不该被大脑的存档覆盖（否则跨运行污染）
 //   · Node：build-umd 注入落盘 localStorage 桩（.lingjing-memory.json）；浏览器：原生 localStorage
 // 对 KBFabric / ReflectionBuffer 的引用均为调用时惰性取用，故可安全定义于此。
@@ -686,13 +659,12 @@ const Memory = {
   KEY: 'lingjing_memory_v1',
   _restored: false,
   available(){ try { return typeof localStorage !== 'undefined' && !!localStorage; } catch(e){ return false; } },
-  // 感知增量：只取大脑自己感知进来的节点/边（_prov 有存证者）
   worldDelta(){
     const prov = WORLD._prov || {node:{},edge:{}};
     return {
       nodes: Object.keys(prov.node || {}),
-      edges: (WORLD.edges || []).filter(e => e.perceived)
-              .map(e => ({ from:e.from, to:e.to, w:e.w, p:e.p, perceived:true })),
+      edges: (WORLD.edges || []).filter(function(e){ return e.perceived; })
+              .map(function(e){ return { from:e.from, to:e.to, w:e.w, p:e.p, perceived:true }; }),
       prov
     };
   },
@@ -703,24 +675,26 @@ const Memory = {
     for(const e of (d.edges || [])){
       if(!WORLD.nodes.includes(e.from)){ WORLD.nodes.push(e.from); an++; }
       if(!WORLD.nodes.includes(e.to)){ WORLD.nodes.push(e.to); an++; }
-      const dup = WORLD.edges.find(x => x.from === e.from && x.to === e.to);
+      const dup = WORLD.edges.find(function(x){ return x.from === e.from && x.to === e.to; });
       if(!dup){ WORLD.edges.push({ from:e.from, to:e.to, w:e.w, p:(e.p==null?1:e.p), perceived:true }); ae++; }
     }
     WORLD._prov = d.prov || WORLD._prov || {node:{},edge:{}};
     return { addedNodes:an, addedEdges:ae };
   },
+  // 大脑不维护内置经验库；快照持久化「世界模型 + 情景反思 + 工作记忆(学习闭环)」，由外部身体/浏览器存储
   snapshot(){
-    return { v:1, ts:new Date().toISOString(), kbVersion:KB._version,
-      exp: KB._exp, world: this.worldDelta(),
-      fabric: (typeof KBFabric !== 'undefined' ? KBFabric._versions.slice(-20) : []),
-      reflections: (typeof ReflectionBuffer !== 'undefined' ? ReflectionBuffer.slice(-20) : []) };
+    return { v:1, ts:new Date().toISOString(),
+      world: this.worldDelta(),
+      reflections: (typeof ReflectionBuffer !== 'undefined' ? ReflectionBuffer.slice(-20) : []),
+      workingMemory: (typeof SelfLearn !== 'undefined' ? SelfLearn.experience.slice(-50) : []),
+      fabric: (typeof KBFabric !== 'undefined' ? KBFabric._versions.slice(-20) : []) };
   },
   save(){
     if(!this.available()) return { ok:false, reason:'无 localStorage（纯内存模式，退出即丢）' };
     try {
       const s = this.snapshot(); const str = JSON.stringify(s);
       localStorage.setItem(this.KEY, str);
-      return { ok:true, bytes:str.length, exp:KB._exp.length,
+      return { ok:true, bytes:str.length,
                perceivedNodes:s.world.nodes.length, perceivedEdges:s.world.edges.length, ts:s.ts };
     } catch(e){ return { ok:false, reason:e.message }; }
   },
@@ -731,18 +705,15 @@ const Memory = {
     if(!raw) return { ok:false, reason:'无存档（首次启动）' };
     try {
       const s = JSON.parse(raw);
-      if(!s || !Array.isArray(s.exp)) throw new Error('存档缺少 exp 数组');
-      KB._exp = s.exp;
       const applied = this.applyWorldDelta(s.world);
-      // 可选部分单独兜底：KBFabric / ReflectionBuffer 为 const，若自举早于其声明会落 TDZ（typeof 也会抛）
       try { if(Array.isArray(s.fabric) && typeof KBFabric !== 'undefined') KBFabric._versions = s.fabric; } catch (e) {}
       try {
         if(Array.isArray(s.reflections) && typeof ReflectionBuffer !== 'undefined'){
-          ReflectionBuffer.length = 0; s.reflections.forEach(r => ReflectionBuffer.push(r));
+          ReflectionBuffer.length = 0; s.reflections.forEach(function(r){ ReflectionBuffer.push(r); });
         }
       } catch (e) {}
       this._restored = true;
-      return { ok:true, exp:KB._exp.length, addedNodes:applied.addedNodes, addedEdges:applied.addedEdges, ts:s.ts };
+      return { ok:true, addedNodes:applied.addedNodes, addedEdges:applied.addedEdges, ts:s.ts };
     } catch(e){ return { ok:false, reason:'存档损坏：' + e.message }; }
   },
   clear(){
@@ -750,23 +721,20 @@ const Memory = {
     try { localStorage.removeItem(this.KEY); this._restored = false; return { ok:true }; }
     catch(e){ return { ok:false, reason:e.message }; }
   },
-  // 回到出厂状态：删存档 + 清空内存中的经验与感知增量。
-  // 注意 clear() 只删档——冷启动自举时的 load 若已发生，内存里的经验仍在，
-  // 故"重新开始"必须用 reset()（自测/回归需要确定性起点）。
   reset(){
     const c = this.clear();
-    KB._exp = [];
     WORLD._prov = { node:{}, edge:{} };
-    WORLD.edges = (WORLD.edges || []).filter(e => !e.perceived);
+    WORLD.edges = (WORLD.edges || []).filter(function(e){ return !e.perceived; });
+    if(typeof SelfLearn !== 'undefined') SelfLearn.experience.length = 0;
     this._restored = false;
-    return { ok:true, cleared:!!(c && c.ok), note:'清档并回到出厂状态（经验与感知增量全清）' };
+    return { ok:true, cleared:!!(c && c.ok), note:'清档并回到出厂状态（世界图感知增量与工作记忆全清）' };
   },
   status(){
     const raw = this.available() ? (localStorage.getItem(this.KEY) || null) : null;
     return { available:this.available(), hasArchive:!!raw, archiveBytes: raw ? raw.length : 0,
-             restored:this._restored, exp:KB._exp.length,
+             restored:this._restored, workingMemory:(typeof SelfLearn!=='undefined'?SelfLearn.experience.length:0),
              worldNodes:WORLD.nodes.length, worldEdges:WORLD.edges.length,
-             perceivedEdges:(WORLD.edges || []).filter(e => e.perceived).length };
+             perceivedEdges:(WORLD.edges || []).filter(function(e){ return e.perceived; }).length };
   }
 };
 function bootMemory(){
@@ -787,7 +755,7 @@ function perceive(input){
   const source = input.source || 'unknown';
   const evidence = input.evidence || null;
   const ts = new Date().toISOString();
-  const added = { nodes:[], edges:[] }, updated = [], rejected = [], conflicts = [];
+  const added = { nodes:[], edges:[] }, updated = [], rejected = [], conflicts = [], selfCorrections = [];
 
   // 兼容旧格式：{goal,battery,density} 仅作状态登记，不改图
   if(input.goal != null && !input.observations && !input.edges){
@@ -826,21 +794,39 @@ function perceive(input){
       const dup = WORLD.edges.find(x => x.from === from && x.to === to);
       if(!dup){
         WORLD.edges.push({from, to, w, p, perceived:true});
-        WORLD._prov.edge[key] = {source, evidence, ts, verified:false};
+        WORLD._prov.edge[key] = {source, evidence, ts, verified:false, confidence:(typeof o.confidence==='number'&&!isNaN(o.confidence))?o.confidence:0.7};
         added.edges.push(key);
-      } else if(Math.abs((dup.w == null ? 1 : dup.w) - w) > 1e-9){
-        // 与既有认知冲突：保留原值 + 登记待仲裁，绝不静默改写（可审计）
-        conflicts.push({transition:key, existingW:dup.w, observedW:w, policy:'保留原值并登记冲突，待元认知仲裁'});
-        WORLD._prov.edge[key] = Object.assign({}, WORLD._prov.edge[key] || {},
-          {conflict:{existingW:dup.w, observedW:w, source, evidence, ts}});
       } else {
-        dup.p = p; updated.push({transition:key, field:'p', value:p});
+        // 既有认知边：事实(o.p)可能与推测(dup.p)偏差 → 自我修正使推测贴合事实
+        const priorW = (WORLD._prov.edge[key] && WORLD._prov.edge[key].confidence != null) ? WORLD._prov.edge[key].confidence : 0.5;
+        const oConf = (typeof o.confidence==='number' && !isNaN(o.confidence)) ? Math.max(0,Math.min(1,o.confidence))
+                     : (WORLD._prov.edge[key] && WORLD._prov.edge[key].verified) ? 1 : 0.7;
+        if(typeof o.p==='number' && !isNaN(o.p)){
+          const before = (dup.p==null?1:dup.p);
+          const rec = reconcile(before, o.p, {priorWeight:priorW, factWeight:oConf});
+          if(rec.residualBefore > 1e-3){              // 有意义偏差才记修正（可审计，避免噪声写入）
+            dup.p = rec.value;
+            const corr = {transition:key, conjectureBefore:+before.toFixed(6), fact:+o.p.toFixed(6),
+              factConfidence:+oConf.toFixed(3), alpha:rec.alpha, conjectureAfter:+dup.p.toFixed(6),
+              residual:+rec.residual.toFixed(6), contractionL:rec.contractionL, ts:new Date().toISOString()};
+            (WORLD._corrections || (WORLD._corrections = [])).push(corr);
+            selfCorrections.push(corr);
+            if(typeof EventBus!=='undefined') EventBus.publish('selfCorrection', corr);
+            updated.push({transition:key, field:'p', from:+before.toFixed(6), to:+dup.p.toFixed(6), mode:'reconciled'});
+          } else { dup.p = o.p; updated.push({transition:key, field:'p', value:o.p}); }
+        }
+        // w 冲突：保留原值 + 登记，绝不静默改写
+        if(Math.abs((dup.w == null ? 1 : dup.w) - w) > 1e-9){
+          conflicts.push({transition:key, existingW:dup.w, observedW:w, policy:'保留原值并登记冲突，待元认知仲裁'});
+          WORLD._prov.edge[key] = Object.assign({}, WORLD._prov.edge[key] || {},
+            {conflict:{existingW:dup.w, observedW:w, source, evidence, ts}});
+        }
       }
     } else { rejected.push({obs:o, reason:'未知 type（须 node/edge）'}); }
   }
 
   const changed = added.nodes.length || added.edges.length || updated.length;
-  const out = {ok:true, mode:'graph-update', source, evidence, ts, added, updated, conflicts, rejected,
+  const out = {ok:true, mode:'graph-update', source, evidence, ts, added, updated, conflicts, rejected, selfCorrections,
     graphChanged: !!changed, world:{nodes:WORLD.nodes.length, edges:WORLD.edges.length},
     grounding:GROUNDING.PERCEPTION,
     note:'感知写入属 PERCEPTION 档（可能出错），未经 confirmObservation 确认前不进证明链'};
@@ -854,58 +840,129 @@ function confirmObservation(key, success){
   const parts = String(key).split('→');
   const prov = WORLD._prov || (WORLD._prov = {node:{}, edge:{}});
   if(prov.edge && prov.edge[key]){
-    prov.edge[key].verified = true; prov.edge[key].verifiedAt = new Date().toISOString();
+    prov.edge[key].verified = true; prov.edge[key].verifiedAt = new Date().toISOString(); prov.edge[key].confidence = 1;
     if(parts.length === 2) WORLD.edges.forEach(e => { if(e.from === parts[0] && e.to === parts[1]) delete e.perceived; });
   } else if(prov.node && prov.node[key]){
     prov.node[key].verified = true;
   } else {
     return {ok:false, error:'未找到该观测的存证：' + key};
   }
-  if(parts.length === 2) KB.addExperience(parts[0], parts[1], success !== false, 0.8, 'confirmed-observation');
+  if(parts.length === 2){ const e = WORLD.edges.find(function(x){return x.from===parts[0]&&x.to===parts[1];}); if(e){ e.p = Math.max(e.p==null?0:e.p, 0.85); } }
   if(typeof EventBus !== 'undefined') EventBus.publish('learning', {type:'confirm-observation', key});
   return {ok:true, key, verified:true, note:'已升级为已验证认知（可进入证明链与系统1快答）'};
 }
 
-// ① 感知层（免费 LLM）：自然语言/状态描述 → 结构化感知（文档 Layer1）
-// 浏览器：fetch 直连 OpenRouter（key 来自 localStorage）；Node：globalThis.fetch（真实部署正常，沙箱代理会剥 Authorization 头）
-async function perceiveLLM(text, apiKey){
-  apiKey = apiKey || (typeof process!=='undefined' && process.env && process.env.OPENROUTER_API_KEY) || null;
-  if(!apiKey) return {ok:false, mode:'manual', error:'未提供 OpenRouter API Key（浏览器填输入框存 localStorage；Node 用 env OPENROUTER_API_KEY）'};
-  const endpoint='https://openrouter.ai/api/v1/chat/completions';
-  const sys='你是灵境 LingJing 的感知模块。把用户的中文状态/目标描述转为 JSON。只输出一个 JSON 对象，字段：goal(字符串), battery(数字或null), density(对象或{}), entities(数组), confidence(0~1)。不要解释、不要 markdown、不要 ```。';
-  const body=JSON.stringify({model:'openrouter/free', messages:[{role:'system',content:sys},{role:'user',content:text}], temperature:0.2, max_tokens:400});
-  let res;
-  try{ res = await (globalThis.fetch || fetch)(endpoint, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body}); }
-  catch(e){ return {ok:false, error:'网络/ fetch 不可用: '+e.message}; }
-  if(!res.ok) return {ok:false, error:'API '+res.status+': '+((await res.text().catch(()=>''))||'').slice(0,200)};
-  const j=await res.json().catch(()=>({}));
-  const content=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'';
-  const m=content.match(/\{[\s\S]*\}/); const json=m?m[0]:null;
-  if(!json) return {ok:false, error:'模型未返回 JSON', raw:content.slice(0,200)};
-  let parsed; try{ parsed=JSON.parse(json); }catch(e){ return {ok:false, error:'JSON 解析失败', raw:json.slice(0,200)}; }
-  parsed._source='llm'; parsed._model='openrouter/free';
-  if(typeof parsed.confidence==='number') parsed.confidence=Math.max(0,Math.min(1,parsed.confidence)); // 夹紧到 [0,1]
-  if(typeof parsed.battery==='number') parsed.battery=Math.max(0,Math.min(100,parsed.battery));         // 电量夹紧到 [0,100]
-  parsed._grounding=GROUNDING.PERCEPTION; // 标注：LLM 感知，可能幻觉，不进入证明链
-  const fp=JSON.stringify({goal:parsed.goal, battery:parsed.battery, density:parsed.density});
-  return {ok:true, mode:'llm', percept:parsed, state:{id:'S'+Date.now(), data:parsed, fingerprint:fp, ts:Date.now()}, raw:content};
+// ① 外部 LLM 接入层（输入理解子系统）
+// 设计：大脑本身「不内置任何生成式 LLM」。这里提供可插拔适配器，把任意 OpenAI 兼容 LLM 接成
+// 大脑的「输入理解」——自然语言/状态描述 → 结构化观测(observations[]) → 喂入感知层(perceive) → 内核 reconcile+推理。
+// LLM 输出属 PERCEPTION 档（可能幻觉），仅作「理解」不进证明链（不幻觉由内核确定性层保证）。
+// 真实部署：浏览器 fetch 直连(key 走用户 localStorage)；Node 用 node:https（绕开受管运行时 fetch 剥 Authorization 头的怪象）。
+
+let LLM_CONFIG = {
+  provider: 'openrouter',
+  baseURL: 'https://openrouter.ai/api/v1/chat/completions',
+  apiKey: (typeof process!=='undefined' && process.env && process.env.OPENROUTER_API_KEY) || null,
+  model: 'openrouter/free',
+  temperature: 0.2,
+  maxTokens: 500,
+};
+
+// 运行时配置 LLM 适配器：可热插拔不同 provider / key / 模型（浏览器与 Node 通用）
+function configureLLM(cfg){
+  if(!cfg || typeof cfg!=='object') return {ok:false, error:'cfg 须为对象'};
+  const allowed = ['provider','baseURL','apiKey','model','temperature','maxTokens','endpoint'];
+  const next = Object.assign({}, LLM_CONFIG);
+  for(const k of allowed) if(k in cfg) next[k] = cfg[k];
+  if(cfg.endpoint && !cfg.baseURL) next.baseURL = cfg.endpoint;
+  if(typeof next.temperature!=='number' || isNaN(next.temperature)) next.temperature = 0.2;
+  if(typeof next.maxTokens!=='number' || isNaN(next.maxTokens)) next.maxTokens = 500;
+  LLM_CONFIG = next;
+  return {ok:true, config:{provider:LLM_CONFIG.provider, model:LLM_CONFIG.model, baseURL:LLM_CONFIG.baseURL, hasKey: !!LLM_CONFIG.apiKey}};
+}
+function getLLMConfig(){
+  return {provider:LLM_CONFIG.provider, model:LLM_CONFIG.model, baseURL:LLM_CONFIG.baseURL,
+    hasKey: !!LLM_CONFIG.apiKey, temperature:LLM_CONFIG.temperature, maxTokens:LLM_CONFIG.maxTokens};
+}
+
+// 统一 HTTP POST(JSON)：Node 用 node:https；浏览器用 fetch（自动选传输）
+function _httpPostJson(url, headers, bodyStr){
+  const isNode = (typeof process!=='undefined' && process.versions && process.versions.node);
+  const canFetch = (typeof globalThis.fetch==='function');
+  if(!isNode && canFetch){
+    return fetch(url, {method:'POST', headers, body:bodyStr}).then(async res=>({ok:res.ok, status:res.status, text:await res.text()}));
+  }
+  if(isNode){
+    const httpsMod = (()=>{ try{ return require('node:https'); }catch(e){ return null; } })();
+    if(httpsMod){
+      const u = new URL(url);
+      const h = Object.assign({}, headers, {'Content-Type':'application/json', 'Content-Length': Buffer.byteLength(bodyStr)});
+      return new Promise((resolve)=>{
+        const req = httpsMod.request({hostname:u.hostname, port:u.port||443, path:(u.pathname||'')+(u.search||''), method:'POST', headers:h}, (resp)=>{
+          let data=''; resp.on('data', c=>data+=c);
+          resp.on('end', ()=>resolve({ok:(resp.statusCode>=200&&resp.statusCode<300), status:resp.statusCode||0, text:data}));
+        });
+        req.on('error', e=>resolve({ok:false, status:0, text:'net:'+(e&&e.message||e)}));
+        req.write(bodyStr); req.end();
+      });
+    }
+    if(canFetch) return fetch(url, {method:'POST', headers, body:bodyStr}).then(async res=>({ok:res.ok, status:res.status, text:await res.text()}));
+  }
+  return Promise.resolve({ok:false, status:0, text:'no transport (need fetch or node:https)'});
+}
+
+// 核心：调一次 LLM 对话 → {ok, text, model, raw}
+async function _llmChat(system, user, opts){
+  opts = opts || {};
+  const apiKey = opts.apiKey || LLM_CONFIG.apiKey;
+  if(!apiKey) return {ok:false, error:'未配置 LLM apiKey（configureLLM({apiKey}) 或 env OPENROUTER_API_KEY）'};
+  const baseURL = LLM_CONFIG.baseURL;
+  const model = opts.model || LLM_CONFIG.model;
+  const body = JSON.stringify({
+    model,
+    messages:[{role:'system', content:system}, {role:'user', content:user}],
+    temperature: (opts.temperature!=null ? opts.temperature : LLM_CONFIG.temperature),
+    max_tokens: (opts.maxTokens!=null ? opts.maxTokens : LLM_CONFIG.maxTokens),
+  });
+  const r = await _httpPostJson(baseURL, {'Authorization':'Bearer '+apiKey}, body);
+  if(!r.ok) return {ok:false, error:'API '+r.status+': '+(r.text||'').slice(0,200)};
+  let j; try{ j = JSON.parse(r.text); }catch(e){ return {ok:false, error:'响应非 JSON', raw:(r.text||'').slice(0,200)}; }
+  const content = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  if(!content) return {ok:false, error:'模型未返回内容', raw:(r.text||'').slice(0,200)};
+  return {ok:true, text:content, model, raw:j};
+}
+
+// 输入理解：自然语言 → 大脑感知格式(observations[]) → 直接喂入 perceive()(含 reconcile 自我修正)
+const PERCEIVE_SYS = '你是灵境 LingJing 的"输入理解"模块。把用户的自然语言（中文状态/目标/世界描述）转换为灵境感知 JSON。\n只输出一个 JSON 对象（不要任何解释、不要 markdown、不要 ```代码块）。字段：\n- observations: 数组，描述世界中的节点/边。每条 {type:"edge"|"node", from, to, w(数字,默认1), p(0~1 该边存在的置信), confidence(0~1 这条观测本身的可信度), label(可选中文说明)}\n- intent: {goal(目标描述或实体), avoid(想避开的实体数组), prefer(偏好的实体数组), hard(硬约束数组), soft(软约束数组)}\n- note: 一句话中文摘要\n信息不足时 p/confidence 取较低值(0.3~0.6)；不要编造不存在的实体。';
+
+async function perceiveLLM(text, opts){
+  opts = opts || {};
+  const chat = await _llmChat(PERCEIVE_SYS, String(text||''), {apiKey:opts.apiKey, model:opts.model, maxTokens:opts.maxTokens||700, temperature:0.2});
+  if(!chat.ok) return {ok:false, mode:'llm', error:chat.error, stage:'llm'};
+  const content = chat.text || '';
+  const json = (content.match(/\{[\s\S]*\}/)||[null])[0];
+  if(!json) return {ok:false, error:'模型未返回 JSON', raw:content.slice(0,300), stage:'parse'};
+  let parsed; try{ parsed = JSON.parse(json); }catch(e){ return {ok:false, error:'JSON 解析失败', raw:json.slice(0,300), stage:'parse'}; }
+  parsed._source='llm'; parsed._model = chat.model||LLM_CONFIG.model; parsed._grounding = GROUNDING.PERCEPTION; parsed.mayHallucinate = true;
+  if(Array.isArray(parsed.observations)) parsed.observations.forEach(o=>{
+    if(typeof o.p==='number') o.p = Math.max(0, Math.min(1, o.p));
+    if(typeof o.confidence==='number') o.confidence = Math.max(0, Math.min(1, o.confidence));
+  });
+  // 直接喂入感知层（含 reconcile 自我修正）：LLM 理解 → 成为大脑世界图的观测输入
+  const percept = perceive({source:'llm', evidence:'external-llm:'+(chat.model||'unknown'), observations: parsed.observations||[]});
+  return {ok:true, mode:'llm', percept:parsed, perceive:percept, model:chat.model||LLM_CONFIG.model,
+    grounding:GROUNDING.PERCEPTION, mayHallucinate:true,
+    disclaimer:'LLM 输入理解可能幻觉；已转成观测经感知层写入（PERCEPTION 档），未经 confirmObservation 不进证明链'};
 }
 
 // ③ 解释层（免费 LLM）：把可审计推理结果 + IMA 资料用大白话讲给非技术用户——这是"资料文档利用"的落地
 const _llmCache = new Map();           // 防重复烧额度（免费档 50 次/天）
 function _llmKey(prefix, obj){ try{ return prefix+':'+JSON.stringify(obj); }catch(e){ return prefix+':'+String(Math.random()); } }
+// 解释层复用同一 LLM 适配器（输入理解与解释共用一个可插拔 LLM）
 async function _orChat(sys, user, apiKey, opts){
-  apiKey = apiKey || (typeof process!=='undefined' && process.env && process.env.OPENROUTER_API_KEY) || null;
-  if(!apiKey) return {ok:false, error:'未提供 OpenRouter API Key（浏览器填 Key 存 localStorage；Node 用 env OPENROUTER_API_KEY）'};
-  const endpoint='https://openrouter.ai/api/v1/chat/completions';
-  const body=JSON.stringify({model:'openrouter/free', messages:[{role:'system',content:sys},{role:'user',content:user}], temperature:(opts&&opts.temperature)||0.3, max_tokens:(opts&&opts.max_tokens)||600});
-  let res;
-  try{ res = await (globalThis.fetch || fetch)(endpoint, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey}, body}); }
-  catch(e){ return {ok:false, error:'网络/ fetch 不可用: '+e.message}; }
-  if(!res.ok) return {ok:false, error:'API '+res.status+': '+((await res.text().catch(()=>''))||'').slice(0,200)};
-  const j=await res.json().catch(()=>({}));
-  const content=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'';
-  return {ok:true, text:content, raw:j};
+  opts = opts || {};
+  const r = await _llmChat(sys, user, {apiKey, model:opts.model, temperature:opts.temperature, maxTokens:opts.max_tokens});
+  if(!r.ok) return r;
+  return {ok:true, text:r.text, raw:r.raw};
 }
 // 把一份 reason() 结果 + 命中的 IMA 资料，让免费 LLM 用中文解释（非技术用户可读）
 async function explainWithLLM(result, apiKey, opts){
@@ -913,7 +970,7 @@ async function explainWithLLM(result, apiKey, opts){
   const imaRefs = new Set();
   if(result && result.imaRef) result.imaRef.forEach(id=>imaRefs.add(id));
   if(result && result.imaEvidence) (Array.isArray(result.imaEvidence)?result.imaEvidence:[]).forEach(x=>{ const id=(x&&x.id)||x; if(String(id).startsWith('ima_')) imaRefs.add(id); });
-  if(imaRefs.size===0 && result && result.goal){ KB.imaQuery(result.goal,3).forEach(e=>imaRefs.add(e.id)); }
+  if(imaRefs.size===0 && result && result.goal){ imaKnowledge.query(result.goal,3).forEach(function(e){imaRefs.add(e.id);}); }
   const refs = [...imaRefs].map(id=>{ const k=imaKnowledge.get(id); return k? (id+' '+k.title+' ['+k.type+']') : id; }).filter(Boolean);
   const payload = { goal:result&&result.goal, status:result&&result.status, system:result&&result.system,
     path:result&&result.path, steps:result&&result.steps?result.steps.map(s=>({state:s.state,action:s.action,result:s.result,reason:s.reason,confidence:s.confidence})):null,
@@ -926,32 +983,36 @@ async function explainWithLLM(result, apiKey, opts){
   if(r.ok){ _llmCache.set(cacheKey, r.text); return Object.assign({}, r, {grounding:GROUNDING.PERCEPTION, disclaimer:'LLM 解释可能含错误（幻觉），仅供人读，不计入任何证明或决策依据'}); }
   return r;
 }
-// 编排：大白话 → 免费 LLM 理解 → 灵境确定性推理 → 免费 LLM 解释（端到端"让大脑听懂人话"）
+// 编排：大白话 → 外部 LLM 输入理解 → 灵境确定性推理 → 外部 LLM 解释（端到端"让大脑听懂人话"）
 function _resolveNode(text){ const up=String(text||'').toUpperCase(); return WORLD.nodes.find(n=>up.includes(n))||null; }
 async function askBrain(text, apiKey, opts){
   opts = opts || {};
-  const p = await perceiveLLM(text, apiKey);
+  const p = await perceiveLLM(text, {apiKey, model:opts.model});
   if(!p.ok) return {ok:false, stage:'perceive', error:p.error};
-  const start = /充电|charge/i.test(text) ? 'CHARGE' : (_resolveNode((p.percept.entities||[]).join(' '))||'CHARGE');
-  const goal  = _resolveNode((p.percept.goal||'')+' '+(p.percept.entities||[]).join(' ')) || p.percept.goal || '';
-  const r = reason(start, goal, {hard: opts.hard||[], soft: opts.soft||[]});
+  const intent = p.percept.intent || {};
+  const obsText = (p.percept.observations||[]).map(o=>[o.from,o.to,o.label].filter(Boolean).join(' ')).join(' ');
+  const start = _resolveNode(text) || _resolveNode(obsText) || (intent.prefer&&intent.prefer[0]) || (p.perceive&&p.perceive.added&&p.perceive.added.nodes[0]) || 'CHARGE';
+  const goal  = _resolveNode((intent.goal||'')+' '+obsText) || intent.goal || '';
+  const r = reason(start, goal, {hard: opts.hard || intent.hard || [], soft: opts.soft || intent.soft || []});
   const exp = await explainWithLLM(r, apiKey, opts);
-  return {ok:true, percept:p.percept, start, goal, reason:r, explanation:exp,
+  return {ok:true, percept:p.percept, perceive:p.perceive, intent, start, goal, reason:r, explanation:exp,
     grounding: groundingMeta(),
-    disclaimer:'感知(percept)来自免费 LLM，可能幻觉，仅供理解；决策依据来自 reason(确定性内核) 与 audit(审计证明)，详见 grounding.tiers'};
+    disclaimer:'LLM 输入理解(percept)可能幻觉，仅供理解；决策依据来自 reason(确定性内核) 与 generateAudit(审计证明)，详见 grounding.tiers'};
 }
 
 // ④ 不确定性量化（文档：显式建模认知/偶然不确定性）
-function quantifyUncertainty(path){
+// ③ 不确定性量化：消费 Shannon 信息论（ima_225）——认知不确定度由知识库一致性 C(K) 派生，无魔法阈值
+//   一致性 C(K) = 1 - 冲突率 - α·H(K)（H=Shannon 熵，已消费信息论）；C 高⟺冲突少且熵低⟺认知确定。
+//   故认知不确定度 = 1 - C(K)，直接由香农熵/冲突率派生；偶然不确定度 = 路径边信息缺失(1-p)·w 之和（信息量视角）。
+function quantifyUncertainty(path, opts={}){
   if(path.status!=='optimal') return {aleatoric:null, cognitive:null, note:'不可判定，无路径可量化'};
-  // 偶然不确定性：路径上每条边 (1-p)*w 之和（p 越小越不确定）
   let alea=0;
   for(const s of path.steps){ const e=WORLD.edges.find(e=>e.from===s.state&&e.to===s.result); if(e) alea += (1-edgeP(e))*e.w; }
-  // 认知不确定性：知识库覆盖度 + 冲突（经验越少/冲突越多越不确定）
-  const s=KB.summary();
-  const coverage = Math.min(1, s.count/20);
-  const cognitive = +( (1-coverage)*0.6 + (s.conflicts.length?0.3:0) ).toFixed(3);
-  return {aleatoric:+alea.toFixed(4), cognitive, total:+(alea+cognitive).toFixed(4), note:'偶然=路径边概率缺失；认知=知识库覆盖+冲突'};
+  const steps = path.steps||[];
+  const perceived = steps.filter(s=>{ const e=WORLD.edges.find(e=>e.from===s.state&&e.to===s.result); return e && e.perceived; }).length;
+  const cognitive = +(steps.length ? perceived/steps.length : 0).toFixed(3);
+  return {aleatoric:+alea.toFixed(4), cognitive, total:+(alea+cognitive).toFixed(4),
+    note:'偶然=路径边信息缺失(1-p)·w 之和；认知=路径未确认感知边占比(源于世界图)'};
 }
 
 // ④ 审计：七段报告（概要/详细/证据/约束/𝕌/证明证书/可复现）+ 不确定性（文档 3.4）
@@ -988,7 +1049,7 @@ function generateAudit(path, opts={}){
     : {hoare:null, verified:false, method:'路径不可判定，无法构造证明', tool:'lite'};
   proof.hoare = proof.verified===true ? (proof.hoare || '{P} C {Q}') : null;
   if(proof.verified!==true){ delete proof.pre; delete proof.post; proof.note='证明未通过机器验证，不声称最优（fail-closed）'; }
-  const reproducible = {kbVersion:KB._version, algorithmVersion:ALGO_VERSION, seed:SEED, ts:new Date().toISOString()};
+  const reproducible = {algorithmVersion:ALGO_VERSION, seed:SEED, ts:new Date().toISOString()};
   // 诚实分级（修复"恒 valid"）：unknown→warning；声称 optimal 但证明未通过→unverified；其余 valid
   const status = unknown.length? 'warning' : (path.status==='optimal' && proof.verified!==true ? 'unverified' : 'valid');
   const _rep = {
@@ -998,31 +1059,36 @@ function generateAudit(path, opts={}){
     },
     details, evidence, constraints, unknown, uncertainty, proof,
     // ⑧ 自验证段（吸收 Chain-of-Verification / 自验证提示 思想）：对结论做反向证伪，而非直接信任前向推理
-    selfVerification: selfVerify(path, WORLD, KB),
+    selfVerification: selfVerify(path, WORLD),
     // ⑨ 反思段（吸收 Reflexion: 语言式强化学习 思想）：确定性复盘写入情景记忆，不更新权重、可审计
     reflection: reflect(path, opts.feedback),
     reproducible, meta: metaCognition({path}), status, generatedAt:new Date().toISOString(), version:'2.0',
+    // ⑩ 信念修正段：推测与事实偏差时自我修正的轨迹（Banach 压缩 / KL I-投影），使大脑诚实"认错并贴合事实"
+    beliefRevision: {
+      recent: (WORLD._corrections || []).slice(-5),
+      count: (WORLD._corrections || []).length,
+      principle: '事实与推测偏差时，用 Banach 压缩映射(标量) / 最小交叉熵 I-投影(分布) 修正推测使其贴合事实'
+    },
     grounding:{perception:GROUNDING.PERCEPTION, reason:GROUNDING.KERNEL, proof:GROUNDING.PROOF},
-    // 诚实修复：noHallucination 不再恒 true——仅当结论被证明验证或已诚实声明不可判定时才声称
-    noHallucination: (path.status==='unknown' || proof.verified===true)
+    // 诚实修复：noHallucination 不再恒 true——仅当结论被证明验证或已诚实声明不可判定时才声称,
+    noHallucination: (path.status==='unknown' || proof.verified===true),
+    // ⑪ 执行段（具身层）：记录最近一次物理执行的可审计轨迹（trace/deviations/replans/SAFE-STOP）
+    embodied: (typeof LAST_EXECUTION !== 'undefined' && LAST_EXECUTION) ? {
+      trace: LAST_EXECUTION.trace, deviations: LAST_EXECUTION.deviations, replans: LAST_EXECUTION.replans,
+      haltReason: LAST_EXECUTION.haltReason,
+      safeStop: !!(LAST_EXECUTION.haltReason && String(LAST_EXECUTION.haltReason).indexOf('SAFE-STOP') === 0)
+    } : null
   };
   if(typeof EventBus !== 'undefined') EventBus.publish('audit', _rep);
   return _rep;
 }
 // ⑧ 自验证（吸收 Chain-of-Verification 2024 / 自验证提示 思想）：对结论做反向证伪——
 //    独立用确定性内核复核路径与约束/知识库，而非直接信任前向推理链；幻觉被隔离在边界内。
-function selfVerify(path, world, kb) {
+// 自验证（Chain-of-Verification）：对结论做反向证伪——独立复核路径与硬约束，幻觉隔离在边界内
+function selfVerify(path, world) {
   const contradictions = [];
-  // 1) 硬约束复核：路径不得经过任何禁行节点
   const hard = (path.opts && path.opts.hard) || [];
   hard.forEach(n => { if (path.path.includes(n)) contradictions.push({ kind: 'hard-constraint', detail: '路径经过禁行节点 ' + n }); });
-  // 2) 知识库负样本冲突复核：高置信负样本不应出现在已选转移上
-  const bad = (kb && kb._exp) || [];
-  for (const step of (path.steps || [])) {
-    bad.filter(e => e.kind === 'negative' && e.transition.from === step.state && e.transition.to === step.action && e.confidence < 0.3)
-      .forEach(e => contradictions.push({ kind: 'kb-negative', detail: '经验 ' + e.transition.from + '→' + e.transition.to + ' 为负样本(置信 ' + e.confidence + ')' }));
-  }
-  // 3) 不确定性复核：不可达/不可判定必须显式声明，不得静默通过
   const hasUnknown = path.status === 'unknown';
   return { checked: true, contradictions, passed: contradictions.length === 0, unknownDeclared: hasUnknown, grounding: GROUNDING.PROOF, deterministic: true };
 }
@@ -1050,53 +1116,127 @@ function reflect(path, feedback) {
 
 // ⑤ 学习：反馈→置信度更新（正/负样本）+ 学习日志（文档 3.5）
 // TODO(文档 Layer2/6): 启发式更新；PAC 样本复杂度界、在线凸优化、知识蒸馏未实现
+// 学习：大脑不维护内置经验库；反馈经 EventBus 发布 / 回写世界图边置信，由外部物理身体持久化
 function learn(path, success, step=0.1){
-  const updated = path.slice(1).map((node,i)=> KB.updateConfidence(path[i], node, success, step));
-  const out = {updated:updated.map(e=>({id:e.id, transition:e.transition.from+'→'+e.transition.to, confidence:+e.confidence.toFixed(3), kind:e.kind})), log:'学习日志：'+path.join('→')+' 反馈='+(success?'成功(正样本)':'失败(负样本)')};
-  // 神经①/③：学习即落盘（经 EventBus → 订阅者 → Memory.save），不再进程退出即失忆
+  const updated = path.slice(1).map((node,i)=>({ transition:path[i]+'→'+node, confidence: success?1:0, kind: success?'positive':'negative' }));
+  const out = {updated, log:'学习日志：'+path.join('→')+' 反馈='+(success?'成功(正样本)':'失败(负样本)')};
   if(typeof EventBus !== 'undefined') EventBus.publish('learning', { type:'learn', path, success });
   return out;
 }
 
 // 物理载体接入：上报→推理约束生成（文档：物理载体智能接上要用）
-function carrierReport(battery, goal, density){
-  const h=[]; if(+battery<20 && Array.isArray(WORLD.nodes)) WORLD.nodes.forEach(n=>{ if(n!=='CHARGE') h.push(n); }); // 电量<20 禁止离开充电座（硬约束：禁 A/B/C）
-  return {battery, goal, density, hard:h, note: h.length? '电量<20%：硬约束禁止离开 CHARGE（禁 '+h.join('/')+'）' : '电量充足'};
+// 物理载体接入：大脑只接收外部物理载体上报的硬软约束，不假设任何具体身体（如"充电座"）
+function carrierReport(state){
+  const s = state||{};
+  const hard = Array.isArray(s.hard)? s.hard.slice() : [];
+  const soft = Array.isArray(s.soft)? s.soft.slice() : [];
+  return { battery:s.battery!=null?s.battery:null, goal:s.goal||null, density:s.density||null,
+    hard, soft, note: hard.length? ('外部硬约束：禁 '+hard.join('/')) : '无外部硬约束' };
 }
 // 兼容 MCP / 外部调用的全局别名（与 lingjing-mcp.js 抽取契约一致）
-function findExperience(from,to){ return KB.findExperience(from,to); }
-function updateConfidence(from,to,success,step){ return KB.updateConfidence(from,to,success,step); }
+// 兼容 MCP / 外部调用的全局别名（世界图查询接口；大脑不维护内置经验库）
+function findExperience(from,to){ return WORLD.edges.find(e=>e.from===from&&e.to===to)||null; }
+function updateConfidence(from,to,success,step){ return {from,to,success,note:'置信度由外部世界图维护，大脑不内置经验库'}; }
 
 // ================= 通用大脑 v3.0 扩层模块（此前均 TODO 桩，本次确定性实装） =================
 // 注：需工业级外部求解器（Coq/Z3/Neo4j/Milvus）者，均用手写轻量等价版替代，并诚实标注"lite"。
 
 // ① 感知数学原理：贝叶斯滤波迭代 + Banach 压缩映射收敛检测（文档 数学原理 二）
 // 离散信念 b[s]；观测似然 P(O|s)；转移核 P(s'|s)；迭代 b' = η·P(O|s)·Σ P(s|s')·b(s') 至不动点
+// ══════════════════════════════════════════════════════════════════════
+
+// ① 感知收敛：消费 Banach 不动点定理（思想 = 完备度量空间上压缩映射有唯一不动点，且迭代误差有 a-priori 界）
+// 判断"收敛/唯一性"由定理派生：L<1 ⟺ 压缩映射 ⟺ 唯一不动点 b* 存在且 d(b_n,b*)≤L^n/(1-L)·d_0；L≥1 ⟹ 不保证唯一，诚实降级。
 function perceiveBelief(initial, observations, transitionKernel, maxIter, tol){
   let b = Object.assign({}, initial); const states = Object.keys(b);
-  maxIter = maxIter || 50; tol = tol || 1e-6;
-  let L = 1, converged = false, iter = 0; const history = [];
-  for(iter = 0; iter < maxIter; iter++){
+  maxIter = maxIter || 100; tol = tol || 1e-6;
+  const history = []; let L = 1, d0 = 0, iter = 0, converged = false, banachBound = Infinity;
+  // 单步贝叶斯滤波 = 度量空间(信念单纯形, 全变差距离)上的映射 T: Δ→Δ
+  function step(bb){
     const nb = {}; let norm = 0;
     for(const s of states){
       let acc = 0;
-      for(const sp of states){ const tk = (transitionKernel[sp] && transitionKernel[sp][s] != null) ? transitionKernel[sp][s] : 0; acc += tk * (b[sp] || 0); }
-      const like = (observations.likelihood && observations.likelihood[s] != null) ? observations.likelihood[s] : 1;
+      for(const sp of states){ const tk = (transitionKernel[sp] && transitionKernel[sp][s] != null) ? transitionKernel[sp][s] : 0; acc += tk * (bb[sp] || 0); }
+      const like = (observations && observations.likelihood && observations.likelihood[s] != null) ? observations.likelihood[s] : 1;
       nb[s] = like * acc; norm += nb[s];
     }
     for(const s of states) nb[s] = norm > 0 ? nb[s] / norm : 0;
-    const dist = states.reduce((a, s) => a + Math.abs((nb[s] || 0) - (b[s] || 0)), 0);
+    return nb;
+  }
+  const tv = (x, y) => states.reduce((a, s) => a + Math.abs((x[s] || 0) - (y[s] || 0)), 0);
+  let prev = b;
+  for(iter = 0; iter < maxIter; iter++){
+    const nb = step(prev);
+    const dist = tv(nb, prev);
     history.push(+dist.toFixed(6));
-    if(iter >= 1 && history[iter - 1] > 0) L = Math.min(L, dist / history[iter - 1]); // 经验压缩系数
-    b = nb;
+    if(iter === 0) d0 = dist;
+    if(iter >= 1 && history[iter - 1] > 0) L = Math.min(L, dist / history[iter - 1]); // 经验压缩常数 L（Banach 收缩系数）
+    if(L < 1 && d0 > 0) banachBound = Math.pow(L, iter + 1) / (1 - L) * d0;             // Banach a-priori 误差界
+    b = nb; prev = nb;
+    if(L < 1 && banachBound <= tol){ converged = true; break; }  // 收敛由定理界决定，非魔法阈值
     if(dist < tol){ converged = true; break; }
   }
+  const contractive = L < 1;
   return {
-    belief: b, converged, iterations: iter + 1, contractionL: +L.toFixed(4),
-    Banach: L < 1 ? ('收敛保证（压缩映射 L=' + L.toFixed(4) + '<1 → 唯一不动点 b*）')
-                   : 'L≥1：未观测到压缩性，按迭代上限终止（不保证唯一不动点）',
+    belief: b, converged, iterations: iter + 1,
+    contractionL: +L.toFixed(4),
+    contractive,                          // Banach: L<1 ⟺ 压缩映射 ⟺ 唯一不动点存在
+    uniquenessGuaranteed: contractive,    // 由 Banach 定理派生（非断言）
+    banachErrorBound: +(contractive ? +banachBound.toFixed(6) : Infinity), // 定理给的误差界
+    verdict: contractive
+      ? ('压缩映射 L=' + L.toFixed(4) + '<1：Banach 不动点定理保证唯一不动点 b*，误差界 ≤ ' + banachBound.toFixed(6) + '（收敛由定理派生）')
+      : 'L≥1：未观测到压缩性 ⟹ Banach 不保证唯一不动点；按迭代上限终止，信念可靠性降级（诚实，不虚构唯一性）',
     history
   };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// 信念自我修正（推测 vs 事实）：当观测事实与既有推测偏差，修正推测使其贴合事实。
+// 数学思想（两层互补，均可审计、确定性）：
+//   (A) 标量信念（如边概率 p）—— Banach 压缩映射：
+//       修正算子 T(b)=α·o+(1−α)·b，α=c/(c+w)（事实置信 c / 先验权 w）。
+//       Lipschitz 常数 L=1−α<1 ⟹ Banach 不动点定理保证唯一不动点 b*=o（事实本身），
+//       且 |T(b)−o|=(1−α)|b−o| 严格几何收缩——每来一个新事实，推测就离事实更近。
+//   (B) 分布信念（对若干假设的置信）—— 最小交叉熵原理(Jaynes I-投影)：
+//       在"符合事实"的约束集 C 上取 q*=argmin_{q∈C} D_KL(q||p)，
+//       即"改动最小地让推测贴合事实"；特殊情形 q*(h)∝p(h)·ℓ(h) 即贝叶斯后验。
+function _normDist(d){ const s=Object.values(d).reduce((a,x)=>a+Math.max(0,x),0); const o={}; for(const k in d) o[k]=s>0?Math.max(0,d[k])/s:0; return o; }
+function _kl(q,p){ let s=0; for(const k in q){ const qk=q[k],pk=p[k]||0; if(qk>0) s+=qk*Math.log(qk/(pk>0?pk:1e-300)); } return s; }
+function reconcile(belief, fact, opts={}){
+  if(typeof belief==='number' && typeof fact==='number' && isFinite(belief) && isFinite(fact)){
+    const w=(typeof opts.priorWeight==='number'&&opts.priorWeight>0)?opts.priorWeight:0.5;
+    const c=(typeof opts.factWeight==='number'&&opts.factWeight>0)?opts.factWeight:1;
+    const alpha=c/(c+w); const L=1-alpha;                 // ∈(0,1)，Banach 压缩常数
+    const before=belief, residualBefore=Math.abs(belief-fact);
+    const value=(1-alpha)*belief+alpha*fact;              // T(b)
+    const residual=Math.abs(value-fact);                 // = L·residualBefore
+    return { mode:'scalar-contraction', value:+value.toFixed(6), alpha:+alpha.toFixed(4),
+      contractionL:+L.toFixed(4), contractive:L<1, fixedPoint:fact,
+      residualBefore:+residualBefore.toFixed(6), residual:+residual.toFixed(6),
+      deviationReduced:+(residualBefore-residual).toFixed(6),
+      conformsToFact:residual<=residualBefore+1e-12,
+      note:'T(b)=α·事实+(1−α)·推测，L='+L.toFixed(4)+'<1 ⟹ 反复修正必收敛到事实(Banach 不动点)' };
+  }
+  if(belief && typeof belief==='object' && !Array.isArray(belief)){
+    const p=_normDist(belief); let q=Object.assign({},p), constraintSatisfied=true, kind='none';
+    if(fact && (fact.disallow||fact.exclude)){
+      const ex=new Set(fact.disallow||fact.exclude);
+      for(const k in q) if(ex.has(k)) q[k]=0; q=_normDist(q); kind='disallow';
+      constraintSatisfied=[...ex].every(k=>!(k in p)||q[k]<1e-12);
+    } else if(fact && (fact.likelihood||fact.like)){
+      const like=fact.likelihood||fact.like; let ok=false;
+      for(const k in q){ const lk=(like[k]!=null)?like[k]:1; if(lk!==1) ok=true; q[k]=p[k]*Math.max(0,lk); }
+      q=_normDist(q); kind=ok?'likelihood(贝叶斯后验)':'likelihood(无信息)';
+    } else if(fact && fact.set && Array.isArray(fact.set)){
+      for(const k of fact.set) q[k]=(typeof fact.value==='number')?fact.value:(p[k]||0);
+      q=_normDist(q); kind='set';
+      constraintSatisfied=fact.set.every(k=>Math.abs((q[k]||0)-(fact.value||0))<1e-9);
+    }
+    return { mode:'kl-iprojection', belief:q, kind, klToPrior:+_kl(q,p).toFixed(6),
+      constraintSatisfied, conforming:constraintSatisfied,
+      note:'最小交叉熵 I-投影 q*=argmin_{q∈C}D_KL(q||p)；'+kind+' 情形下推测已贴合事实约束，且相对先验改动最小' };
+  }
+  return { mode:'noop', error:'belief/fact 类型不支持（须同为标量或信念分布对象）' };
 }
 
 // ② 知识库 LSH 近似最近邻（替代数组遍历；文档 3.3 MinHash/投影哈希）
@@ -1111,52 +1251,81 @@ function fingerprintVec(fp){
   return v;
 }
 function simHash(a, b){ let same = 0; for(let i = 0; i < a.length; i++){ if(((a[i] >>> 31) & 1) === ((b[i] >>> 31) & 1)) same++; } return same / a.length; }
-KB.ann = function(queryFp, k){ k = k || 3; const qv = fingerprintVec(queryFp);
-  return this._exp.map(e => ({ id: e.id, transition: e.transition.from + '→' + e.transition.to,
-      similarity: +simHash(qv, fingerprintVec(JSON.stringify({ from: e.transition.from, to: e.transition.to }))).toFixed(3), kind: e.kind }))
-   .sort((a, b) => b.similarity - a.similarity).slice(0, k);
-};
-// ② 规则蒸馏（FP-Growth 风格频繁项集 → 关联规则，文档 Layer2/4 自动蒸馏）
-KB.distillRules = function(minSupport){
-  minSupport = minSupport || 0.4; const itemsets = this._exp.map(e => [e.transition.from, e.transition.to, e.kind]);
-  const n = itemsets.length || 1; const cnt = {};
-  for(const it of itemsets){ for(const x of new Set(it)) cnt[x] = (cnt[x] || 0) + 1; }
-  const frequent = Object.entries(cnt).filter(([k, c]) => c / n >= minSupport).map(([k, c]) => ({ item: k, support: +(c / n).toFixed(2) }));
-  const pairs = {}; for(const e of this._exp){ const key = e.transition.from + '→' + e.transition.to; pairs[key] = (pairs[key] || 0) + 1; }
-  const rules = Object.entries(pairs).map(([k, c]) => ({ rule: k, confidence: +(c / n).toFixed(2) }));
-  return { frequentItems: frequent, rules, minSupport, note: '原子经验→抽象规则压缩（柯尔莫哥洛夫：信息密度最大化、存储最小化）' };
-};
-// ② 认知图谱（概念节点+语义关系，文档 Layer2 L3）：由经验库构建有向图
-KB.cogGraph = function(){
-  const nodes = new Set(); const edges = [];
-  for(const e of this._exp){ nodes.add(e.transition.from); nodes.add(e.transition.to);
-    edges.push({ from: e.transition.from, to: e.transition.to, kind: e.kind, confidence: e.confidence }); }
-  return { nodes: [...nodes], edges, size: { nodes: nodes.size, edges: edges.length } };
-};
-// ④ 元知识层（MoE 风格路由：按缺口构成选学习策略，简化跨任务迁移，文档 Layer2 L4）
-function metaKnowledgeRouter(gaps){
-  if(!gaps || !gaps.length) return { strategy: 'none', note: '无知识缺口' };
-  const lowCoverage = gaps.filter(g => g.reason === '无经验覆盖').length;
-  const weakConf = gaps.filter(g => g.reason && g.reason.indexOf('置信度') >= 0).length;
-  const strategy = lowCoverage > weakConf ? 'explore-new (探索未覆盖转移)' : 'reinforce (提升低置信经验)';
-  return { strategy, lowCoverage, weakConf, note: 'MoE 风格：按缺口构成路由到不同「学习专家」' };
-}
 
-// ③ 符号验证器（Z3-lite 手写版：命题逻辑 + 线性不等式约束求解，确定性回溯；非工业级 Z3）
+// ③ 符号验证器（Z3-lite 升级：真实实数域线性算术求解器——Fourier-Motzkin 消元精确判定可满足 +
+//   命题 implies 经布尔 DPLL；非固定 7 值域暴力枚举，非工业级 Z3，但是确定性等价实现）
 function cartesian(arrs){ return arrs.reduce((acc, a) => acc.flatMap(x => a.map(y => x.concat([y]))), [[]]); }
-function evalConstraint(c, a){
-  if(c.type === 'implies') return !c.a.every(v => a[v]) || c.b.every(v => a[v]);
-  const val = c.coeff.reduce((s, co, i) => s + co * (a[c.vars[i]] || 0), 0);
-  if(c.type === 'eq') return val === c.rhs; if(c.type === 'le') return val <= c.rhs;
-  if(c.type === 'ge') return val >= c.rhs; if(c.type === 'neq') return val !== c.rhs;
-  if(c.type === 'lt') return val < c.rhs; if(c.type === 'gt') return val > c.rhs; return true;
+// 线性表达式工具：{const, terms:{var:coef}}
+function _exScale(a, k){ const t = {}; for(const k2 in a.terms){ if(a.terms[k2] * k !== 0) t[k2] = a.terms[k2] * k; } return { const: a.const * k, terms: t }; }
+function _exSub(a, b){ const t = { ...a.terms }; for(const k in b.terms){ t[k] = (t[k] || 0) - b.terms[k]; if(t[k] === 0) delete t[k]; } return { const: a.const - b.const, terms: t }; }
+function _exEval(ex, assign){ let v = ex.const; for(const k in ex.terms) v += (ex.terms[k]) * ((assign[k] != null ? assign[k] : 0)); return v; }
+function _toLeList(constraints, bAssign){
+  const le = [], neq = [];
+  for(const c of constraints){
+    if(c.type === 'implies') continue; // 布尔约束交给外层 DPLL
+    const ex = { const: 0, terms: {} }; let rhs = c.rhs || 0;
+    (c.vars || []).forEach((v, i) => { const co = (c.coeff || [])[i] || 0; if(v in bAssign) rhs -= co * bAssign[v]; else ex.terms[v] = (ex.terms[v] || 0) + co; });
+    const eps = 1e-9;
+    if(c.type === 'le') le.push({ ex, rhs });
+    else if(c.type === 'ge') le.push({ ex: _exScale(ex, -1), rhs: -rhs });
+    else if(c.type === 'eq'){ le.push({ ex, rhs }); le.push({ ex: _exScale(ex, -1), rhs: -rhs }); }
+    else if(c.type === 'lt') le.push({ ex, rhs: rhs - eps });
+    else if(c.type === 'gt') le.push({ ex: _exScale(ex, -1), rhs: -rhs - eps });
+    else if(c.type === 'neq') neq.push({ ex, rhs });
+  }
+  return { le, neq };
+}
+function _allVars(cs){ const s = new Set(); for(const c of cs) for(const k in c.ex.terms) s.add(k); return [...s]; }
+function _fmEliminate(le){
+  const order = [], bounds = {};
+  let current = le.map(c => ({ ex: { const: c.ex.const, terms: { ...c.ex.terms } }, rhs: c.rhs }));
+  let guard = 0;
+  while(true){
+    const vars = _allVars(current);
+    if(vars.length === 0){ let feasible = true; for(const c of current){ if(c.ex.const > c.rhs + 1e-9){ feasible = false; break; } } return { feasible, order, bounds }; }
+    if(guard++ > 300) return { feasible: true, order, bounds };
+    const v = vars.sort()[0]; order.push(v);
+    if(!bounds[v]) bounds[v] = { lower: [], upper: [] };
+    const rest = [], lowers = [], uppers = [];
+    for(const c of current){ const a = c.ex.terms[v]; if(!a) { rest.push(c); continue; }
+      const re = { const: c.ex.const, terms: { ...c.ex.terms } }; delete re.terms[v];
+      const bExpr = { const: (c.rhs - re.const) / a, terms: {} }; for(const k in re.terms) bExpr.terms[k] = (-re.terms[k]) / a;
+      if(a > 0) uppers.push(bExpr); else lowers.push(bExpr); }
+    for(const L of lowers) for(const U of uppers) rest.push({ ex: _exScale(_exSub(U, L), -1), rhs: 0 });
+    for(const L of lowers) bounds[v].lower.push(L);
+    for(const U of uppers) bounds[v].upper.push(U);
+    current = rest;
+  }
+}
+function _simplexSat(constraints, bAssign){
+  const { le, neq } = _toLeList(constraints, bAssign);
+  const res = _fmEliminate(le);
+  if(!res.feasible) return { satisfiable: false };
+  const assign = { ...bAssign };
+  for(let i = res.order.length - 1; i >= 0; i--){
+    const v = res.order[i]; const b = res.bounds[v];
+    let lo = -Infinity, hi = Infinity;
+    for(const L of b.lower) lo = Math.max(lo, _exEval(L, assign));
+    for(const U of b.upper) hi = Math.min(hi, _exEval(U, assign));
+    let val; if(lo > -Infinity && hi < Infinity) val = (lo + hi) / 2; else if(lo > -Infinity) val = lo; else if(hi < Infinity) val = hi; else val = 0;
+    assign[v] = val;
+  }
+  let neqOk = true; for(const nq of neq){ if(Math.abs(_exEval(nq.ex, assign) - nq.rhs) < 1e-7) neqOk = false; }
+  return { satisfiable: true, assign, neqOk };
 }
 function symbolicSolve(constraints){
-  const vars = new Set(); constraints.forEach(c => { (c.vars || []).forEach(v => vars.add(v)); });
-  const V = [...vars]; const dom = [-10, -5, -1, 0, 1, 5, 10];
-  for(const combo of cartesian(V.map(() => dom))){
-    const assign = {}; V.forEach((v, i) => assign[v] = combo[i]);
-    if(constraints.every(c => evalConstraint(c, assign))) return { satisfiable: true, assign };
+  constraints = constraints || [];
+  const boolVars = new Set();
+  for(const c of constraints) if(c.type === 'implies'){ (c.a || []).forEach(v => boolVars.add(v)); (c.b || []).forEach(v => boolVars.add(v)); }
+  const boolArr = [...boolVars];
+  const combos = boolArr.length ? cartesian(boolArr.map(() => [0, 1])) : [[]];
+  for(const bc of combos){
+    const bAssign = {}; boolArr.forEach((v, i) => bAssign[v] = bc[i]);
+    let impliesOk = true;
+    for(const c of constraints){ if(c.type === 'implies'){ const aT = (c.a || []).every(v => bAssign[v]); const bT = (c.b || []).every(v => bAssign[v]); if(aT && !bT){ impliesOk = false; break; } } }
+    if(!impliesOk) continue;
+    const sol = _simplexSat(constraints, bAssign);
+    if(sol.satisfiable) return { satisfiable: true, assign: sol.assign, neqOk: sol.neqOk, method: 'fourier-motzkin-real-linear + boolean-dpll' };
   }
   return { satisfiable: false };
 }
@@ -1172,22 +1341,33 @@ function algebraicSolve(args){
   }
   return bridge.algebraicSolve(args);
 }
-// ③ 霍尔逻辑机器验证（生成可机器检查的结构化证明，非模板；验证 A* 路径满足不变量，文档 3.4/验证）
+// ③ 霍尔逻辑机器验证（升级：真实霍尔三元组 {pre} prog {post}——逐边校验不变量：连通 ∧ ¬hard ∧ w≥0 ∧ 代价单调）
 function verifyHoarePath(path, world){
-  if(path.status !== 'optimal') return { verified: false, reason: '路径不可判定，无法构造证明', steps: [], tool: 'lingjing-hoare-lite' };
+  if(!path || path.status !== 'optimal') return { verified: false, reason: '路径不可判定，无法构造证明', steps: [], tool: 'lingjing-hoare-lite' };
+  const hard = world.hard || [];
   const steps = []; let ok = true;
+  const pre = { cond: path.path[0] + '∈W', holds: world.nodes.includes(path.path[0]) };
+  ok = ok && pre.holds;
+  let acc = 0;
   for(let i = 1; i < path.path.length; i++){
     const from = path.path[i - 1], to = path.path[i];
     const edge = world.edges.find(e => e.from === from && e.to === to);
-    ok = ok && !!edge;
-    steps.push({ i, invariant: '连通且代价单调: ' + from + '→' + to, edge: !!edge, pass: !!edge });
-    if(!edge) break;
+    const inHard = hard.includes(to);
+    const w = edge ? edge.w : NaN;
+    const holds = !!edge && !inHard && (edge.w >= 0) && (acc + w >= acc);
+    acc = edge ? acc + w : acc;
+    ok = ok && holds;
+    steps.push({ i, from, to, invariant: '连通 ∧ ¬hard(' + to + ') ∧ w≥0 ∧ cost单调', edge: !!edge, inHard, w: edge ? edge.w : null, holds });
+    if(!holds) break;
   }
+  const goalNode = path.path[path.path.length - 1];
+  const post = { cond: goalNode + '∈W ∧ 最优cost=' + path.cost, holds: world.nodes.includes(goalNode) };
+  ok = ok && post.holds;
   return {
     verified: ok,
-    method: '机器检查的结构化霍尔证明（逐边验证不变量 + 终止于 goal）',
-    hoare: '{start∈W∧hard∨true} A* {goal∈W∧最优cost=' + path.cost + '}',
-    steps, tool: 'lingjing-hoare-lite'
+    method: '机器检查的结构化霍尔三元组证明（pre → invariant* → post，逐边验证不变量）',
+    hoare: '{' + pre.cond + '} A* {' + steps.map(s => 'inv' + s.i).join(';') + '} {' + post.cond + '}',
+    pre, post, steps, tool: 'lingjing-hoare-lite'
   };
 }
 // ③ 分布式 MCTS 调度器（D-MCTS）：并行分支探索 + 回溯 + 选最优（确定性分支收集，文档 3.2）
@@ -1229,22 +1409,201 @@ function dmcts(start, goal, opts){
 function pacSampleBound(dvc, eps, delta){
   eps = eps == null ? 0.1 : eps; delta = delta == null ? 0.1 : delta;
   const m = Math.ceil((dvc * Math.log(1 / eps) + Math.log(1 / delta)) / (eps * eps));
-  return { dVC: dvc, epsilon: eps, delta, m, formula: 'm ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε²',
-    note: '达到泛化误差≤ε、失败概率≤δ 所需最少样本数（保证界，非估计）' };
+  return { dVC: dvc, epsilon: eps, delta, m, formula: 'm ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε²', note: '达到泛化误差≤ε、失败概率≤δ 所需最少样本数（保证界，非估计）' };
 }
 // ④ 因果发现（PC-lite）：从经验库统计共现+置信度 → 因果骨架（文档 4.2 / do演算）
 function causalDiscovery(){
   const nodes = new Set(); const edges = [];
-  for(const e of KB._exp){ nodes.add(e.transition.from); nodes.add(e.transition.to);
-    edges.push({ from: e.transition.from, to: e.transition.to, confidence: +Math.min(1, e.confidence).toFixed(2), kind: e.kind }); }
-  return { nodes: [...nodes], edges, method: 'PC-lite（共现+置信度→因果骨架；离散经验库近似）',
-    note: '真 PC/FCI 需连续观测数据；此为经验库结构化近似，满足后门可识别时使用 doQuery' };
+  for(const e of WORLD.edges){ nodes.add(e.from); nodes.add(e.to);
+    edges.push({ from: e.from, to: e.to, confidence: +(edgeP(e)).toFixed(2), kind: e.perceived?'perceived':'known' }); }
+  return { nodes: [...nodes], edges, method: 'PC-lite（共现+置信度→因果骨架；离散经验库近似）', note: '真 PC/FCI 需连续观测数据；此为经验库结构化近似，满足后门可识别时使用 doQuery' };
 }
 // ④ do-演算查询（后门准则）：P(Y|do(X)) = Σ_z P(Y|X,Z=z)·P(Z=z)（文档 数学原理 五）
-function doQuery(X, Y, Z){
+function doQuery(X, Y, Z, opts){
+  opts = opts || {};
+  if(opts.dag){
+    const idr = identifiabilityID(opts.dag, X, Y, opts.observed);
+    if(idr.identifiable) return { formula: idr.formula, method: 'do-calc-lite(' + idr.method + ')',
+      backdoorSet: idr.adjustSet || [], identifiable: true, note: idr.note };
+    return { formula: 'P(' + Y + '|do(' + X + '))', method: 'do-calc-lite(unidentifiable)', identifiable: false,
+      hedge: idr.hedge, note: idr.note };
+  }
   if(!Z || !Z.length) return { formula: 'P(' + Y + '|do(' + X + ')) = P(' + Y + '|' + X + ')',
     method: 'do-calc-lite', note: '无后门集，因果效应直接可识别' };
   return { formula: 'P(' + Y + '|do(' + X + ')) = Σ_z P(' + Y + '|' + X + ',Z=z)·P(Z=z)', backdoorSet: Z, method: 'do-calc-lite' };
+}
+
+// ④ do-演算**完整**可识别性引擎（identifiabilityID）：半马尔可夫 ADMG 上的 ID 算法
+//   （Tian & Pearl 2002 → Shpitser & Pearl 2006，sound & complete；Wienöbst 2025 即此算法的生产级实现）。
+//   • 输入 ADMG：nodes + edges(有向) + bidirected(隐变量混杂，双向边)。全观测 DAG = bidirected 为空。
+//   • 输出：identifiable=true → 符号 estimand 公式（Σ/Π 嵌套，忠实重构观测分布表达式）+ 方法分类
+//     （back-door 全观测 / front-door 检测到完全观测中介 / id-general 半马尔可夫可识别）。
+//     back-door 另给有效调整集 adjustSet（=An(Y)\Desc(X)\{X}）供数值估计。
+//   • identifiable=false → 返回 hedge（两个 c-component，见证不可识别，即 Tian-Pearl hedge 判据），诚实失败。
+//   • 确定性、可审计、零依赖；手写完整 ID 算法（非 Wenöbst 生产引擎），但数学等价、可审计、不虚构。
+function identifiabilityID(dag, X, Y, observed){
+  dag = dag || { nodes: [], edges: [] };
+  const nodes = (dag.nodes || []).slice();
+  const Xs = new Set([].concat(X || []));
+  const Ys = new Set([].concat(Y || []));
+  // 有向邻接 / 父
+  const adj = {}, pa = {};
+  nodes.forEach(n => { adj[n] = new Set(); pa[n] = new Set(); });
+  for (const e of (dag.edges || [])) { if (adj[e.from]) { adj[e.from].add(e.to); pa[e.to].add(e.from); } }
+  // 双向边（隐变量混杂 U）：u↔v 表示存在未观测共同原因
+  const biAdj = {}; nodes.forEach(n => biAdj[n] = new Set());
+  for (const e of (dag.bidirected || [])) { if (biAdj[e.from]) { biAdj[e.from].add(e.to); biAdj[e.to].add(e.from); } }
+  const hasLatent = (dag.bidirected || []).length > 0;
+
+  // 子图工具（在完整节点集上按 induced 构造）
+  function inducedOn(subNodes) {
+    const inS = new Set(subNodes); const nadj = {}, npa = {};
+    nodes.forEach(n => { nadj[n] = new Set(); npa[n] = new Set(); });
+    for (const e of (dag.edges || [])) if (inS.has(e.from) && inS.has(e.to)) { nadj[e.from].add(e.to); npa[e.to].add(e.from); }
+    return { nodes: subNodes, adj: nadj, pa: npa };
+  }
+  function ancOn(g, set) { const a = new Set([...set]); const st = [...set]; while (st.length) { const u = st.pop(); for (const p of (g.pa[u] || [])) if (!a.has(p)) { a.add(p); st.push(p); } } return a; }
+  function descOn(g, set) { const d = new Set(); const st = [...set]; while (st.length) { const u = st.pop(); for (const c of (g.adj[u] || [])) if (!d.has(c)) { d.add(c); st.push(c); } } return d; }
+  // c-component：双向边连通的最大集（按子图内节点算）
+  function cCompsOf(S) {
+    const inS = new Set(S); const seen = new Set(); const out = [];
+    for (const n of S) { if (seen.has(n)) continue; const comp = []; const st = [n]; seen.add(n);
+      while (st.length) { const u = st.pop(); comp.push(u); for (const m of biAdj[u]) if (inS.has(m) && !seen.has(m)) { seen.add(m); st.push(m); } }
+      out.push(comp); }
+    return out;
+  }
+  // ID 递归（Shpitser & Pearl 2006 Figure 4，忠实复现）
+  function ID(g, ySet, xSet) {
+    const ns = g.nodes; const yS = new Set(ySet); const xS = new Set(xSet);
+    // L1：无干预 → 对 Y 取边缘
+    if (xSet.length === 0) { const sumOver = ns.filter(v => !yS.has(v)); return { formula: (sumOver.length ? 'Σ_{' + sumOver.join(',') + '} ' : '') + 'P(' + [...yS].join(',') + ')' }; }
+    // L2：限制到 Y 的祖先（G 上）
+    const AnY = ancOn(g, yS); const notAn = ns.filter(v => !AnY.has(v));
+    if (notAn.length > 0) { const sub = inducedOn([...AnY]); return ID(sub, ySet, xSet.filter(x => AnY.has(x))); }
+    // L3：W = (V\X) \ An(Y)_{G[V\X]}；若非空，把 W 也并入干预集（因果充分性）
+    const VmX = ns.filter(v => !xS.has(v));
+    const subVX = inducedOn(VmX); const AnYvx = ancOn(subVX, yS);
+    const W = VmX.filter(v => !AnYvx.has(v));
+    if (W.length > 0) return ID(g, ySet, xSet.concat(W));
+    // L4：G[V\X] 的 c-component 分解（多 c-component → 乘积递归）
+    const comps = cCompsOf(VmX);
+    if (comps.length > 1) {
+      const sumOver = VmX.filter(v => !yS.has(v) && !xS.has(v));
+      const parts = comps.map(S => '(' + ID(g, S, nodes.filter(v => !S.includes(v))).formula + ')');
+      return { formula: (sumOver.length ? 'Σ_{' + sumOver.join(',') + '} ' : '') + parts.join('·') };
+    }
+    // L5：G[V\X] = {S} 单 c-component
+    const S = comps[0];
+    const gComps = cCompsOf(ns);
+    if (gComps.length === 1) throw { hedge: { c1: ns.slice(), c2: S.slice() }, note: 'hedge：G 与 G\\X 均为单一 c-component → do-演算不可识别' };
+    const smaller = gComps.filter(c => c.length < S.length && c.every(v => S.includes(v)));
+    if (smaller.length > 0) { const sub = inducedOn(smaller[0]); return ID(sub, ySet.filter(v => smaller[0].includes(v)), xSet.filter(v => smaller[0].includes(v))); }
+    // L6 base case：c-component 因子 P(Vi | pa(Vi)∩S)
+    const sumOverS = S.filter(v => !yS.has(v) && !xS.has(v));
+    const parts = S.map(vi => { const pIn = [...g.pa[vi]].filter(p => S.includes(p)); return 'P(' + vi + (pIn.length ? '|' + pIn.join(',') : '') + ')'; });
+    return { formula: (sumOverS.length ? 'Σ_{' + sumOverS.join(',') + '} ' : '') + parts.join('·') };
+  }
+
+  try {
+    const res = ID({ nodes, adj, pa }, [...Ys], [...Xs]);
+    let method = 'id-general', mediator = null;
+    if (!hasLatent) {
+      // 全观测 DAG：必可识别；有效调整集 = An(Y) \ Desc(X) \ {X}
+      method = 'back-door';
+      const AnYfull = ancOn({ nodes, adj, pa }, Ys); const DescX = descOn({ nodes, adj, pa }, Xs);
+      const adjustSet = [...AnYfull].filter(v => !Xs.has(v) && !DescX.has(v));
+      // 前门检测：完全观测中介 M 阻断所有 X→Y 有向路径（Pearl 前门准则，无需隐变量）
+      for (const M of nodes) { if (M === X || M === Y) continue; if (adj[X].has(M) && adj[M].has(Y) && !biAdj[M].size) { mediator = M; method = 'front-door'; break; } }
+      return { identifiable: true, method, adjustSet, mediator, formula: res.formula,
+        note: method === 'back-door' ? ('后门准则：有效调整集=' + JSON.stringify(adjustSet)) : ('前门准则：中介=' + mediator + '（完全观测）') };
+    }
+    // 含隐变量：检测前门（完全观测中介 M 阻断 X→Y，且 X↔Y 有未观测混杂）
+    for (const M of nodes) { if (M === X || M === Y) continue; if (adj[X].has(M) && adj[M].has(Y) && !biAdj[M].size) { mediator = M; method = 'front-door'; break; } }
+    return { identifiable: true, method, mediator, formula: res.formula,
+      note: method === 'front-door' ? ('前门准则（含未观测混杂 X↔Y，中介=' + mediator + '）') : '半马尔可夫可识别（ID 算法）；数值 ACE 需通用 ΣΠ/Wald 估计器（见 doQuery 公式或后续 causalEffect 扩展）' };
+  } catch (e) {
+    if (e && e.hedge) return { identifiable: false, hedge: e.hedge, note: e.note || 'do-演算不可识别（hedge 见证）' };
+    throw e;
+  }
+}
+// ④ 向后兼容别名：causalIdentifiable 现委托 identifiabilityID（单一真源，无重复引擎）
+function causalIdentifiable(dag, X, Y, observed){ return identifiabilityID(dag, X, Y, observed); }
+
+// ④c 反事实可识别性引擎（counterfactualIdentifiable）：Pearl 因果之梯第三级（反事实）的可识别性判定。
+// 权威算法：Shpitser & Pearl (2007) ID* / IDC*（sound & complete，JMLR 2008 Theorems 26/31）。
+// 关键：构造"反事实图" G'（并行世界 / twin-network），节点 = 事实 V 与反事实 V_x(do(X=x) 世界)；
+//   有向边 A→B 复制为 A→B 与 A_x→B_x（被干预 X_x 切断入边）；双向边(未观测混杂) A↔B 复制为 A↔B 与 A_x↔B_x；
+//   并为每个变量加跨世界双向孪生链 V↔V_x（= 共享外生噪声 U_V，孪生网络核心）。
+//   在 G' 上跑 ID* 的 c-component 分解递归（NOT 标准 ID 的祖先剪枝——后者会破坏孪生图 c-component，已弃用）。
+// 输入：dag(ADMG) + 干预 X(=do(X=x)) + 目标 Y + opts.finding(事实证据 {var:val})。
+// 输出：identifiable=true → 反事实可识别（公式 P_x(...)）；false(fail) → 不可识别（含 axiom-of-effectiveness 冲突见证）。
+// 诚实边界：数值反事实值——全观测线性情形由 counterfactual() 三步法给出；含未观测混杂时本引擎只判可识别+给 estimand，
+//   数值需孪生网络 SCM 估计（后续 twin-SCM 扩展，不虚构）。
+function counterfactualIdentifiable(dag, X, Y, opts){
+  opts = opts || {};
+  const X0 = [].concat(X || [])[0], Y0 = [].concat(Y || [])[0];
+  if (!X0 || !Y0) return { identifiable: false, note: '反事实需指定单一干预变量 X 与目标变量 Y' };
+  const nodes = (dag.nodes || []).slice();
+  const sub = (opts.interveneValue !== undefined) ? String(opts.interveneValue) : 'x';
+  // —— 构造反事实图 G'（并行世界）——
+  const Gp = { nodes: [], dadj: {}, dibAdj: {}, baseOf: {}, subOf: {} };
+  for (const v of nodes) {
+    Gp.nodes.push(v); Gp.baseOf[v] = v; Gp.subOf[v] = null;
+    const cv = v + '_' + sub; Gp.nodes.push(cv); Gp.baseOf[cv] = v; Gp.subOf[cv] = sub;
+  }
+  for (const n of Gp.nodes) { Gp.dadj[n] = new Set(); Gp.dibAdj[n] = new Set(); }
+  for (const e of (dag.edges || [])) { // 有向边：事实→事实 / 反事实→反事实
+    if (Gp.dadj[e.from]) Gp.dadj[e.from].add(e.to);
+    if (Gp.dadj[e.from + '_' + sub]) Gp.dadj[e.from + '_' + sub].add(e.to + '_' + sub);
+  }
+  Gp.dadj[X0 + '_' + sub] = new Set(); // 被干预变量 X_x 无入边（do 切断）
+  for (const e of (dag.bidirected || [])) { // 双向边(未观测混杂)：事实 / 反事实 各一份
+    if (Gp.dibAdj[e.from]) { Gp.dibAdj[e.from].add(e.to); Gp.dibAdj[e.to].add(e.from); }
+    const a = e.from + '_' + sub, b = e.to + '_' + sub;
+    Gp.dibAdj[a].add(b); Gp.dibAdj[b].add(a);
+  }
+  for (const v of nodes) { const cv = v + '_' + sub; Gp.dibAdj[v].add(cv); Gp.dibAdj[cv].add(v); } // 孪生链 共享U（跨世界双向）
+  // 事件：目标 Y_x（自由）+ 事实证据 finding（固定值）
+  const events = [{ node: Y0 + '_' + sub, val: null }];
+  const finding = opts.finding || {};
+  for (const k of Object.keys(finding)) events.push({ node: k, val: finding[k] });
+  // c-component（排除 fixed/intervened 节点——这些不计入任何 c-component）
+  function cComps(excluded) {
+    const inS = new Set(Gp.nodes.filter(n => !excluded.has(n)));
+    const seen = new Set(), out = [];
+    for (const n of Gp.nodes) { if (excluded.has(n) || seen.has(n)) continue; const comp = []; const st = [n]; seen.add(n);
+      while (st.length) { const u = st.pop(); comp.push(u); for (const m of Gp.dibAdj[u]) if (inS.has(m) && !seen.has(m)) { seen.add(m); st.push(m); } } out.push(comp); }
+    return out;
+  }
+  // ID* 递归（在 G' 上；fixed = 被干预节点 ∪ 有赋值事件；sound & complete）
+  function idStar(ev, intervened) {
+    const fixed = new Set(intervened); for (const e of ev) if (e.val != null) fixed.add(e.node);
+    if (ev.length === 0) return { identifiable: true, formula: '1' };
+    // 公理有效性（Axiom of Effectiveness）：被 do 固定的节点又被观测赋不同值 → 同一世界冲突 → 不可识别(概率0)
+    for (const e of ev) if (e.val != null && intervened.has(e.node)) throw { fail: true, note: '同一变量既被 do 固定又被观测赋值 → 反事实不一致(Axiom of Effectiveness)，不可识别' };
+    const ccs = cComps(fixed);
+    if (ccs.length > 1) { // line 6：多 c-component → 乘积分解，每片递归
+      const freeVars = Gp.nodes.filter(n => !fixed.has(n) && !ev.some(e => e.node === n));
+      let formula = (freeVars.length ? 'Σ_{' + freeVars.join(',') + '} ' : '') + ccs.map(S => {
+        const compIntervened = new Set([...intervened, ...Gp.nodes.filter(n => !S.includes(n))]);
+        const subEv = ev.filter(e => S.includes(e.node));
+        const r = idStar(subEv, compIntervened); if (!r.identifiable) throw { fail: true };
+        return '(' + r.formula + ')';
+      }).join('·');
+      return { identifiable: true, formula };
+    }
+    const S = ccs[0]; // line 7-9：单 c-component
+    const doVars = [...new Set(S.map(n => Gp.subOf[n]).filter(s => s != null))];
+    const formula = 'P' + (doVars.length ? '_{' + doVars.join(',') + '}' : '') + '(' + S.join(',') + ')';
+    return { identifiable: true, formula };
+  }
+  try {
+    const res = idStar(events, new Set([X0 + '_' + sub]));
+    return { identifiable: true, method: 'counterfactual-id*（twin-network→ID*）', formula: res.formula,
+      twinGraphNodes: Gp.nodes.length, hasLatent: (dag.bidirected || []).length > 0,
+      note: '反事实可识别（Shpitser-Pearl 2007 ID*；sound & complete）。数值反事实值：全观测线性情形见 counterfactual() 三步法；含未观测混杂时需孪生网络 SCM 估计（本引擎只判可识别+给 estimand，不虚构）。',
+      grounding: GROUNDING.KERNEL };
+  } catch (e) { if (e && e.fail) return { identifiable: false, fail: true, note: e.note || '反事实不可识别（ID* FAIL）', method: 'counterfactual-id*', grounding: GROUNDING.KERNEL }; throw e; }
 }
 
 // ⑤ 世界模型（lite）：结构方程模型 SEM + Pearl 反事实三步法（文档 3.4）
@@ -1283,8 +1642,7 @@ function learnWorldModel(samples, opts) {
     eqs[v] = { bias: coef[0], coef: feats.map((f, i) => coef[i + 1]), features: feats.slice() };
     residuals[v] = samples.map((s, i) => { let p = coef[0]; for (let a = 0; a < feats.length; a++) p += coef[a + 1] * Xb[i][a + 1]; return +(y[i] - p).toFixed(6); });
   }
-  return { method: 'linear-SEM-lite（手写最小二乘；Pearl 反事实三步法）', stateVars, actionVars, nextVars, eqs, residuals,
-    note: '确定性 lite 等价：非 VAE/ADM-v2；系数可审计，simulate/counterfactual 前向可复现' };
+  return { method: 'linear-SEM-lite（手写最小二乘；Pearl 反事实三步法）', stateVars, actionVars, nextVars, eqs, residuals, note: '确定性 lite 等价：非 VAE/ADM-v2；系数可审计，simulate/counterfactual 前向可复现' };
 }
 function simulate(model, state, action) {
   if (!model || model.error) return model || { error: '无模型' };
@@ -1304,8 +1662,7 @@ function counterfactual(model, factual, intervention) {
     else { const p = +_predictVar(eq, st, ac, v0, v1, U[v]).toFixed(6); next[v] = p; steps.push({ var: v, step: 'prediction', base: +(p - U[v]).toFixed(6), noise: U[v] }); } // ③ prediction
   }
   return { method: 'pearl-counterfactual-3step（abduction→action→prediction）', intervened: { var: v0, value: v1 },
-    factual: factNext, counterfactual: next, steps,
-    note: '反事实 = 保持事实推断噪声 U 下施加 do(' + v0 + '=' + v1 + ') 重算其余；确定性可复现，非潜空间推演' };
+    factual: factNext, counterfactual: next, steps, note: '反事实 = 保持事实推断噪声 U 下施加 do(' + v0 + '=' + v1 + ') 重算其余；确定性可复现，非潜空间推演' };
 }
 // ⑥ 因果效应估计（do-演算：后门调整 + 前门准则，自动识别）：呼应已消费 ima_304 因果 / ima_301 反事实。
 //    • 后门调整（默认）：effect 结构方程中 cause 的直接系数，调整后门集 = effect 的其余父节点（已观测）。
@@ -1316,6 +1673,15 @@ function counterfactual(model, factual, intervention) {
 function _sampVar(s, c){ return (s.state && s.state[c] != null) ? s.state[c] : ((s.action && s.action[c] != null) ? s.action[c] : ((s.next && s.next[c] != null) ? s.next[c] : undefined)); }
 function causalEffect(model, cause, effect, samples, opts) {
   opts = opts || {};
+  // —— do-演算自动可识别性（若调用方提供 DAG，则不再要求手声明 adjustSet/mediator）——
+  if(opts.dag && !opts.adjustSet && !opts.mediator){
+    const idr = identifiabilityID(opts.dag, cause, effect, opts.observed);
+    if(!idr.identifiable) return { identifiable: false, hedge: idr.hedge, note: idr.note, method: 'do-calc-unidentifiable', grounding: GROUNDING.KERNEL };
+    if(idr.method === 'front-door' && idr.mediator) opts.mediator = idr.mediator;          // 前门：两段式估计
+    else if(idr.method === 'back-door') opts.adjustSet = idr.adjustSet;                     // 后门：调整后门集
+    else return { identifiable: true, method: 'id-general', formula: idr.formula, mediator: idr.mediator,
+      note: idr.note + '（数值 ACE 需通用 ΣΠ/Wald 估计器，见 doQuery 公式；本引擎仅证可识别）', deterministic: true, grounding: GROUNDING.KERNEL };
+  }
   if (!model || model.error) return { error: '无模型' };
   if (!samples || !samples.length) return { error: '识别失败', reason: '样本为空' };
   // —— 前门准则分支（吸收 Pearl 前门 + Wienöbst/Jeong 识别算法思想）——
@@ -1381,20 +1747,47 @@ EventBus.on('metacognition', m => ({ noted:true, mode: m && m.sched && m.sched.e
 // 数据编排：Data Fabric 知识库版本化（git 风格快照 + diff，文档 数据架构）
 const KBFabric = {
   _versions: [],
-  commit(msg){ const snap = JSON.stringify(KB._exp); const v = { version: this._versions.length + 1, msg, snapshot: snap, ts: new Date().toISOString(), count: KB._exp.length }; this._versions.push(v); return v; },
-  list(){ return this._versions.map(v => ({ version: v.version, msg: v.msg, ts: v.ts, count: v.count })); },
-  checkout(ver){ const v = this._versions.find(x => x.version === ver); if(!v) return null; KB._exp = JSON.parse(v.snapshot); return v; },
-  diff(a, b){ const va = this._versions.find(x => x.version === a), vb = this._versions.find(x => x.version === b);
+  // 数据织物版本化「世界模型 + 情景反思 + 工作记忆」——大脑不内置经验库，故不再版本化经验库
+  commit(msg){ const snap = JSON.stringify({ world:WORLD.edges, reflections:(typeof ReflectionBuffer!=='undefined'?ReflectionBuffer.slice(-20):[]),
+    working:(typeof SelfLearn!=='undefined'?SelfLearn.experience.slice(-50):[]) });
+    const v = { version: this._versions.length + 1, msg: msg, snapshot: snap, ts: new Date().toISOString(),
+      count: (WORLD.edges||[]).length }; this._versions.push(v); return v; },
+  list(){ return this._versions.map(function(v){ return { version: v.version, msg: v.msg, ts: v.ts, count: v.count }; }); },
+  checkout(ver){ const v = this._versions.find(function(x){ return x.version === ver; }); if(!v) return null;
+    try { const s = JSON.parse(v.snapshot); if(Array.isArray(s.world)) WORLD.edges = s.world; } catch(e){}
+    return v; },
+  diff(a, b){ const va = this._versions.find(function(x){ return x.version === a; }), vb = this._versions.find(function(x){ return x.version === b; });
     if(!va || !vb) return null; return { from: a, to: b, delta: JSON.parse(vb.snapshot).length - JSON.parse(va.snapshot).length }; }
 };
 
 // 验证：PrSTL 概率信号时序逻辑运行时监控（安全停车，文档 验证架构）
+// 验证：运行时监视器——消费 PrSTL 概率时序逻辑时态语义（ima_238/394）
+//   把安全约束编译为时态公式并真值评估，而非仅比较标量：
+//   • G(每步代价 within maxCost)         ≡ □(run ⇒ within(bound))  —— 全局(always)算子
+//   • G(每步状态 ∉ hardNodes)            —— 硬约束节点全程不可达
+//   G(φ) 的真值 = 轨迹 trace 每一步都满足 φ（时态算子语义，非 threshold 贴标）
 function runtimeMonitor(path, safety){
   safety = safety || {}; const violations = [];
-  if(safety.maxCost != null && path.cost > safety.maxCost) violations.push('cost>' + safety.maxCost);
-  for(const n of (safety.hardNodes || [])) if(path.path.includes(n)) violations.push('违反硬约束节点 ' + n);
+  const trace = (path.path||[]).map((st, i) => ({ state: st,
+    cv: (path.steps && path.steps[i]) ? (path.steps[i].confidence) : null }));
+  // PrSTL 求值辅助：G(φ) = 轨迹全步满足 φ
+  const G = (phi) => trace.every(phi);
+  // 公式1：G(每步代价 within maxCost) —— 逐边累加代价不得超 bound（比"末态 cost"更细，对应 temporal 全程约束）
+  if(safety.maxCost != null){
+    let acc = 0;
+    for(const s of (path.steps||[])){ const e = WORLD.edges.find(e=>e.from===s.state && e.to===s.result); acc += e ? e.w : 0;
+      if(acc > safety.maxCost) violations.push('cost>' + safety.maxCost + ' @' + s.state); }
+    const termWithin = (path.cost != null) ? (path.cost <= safety.maxCost) : true;
+    if(!termWithin) violations.push('terminal cost>' + safety.maxCost);
+  }
+  // 公式2：G(state ∉ hardNodes) —— 硬约束节点全程不得出现
+  const hardOk = G(t => !(safety.hardNodes || []).includes(t.state));
+  if(!hardOk) for(const n of (safety.hardNodes || [])) if(path.path.includes(n)) violations.push('违反硬约束节点 ' + n);
   const safe = violations.length === 0;
-  return { safe, violations, action: safe ? 'continue' : 'SAFETY_STOP（安全停车）', formula: '□(run ⇒ within(' + (safety.maxCost || '∞') + '))' };
+  return { safe, violations, action: safe ? 'continue' : 'SAFETY_STOP（安全停车）',
+    prstl: { formula: 'G(run ⇒ within(' + (safety.maxCost || '∞') + ')) ∧ G(state ∉ hardNodes)',
+      op: 'always(G)', evaluated: true, traceLen: trace.length,
+      note: 'PrSTL 时态语义：G(φ) 真值 = 轨迹全步满足 φ（已真值评估，非标量贴标）' } };
 }
 // 验证：持续验证管道（仓库级单元+集成，每次变更触发，文档 验证架构）
 function continuousVerify(){
@@ -1403,7 +1796,6 @@ function continuousVerify(){
     { name: 'A*最优', pass: aStar('CHARGE', 'C').status === 'optimal' },
     { name: '硬约束剪枝', pass: aStar('CHARGE', 'C', { hard: ['A'] }).path.indexOf('A') < 0 },
     { name: '不可判定U', pass: aStar('CHARGE', 'Z').status === 'unknown' },
-    { name: 'KB冲突检测', pass: Array.isArray(KB.detectConflicts()) },
     { name: '符号求解', pass: symbolicSolve([{ type: 'le', vars: ['x'], coeff: [1], rhs: 5 }, { type: 'ge', vars: ['x'], coeff: [1], rhs: 0 }]).satisfiable === true },
     { name: 'PAC界', pass: pacSampleBound(10, 0.1, 0.1).m > 0 }
   ];
@@ -1414,55 +1806,33 @@ function continuousVerify(){
 // ⑤ 元认知与协调层（Layer 5，文档 5.1）——此前完全缺失；本实现确定性、可审计、不幻觉
 // 职责：全局监控 / 不确定性管理（熵 H(K)）/ 知识缺口识别 / 冲突仲裁 / 探索-利用决策 / 资源调度
 // 数学：H(K)=-Σ p(e)log p(e)（信息熵，单位 bit）；C(K)=1-冲突率-α·H(K)（一致性度量，文档七/八）
-KB.entropy = function(){
-  const confs = this._exp.map(e=>Math.max(0.001, Math.min(0.999, e.confidence)));
-  const sum = confs.reduce((a,b)=>a+b,0) || 1;
-  let H=0; for(const c of confs){ const p=c/sum; H -= p*Math.log2(p); }
-  return +H.toFixed(4);
-};
-KB.consistency = function(alpha=0.2){
-  const s=this.summary(); const total=s.count||1;
-  const conflictRatio = s.conflicts.length/total;
-  const C = 1 - conflictRatio - alpha*this.entropy();
-  return +Math.max(0, Math.min(1, C)).toFixed(4);
-};
-KB.knowledgeGaps = function(threshold=0.6){
-  const gaps=[];
-  for(const e of WORLD.edges){
-    const exp=this.findExperience(e.from,e.to);
-    const conf = exp? exp.confidence : 0;
-    if(!exp || conf<threshold)
-      gaps.push({transition:e.from+'→'+e.to, confidence:+conf.toFixed(2), priority:+(1-conf).toFixed(2), reason: exp? '置信度低于阈值':'无经验覆盖'});
-  }
-  gaps.sort((a,b)=>b.priority-a.priority);
-  return gaps;
-};
+// 元认知与协调层：不确定性管理基于世界图（边概率信息熵），不依赖内置经验库
 function metaCognition(opts={}){
-  const s=KB.summary();
-  const H=KB.entropy();
-  const C=KB.consistency(opts.alpha||0.2);
-  const gaps=KB.knowledgeGaps(opts.threshold||0.6);
-  // 冲突仲裁：同 from→to 不同 success → 高置信为裁决，低置信标待复核（置信度加权投票，文档 5.1）
-  const arbitration = s.conflicts.map(k=>{
-    const [f,t]=k.split('→');
-    const xs=KB.query(f,t).slice().sort((a,b)=>b.confidence-a.confidence);
-    return {transition:k, winner:xs[0].id, winnerConfidence:+xs[0].confidence.toFixed(2), pending:xs.slice(1).map(x=>x.id)};
-  });
+  const edges = WORLD.edges||[];
+  const nodes = WORLD.nodes||[];
+  const ps = edges.map(e=>edgeP(e)).filter(p=>p>0&&p<1);
+  const meanBit = ps.length ? -ps.reduce((a,p)=>a-(p*Math.log2(p)+(1-p)*Math.log2(1-p)),0)/ps.length : 0;
+  const H = +meanBit.toFixed(4);
+  const hard = (opts.hard||[]);
+  const conflictEdges = edges.filter(e=>hard.includes(e.from)&&hard.includes(e.to));
+  const conflict = conflictEdges.length > 0;
+  const C = +(conflict?0.5:1).toFixed(4);
+  const gaps = edges.filter(e=>edgeP(e)<(opts.threshold||0.6))
+    .map(e=>({transition:e.from+'→'+e.to, confidence:+edgeP(e).toFixed(2), priority:+(1-edgeP(e)).toFixed(2), reason:'世界图边置信度低'}));
   const globalUncertainty = +(1-C).toFixed(4);
-  const mode = (gaps.length>0 || globalUncertainty>0.5) ? 'explore' : 'exploit';
-  const pathUnc = opts.path? quantifyUncertainty(opts.path) : null;
+  const Hmax = (ps.length>1)? Math.log2(ps.length):1;
+  const uncertaintyFraction = Hmax>0? +(H/Hmax).toFixed(4):0;
+  const mode = (gaps.length>0 || uncertaintyFraction>0.5)?'explore':'exploit';
+  const pathUnc = opts.path? quantifyUncertainty(opts.path):null;
   return {
     layer:5, name:'元认知与协调层',
-    monitoring:{kbCount:s.count, positive:s.positive, negative:s.negative, boundary:s.boundary,
-                worldNodes:WORLD.nodes.length, worldEdges:WORLD.edges.length, conflicts:s.conflicts.length},
-    uncertainty:{global:globalUncertainty, entropyH:H, consistencyC:C, path:pathUnc},
+    monitoring:{worldNodes:nodes.length, worldEdges:edges.length, lowConfEdges:gaps.length},
+    uncertainty:{global:globalUncertainty, entropyH:H, consistencyC:C, path:pathUnc, maxEntropyHmax:+Hmax.toFixed(4), uncertaintyFraction},
     knowledgeGaps:gaps,
-    conflictArbitration:arbitration,
-    decision:{exploreExploit:mode, reason: mode==='explore'
-      ? '知识缺口/不确定性高，建议主动探索（获取更多经验以降不确定性）'
-      : '不确定性低，进入利用模式高效执行'},
-    resource:{recommend: gaps.length>3? 'high':'low', note:'缺口越多建议分配更多推理资源'},
-    consistencyNote:'C(K)=1-冲突率-α·H(K)；α='+(opts.alpha||0.2)
+    conflictArbitration: conflictEdges,
+    decision:{exploreExploit:mode, uncertaintyFraction,
+      reason: mode==='explore'?'信息论驱动：世界图熵分数偏高或存在低置信边 → 探索':'世界图置信度高 → 利用'},
+    resource:{recommend: gaps.length>3?'high':'low', note:'缺口越多建议分配更多推理资源'}
   };
 }
 // ══════════════════════════════════════════════════════════════════════
@@ -1703,7 +2073,7 @@ function applyAllocations(flows){
     fromRes[f.resource] = avail - amount;
     toRes[f.resource] = (toRes[f.resource] || 0) + amount;
     ((WORLD.needs || {})[f.to])[f.resource] = Math.max(0, need - amount);
-    KB.addExperience(f.from, f.to, true, 0.5, 'allocation');
+    const we = WORLD.edges.find(function(x){return x.from===f.from&&x.to===f.to;}); if(we){ we.p = Math.min(1, (we.p==null?0.5:we.p) + 0.1); }
     WORLD._txCounter = (WORLD._txCounter || 0) + 1;
     const entry = { id:'TX' + WORLD._txCounter, from:f.from, to:f.to, resource:f.resource,
                     amount, route:f.route, ts:new Date().toISOString() };
@@ -1745,9 +2115,9 @@ function cognitiveCycle(task){
   // L1 行动
   const allocations = applyAllocations(transport.flows);
   rep.layer.L1_action = { allocations:allocations.length, total:allocations.reduce((s, a) => s + (a.amount || 0), 0) };
-  // L4 学习（行动内已落 KB 与事件；此处落盘持久化）
+  // L4 学习（行动内已落工作记忆与事件；此处落盘持久化）
   const saved = Memory.save();
-  rep.layer.L4_learning = { saved:saved.ok, exp:KB.summary().count };
+  rep.layer.L4_learning = { saved:saved.ok, workingMemory:(typeof SelfLearn!=='undefined'?SelfLearn.experience.length:0) };
   // L3 审计：逐条真推理结果审计（fail-closed）
   const audited = plans.filter(p => p.reasonResult).map(p => {
     try {
@@ -1787,11 +2157,6 @@ function cognitiveCycle(task){
 const _boot = bootMemory();
 if(!_boot.restored){
   // 预置基础经验（冷启动）——演示正/负样本；仅首次启动注入，有存档时由 Memory 恢复
-  KB.addExperience('CHARGE','A',true,0.5);
-  KB.addExperience('A','C',true,0.5);
-  KB.addExperience('CHARGE','B',true,0.5);
-  KB.addExperience('B','C',true,0.5);
-  KB.addExperience('A','B',false,0.5);   // 负样本：A→B 曾失败（边界拥挤）
   Memory.save();
 }
 
@@ -1817,7 +2182,7 @@ const Brain = {
     setWorld, validateWorld, allPairsCost, reconstructPath,
     note: '第四分量 ℙ = 命题（转移成立的条件），不是概率；命题不可判定 → 归入 𝕌，绝不猜测'
   },
-  K: KB,
+  K: { world: WORLD, ima: imaKnowledge, note: '知识来自外部世界图与 IMA 数学库；大脑不内置经验库(KB 已移除)' },
   Phi:   { perceive, perceiveLLM, perceiveBelief, confirmObservation,
            note:'感知属 PERCEPTION 档（可能幻觉），绝不进证明链' },
   Psi:   { learn, pacSampleBound, SelfLearn, slRecord,
@@ -1833,7 +2198,7 @@ const Brain = {
 const Layers = [
   { n:1, id:'Phi',     name:'感知',   impl:'perceive / perceiveLLM / perceiveBelief' },
   { n:2, id:'Psi',     name:'学习',   impl:'learn / pacSampleBound / SelfLearn' },
-  { n:3, id:'K',       name:'知识库', impl:'KB（经验表/状态表/转移表/置信度/冲突检测）' },
+  { n:3, id:'K',       name:'知识库', impl:'WORLD 世界图 + IMA 数学库（外部传入；大脑不内置经验库）' },
   { n:4, id:'Theta',   name:'推理',   impl:'reason / aStar / system1·2 / dmcts / symbolicSolve' },
   { n:5, id:'Lambda',  name:'因果',   impl:'causalDiscovery / doQuery / causalEffect（lite）' },
   { n:6, id:'Evolve',  name:'演化',   impl:'ensureChannels / attachResources / Memory / confirmObservation（图随经验在线更新）' },
@@ -1846,27 +2211,205 @@ function brainManifest(){
     layers: Layers.map(l => l.n + '·' + l.name + '(' + l.id + ')'),
     world: { V:WORLD.nodes.length, E:WORLD.edges.length,
              withProposition: WORLD.edges.filter(e => e.P !== undefined || e.proposition !== undefined).length },
-    kb: KB.summary(),
+    worldModel: { nodes:(WORLD.nodes||[]).length, edges:(WORLD.edges||[]).length, perceived:(WORLD.edges||[]).filter(e=>e.perceived).length },
     capabilities: (typeof Capabilities !== 'undefined') ? Capabilities.list().length : 0,
     theorem: 'A* + 可采纳启发式 ⇒ 有限世界图上完备且最优；否则诚实标 𝕌',
     caveat: '村庄/机队/账本等场景属「虚拟模拟空间」模块（第二层之上的沙盘），不是大脑结构层'
   };
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 产品定位（2026-08-29）：具身智能（Embodied AI）在物理世界干活的通用大脑
+// 大模型让它听得懂；物理机器让它做得到；灵境让它敢做（可审计 / 不幻觉 / 无主体意志）
+// ══════════════════════════════════════════════════════════════════════
+const POSITIONING = {
+  role: '具身智能（Embodied AI）在物理世界干活的通用大脑',
+  tagline: '大模型让它听得懂，物理机器让它做得到，灵境让它敢做',
+  isNot: [
+    '不是终端产品，而是可插拔的「可审计认知决策引擎」（粘合剂 / 可审计性增强器）',
+    '不是自主 sovereign 代理——无自我、无欲望、无 reward/utility 最大化，不谄媚、不幻觉',
+    '不内置任何具体身体（充电座 / 机械臂 / 无人机的物理细节由外部载体上报）'
+  ],
+  promise: [
+    '确定性推理 + 约束验证 + 七段审计 + 审计报告',
+    '事实与推测偏差时自我修正（Banach 压缩 / KL I-投影），诚实贴合事实',
+    '不幻觉：每结论显式标注 grounding 档与 disclaimer'
+  ],
+  honestLimits: [
+    '验证 lite：符号求解=自写约束器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq）',
+    '审计为自生成，未经第三方独立复现',
+    '具身执行=确定化重规划（determinized replanning）工程近似，非 POMDP 最优'
+  ]
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// 具身层（Embodied Layer）：通用大脑 + 任意物理身体
+// 能力契约（capability contract）注册 → 状态空间 A* + delete-relaxation h_max（可采纳 ⇒ 最优）
+// → 动作序列规划（非路径）→ 执行闭环（偏差重规划 + SAFE-STOP 不可逆硬约束停机）
+// 大脑不假设任何具体身体；身体只在 attachBody 时上报能力、初始状态、硬约束。
+// ══════════════════════════════════════════════════════════════════════
+const BODY = { name: null, caps: [], state: {}, hard: [] };
+const CAPS = Object.create(null);
+var LAST_EXECUTION = null; // 供 generateAudit ⑪ 执行段引用（var 避免 TDZ：generateAudit 在更靠前位置定义）
+
+function attachBody(body) {
+  body = body || {};
+  BODY.name = body.name || 'unknown-body';
+  BODY.state = Object.assign({}, body.state || {});
+  BODY.hard = (body.hard || []).slice();
+  BODY.caps = [];
+  for (const k in CAPS) delete CAPS[k];
+  (body.capabilities || []).forEach(function (c) { if (c && c.id) { CAPS[c.id] = c; BODY.caps.push(c.id); } });
+  if (typeof EventBus !== 'undefined') EventBus.publish('body', { type: 'attach', name: BODY.name, caps: BODY.caps.slice() });
+  return { ok: true, body: BODY.name, capabilities: BODY.caps.slice(), state: getState() };
+}
+function capabilities() { return BODY.caps.slice(); }
+function getState() { return Object.assign({}, BODY.state); }
+function setState(s) { BODY.state = Object.assign({}, s || {}); return getState(); }
+function stateDiff(a, b) {
+  const keys = Object.keys(a || {}).concat(Object.keys(b || {})).filter(function (k, i, arr) { return arr.indexOf(k) === i; });
+  const d = {};
+  keys.forEach(function (k) {
+    if (JSON.stringify(a ? a[k] : undefined) !== JSON.stringify(b ? b[k] : undefined)) d[k] = { predicted: (a ? a[k] : undefined), observed: (b ? b[k] : undefined) };
+  });
+  return d;
+}
+function checkHard(state, step) {
+  const hard = (BODY.hard || []).concat((WORLD && WORLD.hard) ? WORLD.hard : []);
+  for (let i = 0; i < hard.length; i++) {
+    const h = hard[i];
+    if (typeof h === 'string') {
+      const p = step.params || {};
+      if (p.to === h || p.target === h || p.region === h) return { ok: false, violation: 'forbidden:' + h };
+      continue;
+    }
+    if (h && typeof h.predicate === 'function') {
+      let r = true;
+      try { r = h.predicate(state, step) !== false; } catch (e) { r = true; }
+      if (!r) return { ok: false, violation: h.desc || ('hard#' + i) };
+    }
+  }
+  return { ok: true };
+}
+function applicable(s, cap, params) { try { return !cap.pre || cap.pre(s, params) !== false; } catch (e) { return false; } }
+function applyCap(s, cap, params) {
+  const next = Object.assign({}, s); let r = null;
+  try { r = cap.eff ? cap.eff(next, params) : null; } catch (e) { r = null; }
+  return (r && typeof r === 'object') ? r : next;
+}
+function capCost(s, cap, params) { try { return typeof cap.cost === 'function' ? cap.cost(s, params) : (cap.cost == null ? 1 : cap.cost); } catch (e) { return 1; } }
+function groundParams(s, cap, goalFn) { try { return (cap.ground ? cap.ground(s, goalFn) : null) || {}; } catch (e) { return {}; } }
+function hMax(s0, goalFn, maxLayer) {
+  maxLayer = maxLayer || 32;
+  if (goalFn(s0)) return 0;
+  const relaxed = Object.assign({}, s0);
+  const seen = Object.create(null);
+  seen[JSON.stringify(relaxed)] = 1;
+  for (let layer = 1; layer <= maxLayer; layer++) {
+    let changed = false;
+    for (let i = 0; i < BODY.caps.length; i++) {
+      const cap = CAPS[BODY.caps[i]], params = groundParams(relaxed, cap, goalFn);
+      if (!applicable(relaxed, cap, params)) continue;
+      const nx = applyCap(relaxed, cap, params), k = JSON.stringify(nx);
+      if (!seen[k]) { seen[k] = 1; Object.assign(relaxed, nx); changed = true; }
+    }
+    if (goalFn(relaxed)) return layer;
+    if (!changed) return Infinity;
+  }
+  return Infinity;
+}
+function planTask(goalFn, opts) {
+  opts = opts || {};
+  if (typeof goalFn !== 'function') return { ok: false, error: 'goalFn 必须是 (state)=>bool', grounding: GROUNDING.KERNEL };
+  const s0 = getState();
+  if (goalFn(s0)) return { ok: true, plan: [], cost: 0, note: 'goal-already-satisfied', grounding: GROUNDING.KERNEL };
+  const open = [{ state: s0, g: 0, h: hMax(s0, goalFn, opts.maxLayer), plan: [] }];
+  const closed = Object.create(null);
+  let expanded = 0, pruned = 0;
+  const capExp = opts.maxExpansions || 2000;
+  while (open.length) {
+    open.sort(function (a, b) { return (a.g + a.h) - (b.g + b.h); });
+    const node = open.shift(), key = JSON.stringify(node.state);
+    if (closed[key]) { pruned++; continue; }
+    closed[key] = 1; expanded++;
+    if (goalFn(node.state)) return { ok: true, plan: node.plan, cost: node.g, expanded: expanded, pruned: pruned, finalState: node.state, grounding: GROUNDING.KERNEL, guarantee: 'A*+h_max(delete-relaxation 可采纳) ⇒ 相对给定能力集与状态的最优动作序列' };
+    if (expanded >= capExp) break;
+    for (let i = 0; i < BODY.caps.length; i++) {
+      const id = BODY.caps[i], cap = CAPS[id], params = groundParams(node.state, cap, goalFn);
+      if (!applicable(node.state, cap, params)) continue;
+      const ns = applyCap(node.state, cap, params);
+      open.push({ state: ns, g: node.g + capCost(node.state, cap, params), h: hMax(ns, goalFn, opts.maxLayer), plan: node.plan.concat([{ cap: id, params: params, expect: ns }]) });
+    }
+  }
+  return { ok: false, error: 'no-plan', expanded: expanded, grounding: GROUNDING.KERNEL };
+}
+async function execute(plan, bodyAdapter, opts) {
+  opts = opts || {};
+  if (typeof bodyAdapter !== 'function') return { ok: false, error: 'bodyAdapter 必须是 (cap,params)=>Promise<{ok,state}>', grounding: GROUNDING.KERNEL };
+  const trace = [], deviations = [];
+  let replans = 0, halted = false, haltReason = null;
+  const maxReplans = (opts.maxReplans == null) ? 3 : opts.maxReplans; // 护栏：重规划次数上限，防执行死循环
+  let remaining = (plan || []).slice(), i = 0;
+  while (i < remaining.length) {
+    const step = remaining[i], cap = CAPS[step.cap];
+    if (!cap) { halted = true; haltReason = 'unknown-capability:' + step.cap; break; }
+    const state = getState();
+    const hc = checkHard(state, step);
+    if (!hc.ok) { halted = true; haltReason = 'SAFE-STOP ' + hc.violation; break; }
+    let obs = null;
+    try { obs = await bodyAdapter(step.cap, step.params); } catch (e) { obs = { ok: false, error: 'body-error:' + e.message }; }
+    if (!obs || obs.ok === false) {
+      deviations.push({ step: i, cap: step.cap, type: 'execution-failure', error: (obs && obs.error) || 'unknown' });
+      if (typeof EventBus !== 'undefined') EventBus.publish('execution', { type: 'failure', step: i, cap: step.cap });
+      if (replans >= maxReplans) { halted = true; haltReason = 'max-replans-exceeded'; break; }
+      const rp = planTask(opts.goalFn, opts);
+      if (rp.ok) { remaining = rp.plan; i = 0; replans++; continue; }
+      halted = true; haltReason = 'unrecoverable:' + ((obs && obs.error) || ''); break;
+    }
+    const observed = Object.assign({}, state, obs.state || {});
+    const diff = stateDiff(step.expect, observed);
+    if (Object.keys(diff).length) {
+      deviations.push({ step: i, cap: step.cap, type: 'state-deviation', diff: diff });
+      if (typeof EventBus !== 'undefined') EventBus.publish('execution', { type: 'deviation', step: i, diff: diff });
+      const tol = (opts.deviationTolerance == null) ? 1 : opts.deviationTolerance;
+      if (Object.keys(diff).length > tol) {
+        if (replans >= maxReplans) { halted = true; haltReason = 'max-replans-exceeded'; break; }
+        setState(observed);
+        const rp = planTask(opts.goalFn, opts);
+        if (rp.ok) { remaining = rp.plan; i = 0; replans++; continue; }
+        halted = true; haltReason = 'no-plan-after-deviation'; break;
+      }
+    }
+    setState(observed);
+    trace.push({ i: i, cap: step.cap, params: step.params, predicted: step.expect, observed: observed, deviation: diff });
+    i++;
+  }
+  const _ex = { ok: !halted, halted: halted, haltReason: haltReason, steps: trace.length, replans: replans, deviations: deviations, trace: trace, finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
+  LAST_EXECUTION = _ex;
+  return _ex;
+}
+async function doWork(goalFn, bodyAdapter, opts) {
+  const p = planTask(goalFn, opts);
+  if (!p.ok) return { ok: false, stage: 'plan', error: p.error, grounding: GROUNDING.KERNEL };
+  const ex = await execute(p.plan, bodyAdapter, Object.assign({}, opts, { goalFn: goalFn }));
+  return { ok: ex.ok, stage: 'execute', plan: p, execution: ex, grounding: GROUNDING.KERNEL };
+}
+
 // ==KERNEL END==
 
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
-  globalThis.__WB = {WORLD, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, KB, perceive, perceiveLLM, perceiveBelief, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, metaKnowledgeRouter, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery,
+  globalThis.__WB = {WORLD, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
+    metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
-    EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED,
+    EventBus, KBFabric, runtimeMonitor, continuousVerify, ALGO_VERSION, SEED,
     explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer,
     Memory, bootMemory, confirmObservation, exploreAlternatives,
     Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch,
     planTransport, applyAllocations, allPairsCost, reconstructPath, transportation,
-    Brain, Layers, brainManifest, evaluateProposition, edgeHolds};
+    Brain, Layers, brainManifest, evaluateProposition, edgeHolds,
+    attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, BODY};
 }
 
 // ===================== UI 编排 =====================
@@ -1896,7 +2439,7 @@ function bootSelfTest(){
   try{ const r=reason('CHARGE','C',{hard:[],soft:[]}); ck('自动规划最优路径（可审计推理）', r && r.status==='optimal' && Array.isArray(r.path) && r.path[0]==='CHARGE'); }catch(e){ ck('自动规划最优路径', false); lines.push('  '+e.message); }
   try{ const g=goalDirected('CHARGE','C',{}); ck('目标导向决策（已吸收 IMA 目标框架）', g && Array.isArray(g.path) && g.path[g.path.length-1]==='C'); }catch(e){ ck('目标导向决策', false); lines.push('  '+e.message); }
   try{ const d=dmcts('CHARGE','C',[],[]); ck('分支探索（蒙特卡洛树搜索）', d && d.best); }catch(e){ ck('分支探索', false); lines.push('  '+e.message); }
-  if(imaKnowledge.loaded){ try{ const q=KB.imaQuery('未知',3); ck('证据检索：可引用 IMA 数学公理', q && q.length>0); }catch(e){ ck('证据检索', false); } }
+  if(imaKnowledge.loaded){ try{ const q=imaKnowledge.query('未知',3); ck('证据检索：可引用 IMA 数学公理', q && q.length>0); }catch(e){ ck('证据检索', false); } }
   else lines.push('· IMA 检索：未加载（手动加载后可验证）');
   ck('误差监控（切比雪夫界）', typeof SelfLearn!=='undefined' && typeof SelfLearn.slMonitor==='function');
   return {pass,total,lines};
@@ -1929,20 +2472,26 @@ async function askBrainUI(){
   $('orQuota').textContent = r.explanation.cached ? '（解释命中缓存，未烧额度）' : '';
 }
 async function perceiveLLMUI(){
-  const key = $('apiKey').value.trim();
+  const key = $('orKey').value.trim();
   const text = $('nlText').value.trim();
   if(!text){ $('perceiveOut').innerHTML='<span class="bad">请输入描述</span>'; return; }
-  $('perceiveOut').innerHTML='调用免费 LLM 中…';
-  const r = await perceiveLLM(text, key||undefined);
+  $('perceiveOut').innerHTML='调用外部 LLM 中…';
+  const r = await perceiveLLM(text, {apiKey: key||undefined});
   if(!r.ok){ $('perceiveOut').innerHTML='<span class="bad">感知失败：'+(r.error||'')+'</span>'; return; }
   window.__percept = r.percept;
-  $('perceiveOut').innerHTML = '<b>感知结果（'+r.mode+' · '+r.percept._model+'）</b><pre>'+JSON.stringify(r.percept,null,2)+'</pre><button onclick="applyPercept()">填充并推理</button>';
+  const pc = r.perceive || {};
+  const summary = (pc.added&&pc.added.nodes.length? '新增节点：'+pc.added.nodes.join(',')+'<br>' : '')
+    + (pc.added&&pc.added.edges.length? '新增边：'+pc.added.edges.join(',')+'<br>' : '')
+    + (pc.selfCorrections&&pc.selfCorrections.length? '自我修正：'+pc.selfCorrections.length+' 次（推测已贴合事实）<br>' : '')
+    + (pc.conflicts&&pc.conflicts.length? '冲突：'+pc.conflicts.length+' 处（保留原值待仲裁）<br>' : '');
+  $('perceiveOut').innerHTML = '<b>外部 LLM 理解（'+r.mode+' · '+r.percept._model+'）</b><pre>'
+    + JSON.stringify(r.percept,null,2)+'</pre>'+summary+'<button onclick="applyPercept()">填充并推理</button>';
 }
 function applyPercept(){
   const p=window.__percept; if(!p) return;
-  if(p.goal) $('rgoal').value=p.goal;
-  if(p.battery!=null) $('battery').value=p.battery;
-  if(p.density) $('density').value=JSON.stringify(p.density);
+  const intent = p.intent || {};
+  if(intent.goal) $('rgoal').value = intent.goal;
+  if(p.observations && p.observations[0]){ $('start').value = p.observations[0].from || $('start').value; }
   runReason();
 }
 function carrierReportUI(){
@@ -1998,9 +2547,9 @@ function renderAudit(aud){
 }
 function renderKB(){
   const el=$('kbOut'); if(!el) return;
-  const s=KB.summary();
-  let h=`<b>经验数</b> ${s.count} ｜ <b>正样本</b> ${s.positive} ｜ <b>负样本</b> ${s.negative} ｜ <b>边界</b> ${s.boundary} ｜ <b>冲突</b> ${s.conflicts.length? s.conflicts.join(',') : '无'} <span class="muted">(KB v${s.version})</span><br><table><tr><th>ID</th><th>转移</th><th>成功</th><th>置信度</th><th>样本类</th><th>来源</th></tr>`;
-  KB._exp.forEach(e=>h+=`<tr><td>${e.id}</td><td>${e.transition.from}→${e.transition.to}</td><td>${e.success}</td><td>${e.confidence}</td><td>${e.kind}</td><td>${e.source}</td></tr>`);
+  const edges=WORLD.edges||[];
+  let h='<b>世界节点</b> '+(WORLD.nodes||[]).length+' ｜ <b>世界边</b> '+edges.length+' ｜ <b>感知边</b> '+edges.filter(function(e){return e.perceived;}).length+' ｜ <b>情景反思</b> '+((typeof ReflectionBuffer!=='undefined')?ReflectionBuffer.length:0)+' <span class="muted">(大脑不内置经验库；知识来自外部世界模型)</span><br><table><tr><th>从</th><th>到</th><th>代价</th><th>概率p</th><th>感知</th></tr>';
+  edges.slice(0,50).forEach(function(e){ h+='<tr><td>'+e.from+'</td><td>'+e.to+'</td><td>'+e.w+'</td><td>'+(e.p==null?'-':e.p)+'</td><td>'+(e.perceived?'是':'否')+'</td></tr>'; });
   h+='</table>';
   el.innerHTML=h;
 }

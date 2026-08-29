@@ -11,7 +11,7 @@
 > 🧪 **正在求测 / 求反馈**：我们做了一个「不幻觉、可审计」的通用大脑，请做 Agent / 机器人 / 严谨 AI 的朋友来跑、来挑刺。
 > - 🟢 在线试用（零安装，双击即用）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html>
 > - 💬 求测帖 & 反馈：<https://github.com/genesis-plan/lingjing/discussions/1>
-> - 🤖 AI Agent 零安装接入：`npx github:genesis-plan/lingjing`（36 工具）
+> - 🤖 AI Agent 零安装接入：`npx github:genesis-plan/lingjing`（46 工具）
 
 ---
 
@@ -24,7 +24,7 @@
 | 内核 | 本地确定性 A\* 推理 + 七段审计 + 正·负·边界样本知识库，不经大模型、不幻觉 |
 | 感知层 | **免费 LLM（OpenRouter `:free`）做 NL→JSON** + 贝叶斯滤波/Banach 信念收敛，把自然语言理解成结构化目标；无 key 可手动降级 |
 | 定位 | 驱动一切具身 / 物理载体的透明决策大脑（五层认知操作系统全实装） |
-| 接入 | MCP stdio（36 工具）/ 单文件网页演示（HTML，双击即用） |
+| 接入 | MCP stdio（46 工具）/ 单文件网页演示（HTML，双击即用） |
 | 许可 | MIT，免费、开源、面向 AI Agent 分发 |
 
 **它能做什么**
@@ -36,7 +36,7 @@
 
 **它不做什么（诚实边界）**
 - 不生成文本、不编造事实；推理结果可复现、可审计、不幻觉
-- **v3.0 完整骨架已全部确定性实装**（Node 校验 45/45）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入
+- **v3.0 完整骨架已全部确定性实装**（Node 校验 87/87）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）**
 - **轻量替代标注（手写 lite 版、非工业级外部求解器，均可运行、均确定性、均不虚构）**：符号验证=自写约束求解器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq 机器证明）；因果发现=PC-lite 离散近似（非真实 PC/FCI）；LSH=SimHash 投影（非 Milvus）；**世界模型/反事实已 lite 实装**（SEM 线性结构方程 + Pearl 反事实三步法，确定性可审计；文档原仅给 VAE/ADM-v2 等名词无定义，本实装为诚实 lite 等价，非 VAE）
 
 ---
@@ -59,7 +59,7 @@
 
 ```bash
 git clone https://github.com/genesis-plan/lingjing && cd lingjing   # 克隆仓库（npm 包待发布，先仓库直用）
-node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，含 grounding 不幻觉分层项）
+node lingjing-mcp.js --selftest      # 零依赖验证（51/51 工具自检，含 grounding 不幻觉分层项 + 具身层 6 项）
 # 灵数求解器真引擎以 npm 依赖 lingshu-solver 接入（ genesis-plan/lingshu-solver ，独立仓库，已发 npm）
 ```
 
@@ -78,6 +78,26 @@ node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，�
 
 ---
 
+## 三步上手「开始干活」控制台（零安装，非技术也能用）
+
+仓库自带单文件网页控制台 [`lingjing-console.html`](./lingjing-console.html)：把 **① 接入具身智能 → ② 接入外部大模型 → ③ 接入灵境大脑** 做成三个连接面板，最后一颗 **开始干活** 按钮，自然语言任务 → 输出规划 + 执行 + 七段审计 + 不幻觉置信分层。
+
+- **① 接入具身智能**：填身体配置 JSON（状态/硬约束/能力），点「连接身体」→ `setWorld`+`attachBody` 把机器人能力注册进大脑状态空间（**任何物理身体**都行：AGV / 机械臂 / 无人机，内核只认能力契约，不写死身体类型）。
+- **② 接入外部大模型**：填 OpenRouter Key + 选模型 → `configureLLM`；自然语言任务经 `perceiveLLM` 翻成结构化意图。**不填 Key 也能干活**（降级结构化输入，大脑 100% 确定性运行）。
+- **③ 接入灵境大脑**：随页面载入 UMD（87 导出），点「自检」跑 `reason('CHARGE','C')` 验证就绪。
+- **开始干活**：`plan_task`（A\*+hMax 状态空间最优）→ `doWork`（含 `check_hard` SAFE-STOP + `maxReplans` 护栏）→ `generateAudit`（七段审计）。输出 **规划 / 执行 / 审计 / 置信** 四标签，置信页显式标 `PERCEPTION(可能幻觉) / KERNEL(确定性) / PROOF(审计可验证)` 三档。
+- **真实身体模式**：选「真实身体(WebSocket)」填 ws 地址 → 点连接 → 动作发往真身体执行（规划/审计不变）。协议见 [`lingjing-body-bridge.js`](./lingjing-body-bridge.js) + 零依赖仿真服务端 [`lingjing-body-sim-server.js`](./lingjing-body-sim-server.js)（先 `node lingjing-body-sim-server.js` 起一个仿真 AGV 即可端到端试通）。
+
+> 零安装：同目录放 `lingjing.umd.js`，双击本页即可（无需服务器）。
+> ⚠️ 浏览器直连大模型会把 Key 暴露前端，仅限本地演示；正式部署应走服务端代理。具身执行为确定化重规划近似，非 POMDP 最优。
+
+```bash
+node lingjing-body-sim-server.js          # 终端1：起仿真真身体（默认 ws://localhost:8787）
+# 双击 lingjing-console.html → ①连接身体 → 选「真实身体(WebSocket)」填 ws://localhost:8787 → 连接 → 开始干活
+```
+
+---
+
 ## 架构（摘要）
 
 形式化七元组 $\mathbb{B}=(\mathbb{W},K,\Phi,\Psi,\Theta,\Lambda,\Xi)$，八层：感知 $\Phi$ / 学习 $\Psi$ / 知识库 $K$ / 推理 $\Theta$ / 因果 $\Lambda$ / 演化 / 审计 $\Xi$ / 统一。
@@ -87,7 +107,7 @@ node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，�
 
 ---
 
-## 工具接口（MCP，36 个）
+## 工具接口（MCP，46 个）
 
 | 能力 | 工具 | 说明 |
 |---|---|---|
@@ -108,6 +128,7 @@ node lingjing-mcp.js --selftest      # 零依赖验证（45/45 工具自检，�
 | 事件总线 | `event_publish` | EDA 事件发布（感知/推理/学习/审计/元认知） |
 | 数据编排 | `knowledge_fabric` | Data Fabric 知识库版本化（commit/list/diff） |
 | 运行时验证 | `runtime_monitor` / `continuous_verify` | PrSTL 安全停车 / 仓库级持续验证管道 |
+| **具身层（机器人 / 物理身体）** | `attach_body` / `capabilities` / `get_state` / `set_state` / `state_diff` / `check_hard` / `h_max` / `plan_task` / `execute_task` / `positioning` | 注册任意物理身体（能力契约 `id/pre/effect/cost/ground` + 硬约束禁区）→ 大脑内 A\* 状态空间最优规划 → 逐步执行（`check_hard` SAFE-STOP）→ 观测偏差→确定性重规划（`maxReplans` 护栏）；`positioning` 返回产品定位。机器人侧用 `plan_task` 产出动作序列自行驱动真身体，或经 stdio 调用 |
 
 ### `perceive({text, apiKey?})`
 ```json
@@ -201,7 +222,7 @@ OPENROUTER_API_KEY=sk-or-... node examples/simple-robot.js "机器人电量低�
 
 | 方式 | 适用 | 怎么用 |
 |---|---|---|
-| **MCP 服务**（推荐给 AI 客户端） | Claude Desktop / Cursor / Cline 等 | 见上方 `mcpServers` 配置，`lingjing-mcp` 暴露 36 个工具 |
+| **MCP 服务**（推荐给 AI 客户端） | Claude Desktop / Cursor / Cline 等 | 见上方 `mcpServers` 配置，`lingjing-mcp` 暴露 46 个工具（含具身层 10 个） |
 | **库 require**（推荐给开发者/机器人） | Node 项目直接调内核 | `const K = require('./lingjing-mcp'); K.reason(start, goal)`（不自启服务） |
 | **浏览器单文件** | 非技术用户 / 演示 | 双击 `灵境.html`，用大白话让大脑理解并规划 |
 
@@ -244,8 +265,28 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | `selftest-umd.js` | UMD 自测（`node selftest-umd.js` 直接 require 验证 reason/审计/前门因果/不幻觉分层），别人也能跑 |
 | `playground.html` | 零安装网页 Playground（双击即用，引用 `lingjing.umd.js`），可视化规划+审计+不幻觉分层 |
 | `mcp.example.json` | 智能体零安装 MCP 配置（`npx github:genesis-plan/lingjing`），复制即用 |
+| `lingjing-console.html` | 零安装「开始干活」控制台（三步接入 + 开始干活按钮，模拟/真实 WebSocket 双模式），非技术用户首选入口 |
+| `lingjing-body-bridge.js` | 真实身体 WebSocket 桥（零依赖，实现 bodyAdapter 契约：大脑→动作 / 身体→观测态） |
+| `lingjing-body-sim-server.js` | 零依赖真身体仿真服务端（手工 RFC6455），模拟 AGV，供端到端验证真实桥 |
+| `test-console-wiring.js` / `test-real-bridge.js` | 控制台接线 / 真实桥无头验证（9/9 通过），别人可复跑 |
+| `smithery.yaml` | Smithery MCP 市场清单（stdio 启动 + 可选 OPENROUTER_API_KEY） |
+| `LingJing_Brain_Review_Brief_EN.md` | 英文外部评审简报（Embodied Brain 契约最小实装说明） |
 
 > 部署时 `lingjing-mcp.js` 与 `灵境.html` 需同目录（或设 `LINGJING_HTML` 环境变量）。
+
+---
+
+## 分发到各平台（让别人实际用起来）
+
+| 渠道 | 怎么上 | 状态 / 入口 |
+|---|---|---|
+| **GitHub（主仓）** | 已推 `genesis-plan/lingjing`（`worldbrain` 远端） | <https://github.com/genesis-plan/lingjing> — 克隆即跑，零安装 |
+| **MCP 市场：Smithery** | 在 smithery.ai 粘贴本仓库 URL，或待 Smithery Key 就绪后导入 `smithery.yaml` | 仓库已备 `smithery.yaml` |
+| **MCP 市场：mcp.so / Glama / PulseMCP** | 在对应站点粘贴下方 `mcpServers` 配置或本仓库 GitHub URL 即收录 | 见上方「快速接入」`mcpServers` 片段 |
+| **在线试用（免安装）** | 双击 `lingjing-console.html`（同目录需 `lingjing.umd.js`）；或静态托管后给链接 | 见上 COS 镜像：`https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingjing/playground.html` |
+| **npm** | 包 `lingjing-mcp` **暂未发布**（`npm publish` 待放行）；当前以仓库直用 + `npx github:genesis-plan/lingjing` 为主 | — |
+
+> 让别人用的三种方式（任选其一）：① 双击 `lingjing-console.html`（人）② `node lingjing-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
 
 ---
 
@@ -263,6 +304,6 @@ MIT。免费、开源、面向 AI Agent 分发。可作为软著 / 专利材料�
 
 - **提 Bug / 测试报告 / 功能建议**：用仓库 Issue 模板（`bug` / `test-report` / `feature` 三类）。
 - **讨论与用法分享**：GitHub Discussions（仓库 Discussions 标签）。
-- **跑通自测（你也能验证不幻觉）**：`node lingjing-mcp.js --selftest` → 应看到 `SELFTEST OK — 全部 45 项`。
+- **跑通自测（你也能验证不幻觉）**：`node lingjing-mcp.js --selftest` → 应看到 `SELFTEST OK — 全部 51 项`。
 - **贡献代码**：见 [CONTRIBUTING.md](./CONTRIBUTING.md)（含最小复现步骤与测试要求）。
 - **安全/漏洞报告**：见 [SECURITY.md](./SECURITY.md)（请先私信，勿公开 Issue）。

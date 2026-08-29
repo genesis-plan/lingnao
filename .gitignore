@@ -6,3 +6,8 @@ npm-debug.log*
 
 # 灵境运行时记忆存档（神经① 持久化产物，非源码）
 .lingjing-memory.json
+
+# 不入库：备份/打包产物/内部改写脚本
+*.bak
+*.zip
+refactor-lingjing.js

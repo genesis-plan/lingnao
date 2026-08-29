@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵境 LingJing · 开始干活（接入具身智能 / 大模型 / 大脑）</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111c30; --panel2:#16243d; --line:#243a5e;
+    --txt:#e6eefb; --mut:#94a8c6; --acc:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+    --pur:#a78bfa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.55 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:22px;margin:0 0 2px}
+  .sub{color:var(--mut);margin:0 0 18px}
+  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--acc);margin-right:6px}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:18px}
+  @media(max-width:820px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .step h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .step .n{width:22px;height:22px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:12px;color:var(--acc)}
+  .step p{color:var(--mut);margin:4px 0 10px;font-size:12.5px}
+  textarea,input,select{width:100%;background:#0a1424;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  textarea{resize:vertical;min-height:64px}
+  label{display:block;color:var(--mut);font-size:12px;margin:8px 0 3px}
+  button{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--acc);color:#04121f}
+  button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .status{margin-top:9px;font-size:12.5px;min-height:18px}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)} .mut{color:var(--mut)}
+  .cap-list{font-size:11.5px;color:var(--mut);margin-top:8px;line-height:1.5;word-break:break-all}
+  .task{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px}
+  .task h3{margin:0 0 10px;font-size:16px}
+  .go{font-size:15px;padding:11px 20px}
+  .out{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  @media(max-width:820px){.out{grid-template-columns:1fr 1fr}}
+  .tab{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer;text-align:center}
+  .tab.on{background:var(--panel2);border-color:var(--acc);color:var(--acc)}
+  .tab b{display:block;font-size:16px}
+  .tab span{font-size:11px;color:var(--mut)}
+  .panelbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;min-height:120px}
+  .panelbox pre{white-space:pre-wrap;word-break:break-word;margin:0;font:12.5px/1.55 ui-monospace,Menlo,Consolas,monospace;color:#cfe3ff}
+  .kv{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed var(--line)}
+  .kv .k{color:var(--mut);min-width:120px}
+  .pill{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;border:1px solid var(--line)}
+  .pill.ok{color:var(--ok);border-color:var(--ok)} .pill.bad{color:var(--err);border-color:var(--err)} .pill.warn{color:var(--warn);border-color:var(--warn)}
+  details{margin-top:10px;color:var(--mut)} summary{cursor:pointer}
+  .note{background:#0a1424;border:1px solid var(--line);border-left:3px solid var(--acc);border-radius:8px;padding:10px 12px;color:var(--mut);font-size:12.5px;margin:10px 0}
+  code{background:#0a1424;padding:1px 5px;border-radius:5px;color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>灵境 LingJing · 开始干活</h1>
+  <p class="sub"><span class="tag">可审计</span><span class="tag">不幻觉</span><span class="tag">无主体性 Tool-AGI</span><br>
+  把三件事接上：<b>具身智能（身体）</b> + <b>外部大模型（听懂人话）</b> + <b>灵境大脑（推理/约束/审计）</b>，然后输入任务点「开始干活」。</p>
+
+  <div class="steps">
+    <!-- ① 具身智能 -->
+    <div class="step">
+      <h3><span class="n">1</span> 接入具身智能</h3>
+      <p>把一台物理机器人/身体接进来：上报它的能力、初始状态、硬约束（禁区）。大脑不假设任何具体身体。</p>
+      <label>身体配置（可改 state / hard）</label>
+      <textarea id="bodyJson">{
+  "name": "仓储搬运臂",
+  "state": { "location": "CHARGE" },
+  "hard": []
+}</textarea>
+      <div class="cap-list" id="capList">能力清单（内置，随身体固定）：加载中…</div>
+      <div class="row" style="margin-top:10px"><button id="btnBody">连接身体</button></div>
+      <div class="status" id="stBody"></div>
+    </div>
+
+    <!-- ② 外部大模型 -->
+    <div class="step">
+      <h3><span class="n">2</span> 接入外部大模型</h3>
+      <p>接一个 OpenAI 兼容 LLM 做「输入理解」：把你写的自然语言任务翻成大脑能读的结构。可不接（用结构化输入）。</p>
+      <label>API Key（OpenRouter 免费档可用）</label>
+      <input id="llmKey" type="password" placeholder="sk-or-...（留空则不接大模型）">
+      <label>模型</label>
+      <select id="llmModel">
+        <option value="openrouter/free">openrouter/free（免费）</option>
+        <option value="deepseek/deepseek-r1:free">deepseek-r1:free</option>
+        <option value="meta-llama/llama-3.1-8b-instruct:free">llama-3.1-8b:free</option>
+        <option value="google/gemini-2.0-flash-exp:free">gemini-2.0-flash:free</option>
+      </select>
+      <div class="row" style="margin-top:10px"><button id="btnLLM" class="ghost">连接大模型</button></div>
+      <div class="status" id="stLLM"></div>
+      <div class="note" id="llmNote" style="display:none"></div>
+    </div>
+
+    <!-- ③ 灵境大脑 -->
+    <div class="step">
+      <h3><span class="n">3</span> 接入灵境大脑</h3>
+      <p>加载本地确定性内核（可审计推理 + 约束验证 + 七段审计）。已随页面载入，点一下跑自检确认就绪。</p>
+      <div class="cap-list" id="brainInfo">内核模块：加载中…</div>
+      <div class="row" style="margin-top:10px"><button id="btnBrain" class="ghost">接入/自检大脑</button></div>
+      <div class="status" id="stBrain"></div>
+    </div>
+  </div>
+
+  <!-- 任务 + 开始干活 -->
+  <div class="task">
+    <h3>📝 输入任务，开始干活</h3>
+    <label>自然语言任务（接了大模型才解析；没接就直接看下方结构化输入）</label>
+    <textarea id="taskText" placeholder="例：从充电座出发，把货物送到 C 点，避开危险区 D">从充电座出发，把货物送到 C 点</textarea>
+    <div class="row" style="margin-top:8px">
+      <div style="flex:1;min-width:160px">
+        <label>目标位置（结构化兜底）</label>
+        <select id="goalSel"><option>CHARGE</option><option>A</option><option selected>B</option><option>C</option><option>D</option></select>
+      </div>
+      <div style="flex:1;min-width:160px">
+        <label>硬约束禁区（逗号分隔，如 D 或 B,D）</label>
+        <input id="hardInput" placeholder="如 D">
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label style="margin:0 8px 0 0;color:var(--mut)">身体模式</label>
+      <select id="bodyMode" style="width:auto">
+        <option value="sim">模拟身体（默认 · 脑内执行）</option>
+        <option value="real">真实身体（WebSocket）</option>
+      </select>
+      <input id="wsUrl" placeholder="ws://localhost:8787" value="ws://localhost:8787" style="flex:1;min-width:150px">
+      <button id="btnConnect" class="ghost">连接真实身体</button>
+    </div>
+    <div class="status" id="stBridge"></div>
+    <div class="row" style="margin-top:10px">
+      <label style="margin:0"><input type="checkbox" id="failChk" style="width:auto;display:inline;margin-right:6px">（模拟模式）模拟执行故障 · 演示重规划 / SAFE-STOP</label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="go" id="btnGo">▶ 开始干活</button>
+      <span class="mut" id="goStatus"></span>
+    </div>
+  </div>
+
+  <!-- 输出 -->
+  <div class="out">
+    <div class="tab on" data-tab="plan"><b id="tPlan">—</b><span>规划</span></div>
+    <div class="tab" data-tab="exec"><b id="tExec">—</b><span>执行</span></div>
+    <div class="tab" data-tab="audit"><b id="tAudit">—</b><span>审计</span></div>
+    <div class="tab" data-tab="ground"><b id="tGround">—</b><span>置信</span></div>
+  </div>
+  <div class="panelbox" id="outPanel"></div>
+  <details><summary>查看原始 JSON 输出（规划 / 执行 / 审计全文）</summary><pre id="rawJson" style="margin-top:8px"></pre></details>
+
+  <div class="note">
+    给别人用的三种方式：① 双击本页（同目录需 <code>lingjing.umd.js</code>）即可用，无需服务器；② 想让 AI 智能体调用，跑 <code>node lingjing-mcp.js</code>（stdio，暴露 46 个工具）；③ 接真机器人：选「真实身体（WebSocket）」模式，填你机器人的地址（先 <code>node lingjing-body-sim-server.js</code> 起一个仿真真身体试通），机器人只需实现同一套 <code>{action→result}</code> 协议即可被大脑驱动。身体配置里的 capabilities 留在大脑做可审计规划，执行+感知交给真身体。
+  </div>
+</div>
+
+<script src="lingjing.umd.js"></script>
+<script src="lingjing-body-bridge.js"></script>
+<script>
+(function(){
+  "use strict";
+  const L = window.LingJing;
+  if(!L){ document.getElementById('brainInfo').textContent='❌ 未找到 lingjing.umd.js（请与本页放在同一目录）'; return; }
+
+  // ───────────── 内置身体能力（随机器人固定的动作目录）─────────────
+  // 能力契约：pre(状态)=是否可用；eff(状态)=状态如何变化；cost=代价；ground=给执行器/审计器的参数（target 用于 SAFE-STOP 判定）
+  const CAPS_DEFAULT = [
+    {id:'step_CHARGE_A', pre:s=>s.location==='CHARGE', eff:s=>{s.location='A';}, cost:1, ground:()=>({target:'A'})},
+    {id:'step_A_CHARGE', pre:s=>s.location==='A',      eff:s=>{s.location='CHARGE';}, cost:1, ground:()=>({target:'CHARGE'})},
+    {id:'step_A_B', pre:s=>s.location==='A',      eff:s=>{s.location='B';}, cost:1, ground:()=>({target:'B'})},
+    {id:'step_B_A', pre:s=>s.location==='B',      eff:s=>{s.location='A';}, cost:1, ground:()=>({target:'A'})},
+    {id:'step_B_C', pre:s=>s.location==='B',      eff:s=>{s.location='C';}, cost:1, ground:()=>({target:'C'})},
+    {id:'step_C_B', pre:s=>s.location==='C',      eff:s=>{s.location='B';}, cost:1, ground:()=>({target:'B'})},
+    {id:'step_C_D', pre:s=>s.location==='C',      eff:s=>{s.location='D';}, cost:1, ground:()=>({target:'D'})},
+    {id:'step_D_C', pre:s=>s.location==='D',      eff:s=>{s.location='C';}, cost:1, ground:()=>({target:'C'})},
+  ];
+
+  // 世界图（让 reason()/自检也能跑；与身体位置一致）
+  const WORLD = {nodes:['CHARGE','A','B','C','D'],
+    edges:[
+      {from:'CHARGE',to:'A',w:1},{from:'A',to:'CHARGE',w:1},
+      {from:'A',to:'B',w:1},{from:'B',to:'A',w:1},
+      {from:'B',to:'C',w:1},{from:'C',to:'B',w:1},
+      {from:'C',to:'D',w:1},{from:'D',to:'C',w:1}
+    ]};
+
+  let bodyState0 = {location:'CHARGE'};
+  let bodyHard = [];
+  let llmReady = false;
+  let simFail = false, simFailUsed = false;
+  let bridge = null;   // 真实身体 WebSocket 桥
+
+  // 模拟执行器：把能力作用到当前状态，返回观测（带可选故障注入——持续故障以演示 maxReplans 护栏）
+  async function bodyAdapter(cap, params){
+    const def = CAPS_DEFAULT.find(c=>c.id===cap);
+    if(!def) return {ok:false, error:'unknown-capability:'+cap};
+    if(simFail) return {ok:false, error:'simulated persistent body failure'};
+    const s = L.getState();
+    const next = Object.assign({}, s);
+    def.eff(next, params);
+    return {ok:true, state:next};
+  }
+
+  // ───────────── 步骤① 接入具身智能 ─────────────
+  document.getElementById('capList').textContent =
+    '能力清单（内置，随身体固定）：' + CAPS_DEFAULT.map(c=>c.id.replace('step_','')).join(' · ');
+  document.getElementById('btnBody').onclick = function(){
+    const st = document.getElementById('stBody');
+    try{
+      const cfg = JSON.parse(document.getElementById('bodyJson').value);
+      bodyState0 = cfg.state || {location:'CHARGE'};
+      bodyHard = Array.isArray(cfg.hard) ? cfg.hard : [];
+      // 把硬约束同步到输入框，方便「开始干活」时一致
+      document.getElementById('hardInput').value = bodyHard.join(',');
+      const body = {name:cfg.name||'body', state:bodyState0, hard:bodyHard, capabilities:CAPS_DEFAULT};
+      L.setWorld(WORLD);
+      const r = L.attachBody(body);
+      st.className='status ok';
+      st.textContent = '✅ 身体「'+r.body+'」已接入：'+r.capabilities.length+' 个能力，初始状态 '+JSON.stringify(r.state);
+    }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; }
+  };
+
+  // ───────────── 步骤② 接入外部大模型 ─────────────
+  document.getElementById('btnLLM').onclick = function(){
+    const st = document.getElementById('stLLM');
+    const key = document.getElementById('llmKey').value.trim();
+    const model = document.getElementById('llmModel').value;
+    if(!key){
+      llmReady = false;
+      st.className='status mut';
+      st.textContent='ℹ️ 未填 Key：不接大模型，使用结构化输入（大脑仍 100% 工作）';
+      const n=document.getElementById('llmNote'); n.style.display='block';
+      n.innerHTML='没有大模型也能干活——任务用下方「目标位置 / 硬约束」结构化输入即可。要听懂人话再填 Key。注意：浏览器直连会把 Key 发到 OpenRouter，仅供本地演示，正式部署应走服务端代理。';
+      return;
+    }
+    const r = L.configureLLM({apiKey:key, model:model});
+    llmReady = r.ok;
+    st.className = r.ok?'status ok':'status err';
+    st.textContent = r.ok ? '✅ 大模型已接入（'+r.config.model+'，Key 已设置）' : '❌ '+JSON.stringify(r);
+    const n=document.getElementById('llmNote'); n.style.display='block';
+    n.innerHTML='⚠️ 浏览器直连会把 Key 暴露给前端，仅限本地演示；正式部署请在服务端代理转发，别把 Key 放前端。';
+  };
+
+  // ───────────── 步骤③ 接入灵境大脑（自检）─────────────
+  document.getElementById('brainInfo').textContent = '内核已载入；导出函数 '+(Object.keys(L).length)+' 个；点击自检。';
+  document.getElementById('btnBrain').onclick = async function(){
+    const st = document.getElementById('stBrain');
+    st.className='status mut'; st.textContent='自检中…';
+    L.setWorld(WORLD);
+    try{
+      const r = L.reason('CHARGE','C',{hard:[],soft:[]});
+      const ok = r && r.status==='optimal' && Array.isArray(r.path) && r.path[0]==='CHARGE';
+      const pos = (L.POSITIONING && L.POSITIONING.role) ? L.POSITIONING.role : '';
+      st.className = ok?'status ok':'status warn';
+      st.innerHTML = (ok?'✅ 大脑就绪：自动规划 CHARGE→C 最优路径 ✔':'⚠️ 自检未全过') + (pos?'<br><span class="mut">定位：'+pos+'</span>':'');
+    }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; }
+  };
+
+  // ───────────── 真实身体（WebSocket 桥）─────────────
+  if (typeof LingJingBridge === 'undefined') {
+    document.getElementById('stBridge').className = 'status err';
+    document.getElementById('stBridge').textContent = '❌ 未找到 lingjing-body-bridge.js（请与本页同目录）';
+  }
+  document.getElementById('btnConnect').onclick = async function(){
+    const st = document.getElementById('stBridge');
+    const url = document.getElementById('wsUrl').value.trim();
+    if (!url) { st.className='status err'; st.textContent='❌ 请填 WebSocket 地址'; return; }
+    st.className='status mut'; st.textContent='连接中…';
+    if (bridge) { try{ bridge.disconnect(); }catch(e){} bridge = null; }
+    bridge = LingJingBridge.createBodyBridge(url, {
+      timeout: 5000,
+      onLog: function(m){ /* 调试用 */ },
+      onState: function(s){ st.textContent = '🔌 真身体在线 · 当前位置 ' + (s && s.location ? s.location : JSON.stringify(s)); },
+      onClose: function(){ st.className='status warn'; st.textContent='⚠️ 真身体连接已断开'; }
+    });
+    try{
+      await bridge.connect();
+      // 把大脑里配置的身体初始态同步给真身体（复位）
+      const cfg = JSON.parse(document.getElementById('bodyJson').value || '{}');
+      try { await bridge.send({ type:'reset', state: cfg.state || {location:'CHARGE'} }); } catch(e){}
+      st.className='status ok';
+      st.textContent = '✅ 已连接真实身体 '+url+'（动作将发往真身体执行）';
+    }catch(e){
+      st.className='status err'; st.textContent='❌ 连接失败：'+e.message;
+      bridge = null;
+    }
+  };
+
+  // ───────────── 开始干活 ─────────────
+  document.getElementById('btnGo').onclick = async function(){
+    const go = document.getElementById('goStatus');
+    const out = document.getElementById('outPanel');
+    out.innerHTML='<span class="mut">思考中…</span>'; go.textContent='运行中…';
+    simFail = document.getElementById('failChk').checked;
+
+    // 真实身体模式：动作发往真身体（WebSocket）
+    const mode = document.getElementById('bodyMode').value;
+    if (mode === 'real' && (!bridge || !bridge.isConnected())) {
+      out.innerHTML = '<span class="err">请先在「真实身体（WebSocket）」模式下点「连接真实身体」成功后再开始干活。</span>';
+      go.textContent = ''; return;
+    }
+    const executor = (mode === 'real') ? bridge.adapter : bodyAdapter;
+
+    // 真实身体模式：每次运行都先把真身体的物理状态复位到大脑的初始态，
+    // 否则大脑以为在 CHARGE、真身体却停在别处 → 动作前提不成立、执行失败。
+    if (mode === 'real' && bridge && bridge.isConnected()) {
+      try { await bridge.send({ type: 'reset', state: bodyState0, failNext: null, failOnce: null }); } catch (e) {}
+    }
+
+    // 0) 读取身体配置（始终从初始状态重置，保证可复现）
+    let cfg;
+    try{ cfg = JSON.parse(document.getElementById('bodyJson').value); }
+    catch(e){ out.innerHTML='<span class="err">①身体配置 JSON 解析失败：'+e.message+'</span>'; go.textContent=''; return; }
+    bodyState0 = cfg.state || {location:'CHARGE'};
+    L.setWorld(WORLD);
+
+    // 1) 目标 / 硬约束：优先用大模型解析自然语言，否则用结构化输入
+    let target = document.getElementById('goalSel').value.trim();
+    let hard = document.getElementById('hardInput').value.split(',').map(s=>s.trim()).filter(Boolean);
+    if(Array.isArray(cfg.hard) && cfg.hard.length) hard = cfg.hard.filter(Boolean);
+    // 每次运行都从初始状态接入身体（重置硬约束 + 状态）
+    L.attachBody({name:cfg.name||'body', state:bodyState0, hard:hard, capabilities:CAPS_DEFAULT});
+
+    let percept = null;
+    if(llmReady){
+      try{
+        const pc = await L.perceiveLLM(document.getElementById('taskText').value, {});
+        if(pc && pc.ok){
+          percept = pc;
+          const intent = (pc.percept.intent)||{};
+          // 从意图里找目标位置
+          const goalTxt = String(intent.goal||'');
+          const hit = WORLD.nodes.find(n=>goalTxt.toUpperCase().includes(n));
+          if(hit) target = hit;
+          if(Array.isArray(intent.hard) && intent.hard.length) hard = intent.hard.filter(Boolean);
+        }
+      }catch(e){ /* 忽略，回落结构化 */ }
+    }
+
+    // 2) 规划（具身层 A* over 能力状态空间）
+    const goalFn = s => (s&&s.location) === target;
+    const plan = L.planTask(goalFn, {maxLayer:32});
+
+    // 3) 执行（真实身体模式发往 WS 身体；模拟模式用脑内执行器；均含 SAFE-STOP / 重规划）
+    let dw = null;
+    if(plan.ok){
+      dw = await L.doWork(goalFn, executor, {maxReplans:3, deviationTolerance:1, goalFn:goalFn});
+    }
+
+    // 4) 审计（七段 + ⑪执行段，读 LAST_EXECUTION）
+    const ex = dw ? dw.execution : null;
+    const locSeq = [bodyState0.location].concat((ex&&ex.trace)?ex.trace.map(t=>t.observed&&t.observed.location):[]);
+    const auditPath = {
+      id:'EMB', status:(ex&&ex.ok)?'optimal':'halted',
+      path: locSeq, cost:(ex?ex.steps:0),
+      steps: (ex&&ex.trace||[]).map((t,i)=>({seq:i+1, state:JSON.stringify(t.predicted), action:t.cap, result:JSON.stringify(t.observed), reason:'capability '+t.cap+' (KERNEL)', confidence:1, evidenceIds:[]})),
+      opts:{hard:hard, soft:[]}
+    };
+    let audit = null;
+    try{ audit = L.generateAudit(auditPath, {hard:hard, soft:[]}); }catch(e){ audit = {error:e.message}; }
+
+    // 5) 渲染
+    render(plan, dw, ex, audit, percept, target, hard, bodyState0.location);
+    go.textContent='完成';
+  };
+
+  // ───────────── 渲染 ─────────────
+  function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+  let RAW = {};
+  function render(plan, dw, ex, audit, percept, target, hard, startLoc){
+    RAW = {plan, dw, audit, percept};
+    // 顶部数字
+    document.getElementById('tPlan').textContent = plan.ok ? (plan.plan.length+' 步') : '无解';
+    document.getElementById('tPlan').className = plan.ok ? '' : 'err';
+    document.getElementById('tExec').textContent = ex ? (ex.halted?'停机':'跑完') : '—';
+    document.getElementById('tExec').className = ex ? (ex.halted?'warn':'') : '';
+    document.getElementById('tAudit').textContent = (audit && audit.status) ? audit.status : (audit&&audit.error?'ERR':'—');
+    document.getElementById('tAudit').className = (audit&&audit.status==='valid')?'ok':(audit&&audit.status==='unverified'?'warn':'');
+    document.getElementById('tGround').textContent = (audit&&audit.grounding)?'3 档':'—';
+
+    let h = '';
+    // 规划
+    let planHtml = '<div class="kv"><span class="k">目标位置</span><span>'+esc(target)+'</span></div>';
+    planHtml += '<div class="kv"><span class="k">初始位置</span><span>'+esc(startLoc)+'</span></div>';
+    planHtml += '<div class="kv"><span class="k">硬约束</span><span>'+(hard.length?hard.map(x=>'<span class="pill bad">'+esc(x)+'</span>').join(' '):'<span class="mut">无</span>')+'</span></div>';
+    if(plan.ok){
+      planHtml += '<div class="kv"><span class="k">最优动作序列</span><span>'+plan.plan.map(s=>s.cap).join(' → ')+'</span></div>';
+      planHtml += '<div class="kv"><span class="k">保证</span><span class="pill ok">'+(plan.guarantee||'A*+hMax 最优')+'</span></div>';
+      planHtml += '<div class="kv"><span class="k">展开/剪枝</span><span>'+plan.expanded+' / '+plan.pruned+'</span></div>';
+    } else {
+      planHtml += '<div class="kv"><span class="k" style="color:var(--err)">规划失败</span><span>'+esc(plan.error||'')+'</span></div>';
+    }
+    if(percept){
+      planHtml += '<div class="kv"><span class="k">大模型听懂了</span><span class="pill warn">PERCEPTION 可能幻觉</span></div>';
+      planHtml += '<div class="kv"><span class="k">意图</span><span>'+esc(JSON.stringify(percept.percept.intent||{}))+'</span></div>';
+    } else {
+      planHtml += '<div class="kv"><span class="k">大模型</span><span class="mut">未接（用结构化输入）</span></div>';
+    }
+
+    // 执行
+    let execHtml = '';
+    if(!ex){ execHtml = '<span class="mut">无执行（规划失败或未运行）</span>'; }
+    else{
+      execHtml += '<div class="kv"><span class="k">结果</span><span>'+(ex.ok?'<span class="pill ok">达成目标</span>':'<span class="pill warn">停机/未达成</span>')+'</span></div>';
+      execHtml += '<div class="kv"><span class="k">停机原因</span><span>'+(ex.haltReason?('<span class="pill '+(String(ex.haltReason).indexOf('SAFE-STOP')===0?'bad':'warn')+'">'+esc(ex.haltReason)+'</span>'):'<span class="mut">无</span>')+'</span></div>';
+      execHtml += '<div class="kv"><span class="k">重规划次数</span><span>'+ex.replans+'</span></div>';
+      execHtml += '<div class="kv"><span class="k">偏差</span><span>'+ex.deviations.length+'</span></div>';
+      execHtml += '<div class="kv"><span class="k">最终状态</span><span>'+esc(JSON.stringify(ex.finalState))+'</span></div>';
+      execHtml += '<div style="margin-top:8px"><b style="color:var(--mut)">执行轨迹</b><pre>'+
+        ex.trace.map(t=>'· '+t.cap+'  →  '+JSON.stringify(t.observed)).join('\n')+'</pre></div>';
+      if(ex.deviations.length){
+        execHtml += '<div style="margin-top:6px"><b style="color:var(--warn)">偏差记录</b><pre>'+esc(JSON.stringify(ex.deviations,null,1))+'</pre></div>';
+      }
+    }
+
+    // 审计
+    let auditHtml = '';
+    if(audit && audit.error){ auditHtml = '<span class="err">审计出错：'+esc(audit.error)+'</span>'; }
+    else if(audit){
+      auditHtml += '<div class="kv"><span class="k">报告编号</span><span>'+esc(audit.reportId)+'</span></div>';
+      auditHtml += '<div class="kv"><span class="k">总判定</span><span class="pill '+(audit.status==='valid'?'ok':audit.status==='unverified'?'warn':'warn')+'">'+esc(audit.status)+'</span></div>';
+      auditHtml += '<div class="kv"><span class="k">最优路径</span><span>'+esc(audit.summary?audit.summary.key:'')+'</span></div>';
+      const pf = audit.proof||{};
+      auditHtml += '<div class="kv"><span class="k">霍尔证明</span><span>'+(pf.verified===true?'<span class="pill ok">已机器验证 ✔</span>':'<span class="pill warn">未通过/不可判定（fail-closed）</span>')+'</span></div>';
+      const sv = audit.selfVerification||{};
+      auditHtml += '<div class="kv"><span class="k">反向自验证</span><span>'+(sv.passed?'<span class="pill ok">通过</span>':'<span class="pill bad">发现冲突</span>')+'</span></div>';
+      const em = audit.embodied||null;
+      if(em){
+        auditHtml += '<div class="kv"><span class="k">⑪执行段 SAFE-STOP</span><span>'+(em.safeStop?'<span class="pill bad">触发</span>':'<span class="pill ok">未触发</span>')+'</span></div>';
+        auditHtml += '<div class="kv"><span class="k">重规划 / 偏差</span><span>'+em.replans+' / '+em.deviations.length+'</span></div>';
+      }
+      auditHtml += '<div class="kv"><span class="k">不幻觉承诺</span><span>'+(audit.noHallucination?'<span class="pill ok">是（已验证/已声明未知）</span>':'<span class="pill warn">否</span>')+'</span></div>';
+      auditHtml += '<div class="kv"><span class="k">算法版本</span><span>'+esc(audit.reproducible?audit.reproducible.algorithmVersion:'')+' · seed='+esc(audit.reproducible?audit.reproducible.seed:'')+'</span></div>';
+    }
+
+    // 置信
+    let groundHtml = '';
+    const g = L.groundingMeta ? L.groundingMeta() : (audit&&audit.grounding);
+    if(g){
+      const t = g.tiers||g;
+      groundHtml += '<p style="color:var(--mut)">每一条结论都标注它属于哪一档——只有 KERNEL / PROOF 档可作为依据，PERCEPTION 档（大模型/感知）显式标「可能幻觉」，不进证明链。</p>';
+      ['PERCEPTION','KERNEL','PROOF'].forEach(k=>{
+        const tier = t[k]; if(!tier) return;
+        const mh = tier.mayHallucinate;
+        groundHtml += '<div class="kv"><span class="k">'+esc(k)+'</span><span>'+(mh?'<span class="pill bad">可能幻觉</span>':'<span class="pill ok">确定性</span>')+' — '+esc(tier.note||'')+'</span></div>';
+      });
+    } else {
+      groundHtml = '<span class="mut">无置信分层信息</span>';
+    }
+
+    document.getElementById('panel-plan').innerHTML = planHtml;
+    document.getElementById('panel-exec').innerHTML = execHtml;
+    document.getElementById('panel-audit').innerHTML = auditHtml;
+    document.getElementById('panel-ground').innerHTML = groundHtml;
+    document.getElementById('rawJson').textContent = JSON.stringify({plan, dw, audit, percept}, null, 2);
+
+    switchTab('plan');
+  }
+
+  // tab 切换
+  function switchTab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===name));
+    ['plan','exec','audit','ground'].forEach(n=>{
+      const el = document.getElementById('panel-'+n);
+      el.style.display = (n===name)?'block':'none';
+    });
+  }
+  document.querySelectorAll('.tab').forEach(t=> t.onclick = ()=>switchTab(t.dataset.tab));
+  // 预建四个面板容器
+  const op = document.getElementById('outPanel');
+  op.innerHTML = '<div id="panel-plan"></div><div id="panel-exec" style="display:none"></div><div id="panel-audit" style="display:none"></div><div id="panel-ground" style="display:none"></div>';
+})();
+</script>
+</body>
+</html>
