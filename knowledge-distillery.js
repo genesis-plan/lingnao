@@ -370,8 +370,18 @@ const _manuals = {};
 
 const Engine = { distill, reportFailure, confirmStep, render, stepify, localize, verbalize, _manuals, GROUNDING: G };
 
-// 注：不再回写 L.KnowledgeDistillery（修复依赖方向——能力模块不得污染内核命名空间），
-// 消费方请显式 require('./knowledge-distillery.js')。
+// 融合进认知操作系统（2026-08-29）：以"第四层能力"身份注册进内核能力表，由 OS 统一调度。
+// 修复依赖方向：此前是 L.KnowledgeDistillery = Engine（能力模块反向污染内核命名空间），
+// 现在改为能力模块主动注册——依赖方向变为 切片 → 内核，且受统一编排/审计/记忆管辖。
+if (L && L.Capabilities && typeof L.Capabilities.register === 'function') {
+  L.Capabilities.register({
+    id: 'learn.distill',
+    layer: 4,
+    name: '知识蒸馏（专家经验→可复核操作手册）',
+    describe: '把任意领域的隐性经验拆成条件→动作→本地工具→人话步骤，每步带可信档；失败可降级重生',
+    run: (ctx) => Engine.distill((ctx && ctx.input) || {})
+  });
+}
 
 module.exports = Engine;
 

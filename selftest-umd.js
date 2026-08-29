@@ -2,6 +2,10 @@
 const L = require('./lingjing.umd.js');
 function assert(c, msg) { if (!c) { console.error('FAIL: ' + msg); process.exit(1); } console.log('PASS: ' + msg); }
 
+// 自测必须从确定状态起步：神经① 会把学到的经验落盘，若不清理，上一轮学到的
+// 高置信经验会让本轮走系统1快答，使 A*/编排类断言产生"上一次能过、这一次不过"的漂移。
+if (L.Memory && typeof L.Memory.clear === 'function') L.Memory.clear();
+
 assert(typeof L === 'object' && typeof L.reason === 'function', 'UMD 导出为内核对象(reason 可用)');
 assert(typeof L.groundingMeta === 'function' && typeof L.GROUNDING === 'object', '不幻觉置信分层已导出(groundingMeta/GROUNDING)');
 
@@ -69,6 +73,23 @@ const rMeta = L.reason('CHARGE', 'C');
 assert(rMeta.meta && typeof rMeta.meta.system1Threshold === 'number'
   && rMeta.meta.system1Threshold >= 0.6 && rMeta.meta.system1Threshold <= 0.95,
   '神经③ 元认知调度：系统1门槛按不确定性动态给定 = ' + (rMeta.meta && rMeta.meta.system1Threshold) + '（旧版写死 0.8）');
+// ── 切片融合回归锁（认知操作系统 CognitiveOS）────────────────────────
+assert(L.Capabilities.list().length >= 6, '融合：能力表已注册 ' + L.Capabilities.list().length + ' 个能力（跨五层）');
+L.Memory.clear();
+L.setWorld({ nodes:['SRC','FORBID','HUB','DST'],
+  edges:[{from:'SRC',to:'DST',w:5},{from:'SRC',to:'FORBID',w:1},{from:'FORBID',to:'DST',w:1},
+         {from:'SRC',to:'HUB',w:1},{from:'HUB',to:'DST',w:2}] });
+const cyc = L.cognitiveCycle({ domain:'selftest', hub:'HUB',
+  entities:[{id:'SRC', resources:{'物资':10}}, {id:'FORBID', resources:{'物资':100}},
+            {id:'HUB', resources:{'物资':3}},  {id:'DST', needs:{'物资':8}}],
+  goal:'不动禁运节点的前提下补给', constraints:{ hard:['FORBID'] } });
+assert(cyc.allocations.length > 0 && !cyc.allocations.some(a =>
+  a.from === 'FORBID' || a.to === 'FORBID' || a.route.includes('FORBID')),
+  '融合：硬约束贯通到分配层（最小费用流不得经由禁区，此前会绕过约束划走应急金）');
+assert(cyc.layer.L1_action.total > 0 && cyc.summary.mismatches > 0
+  && cyc.layer.L5_metacognition && cyc.layer.L4_learning.saved === true,
+  '融合：统一认知循环端到端可跑（感知→状态→元认知→推理→行动→学习→审计）');
+
 // 探索模式备选路径：换一个"有两条路可走"的世界，并抬高缺口阈值强制进入 explore
 L.setWorld({ nodes:['S','M','T'], edges:[{from:'S',to:'M',w:1},{from:'M',to:'T',w:1},{from:'S',to:'T',w:5}] });
 const rAlt = L.reason('S', 'T', { gapThreshold: 0.99 });

@@ -1415,6 +1415,321 @@ function metaCognition(opts={}){
   };
 }
 // ══════════════════════════════════════════════════════════════════════
+// 认知操作系统（CognitiveOS）—— 按 v3.0 完整骨架"三个核心"落地：
+//   · 一个数学对象：带权有向图 G=(V,E,W,P,C,U)（村庄 / 机队 / 账本 / 手册，全是同一张图）
+//   · 一个核心算法：图上搜索最优路径（A* 协调 + 最小费用流分配）
+//   · 一个底层哲学：可审计、持续学习、因果、不完备性管理
+// 此前问题：各切片（虚拟空间/机队/财务/蒸馏）各建各的世界、各写各的编排 —— 是并列脚本不是大脑。
+// 现在：切片降级为"领域配置"，由统一认知循环 cognitiveCycle() 驱动，能力按五层注册、统一审计与记忆。
+// ══════════════════════════════════════════════════════════════════════
+
+// 能力注册表（契约：{id, layer, name, run(ctx)}）—— 外部切片可 register 接入，受 OS 统一调度
+const Capabilities = {
+  _reg: {},
+  register(cap){
+    if(!cap || !cap.id || !cap.layer || typeof cap.run !== 'function')
+      throw new Error('能力契约不合：需 {id, layer, name, run(ctx)}');
+    if(cap.layer < 1 || cap.layer > 5) throw new Error('layer 须为 1~5（五层认知操作系统）');
+    this._reg[cap.id] = cap;
+    if(typeof EventBus !== 'undefined') EventBus.publish('capability', { id:cap.id, layer:cap.layer });
+    return cap;
+  },
+  list(layer){ return Object.keys(this._reg).map(k => this._reg[k]).filter(c => !layer || c.layer === layer); },
+  run(id, ctx){ const c = this._reg[id]; if(!c) throw new Error('未注册的能力：' + id); return c.run(ctx || {}); }
+};
+
+// —— 图算法：全源最短路（Dijkstra）与最短路还原（供给/需求间转运代价 c_ij） ——
+// exclude：硬约束禁集——被禁节点从图中整体移除（既不作为端点，也不作为中转），
+// 保证"转运代价"本身就不会经由禁区（此前 planTransport 不认 hard，导致绕过约束划走应急金）。
+function allPairsCost(exclude){
+  const ban = new Set(exclude || []);
+  const nodes = WORLD.nodes.filter(n => !ban.has(n));
+  const adj = {}; for(const n of nodes) adj[n] = [];
+  for(const e of WORLD.edges){
+    if(ban.has(e.from) || ban.has(e.to)) continue;
+    if(adj[e.from]) adj[e.from].push({ to:e.to, w:(typeof e.w === 'number' ? e.w : 1) });
+  }
+  const dist = {}, prev = {};
+  for(const s of nodes){
+    const d = {}, pv = {}, seen = {};
+    for(const n of nodes) d[n] = Infinity;
+    d[s] = 0;
+    while(true){
+      let u = null, best = Infinity;
+      for(const n of nodes) if(!seen[n] && d[n] < best){ best = d[n]; u = n; }
+      if(u === null) break;
+      seen[u] = true;
+      for(const e of (adj[u] || [])){ const nd = d[u] + e.w; if(nd < d[e.to] - 1e-12){ d[e.to] = nd; pv[e.to] = u; } }
+    }
+    dist[s] = d; prev[s] = pv;
+  }
+  return { dist, prev };
+}
+function reconstructPath(prev, s, t){
+  if(s === t) return [s];
+  if(!prev[s] || prev[s][t] === undefined) return null;
+  const p = [t]; let c = t;
+  while(c !== s){ c = prev[s][c]; if(c === undefined) return null; p.unshift(c); }
+  return p;
+}
+// —— 最小费用流（逐次最短路增广 / SPFA），运输问题精确最优 ——
+// 供需拆点：同一主体可既供又需，须拆 i__out / i__in 并禁 i__out→i__in，否则 S→i→T 会造零代价"自满足假流"
+function transportation(supplies, demands, costs){
+  const S = '__S__', T = '__T__';
+  const out = i => i + '__out', inn = j => j + '__in';
+  const nodes = [S].concat(Object.keys(supplies).map(out), Object.keys(demands).map(inn), [T]);
+  const idx = {}; nodes.forEach((n, k) => { idx[n] = k; });
+  const N = nodes.length;
+  const graph = []; for(let i = 0; i < N; i++) graph.push([]);
+  function addEdge(u, v, cap, cost){
+    const e1 = { to:idx[v], cap, cost, rev:null }, e2 = { to:idx[u], cap:0, cost:-cost, rev:null };
+    e1.rev = e2; e2.rev = e1; graph[idx[u]].push(e1); graph[idx[v]].push(e2); return e1;
+  }
+  for(const i in supplies) addEdge(S, out(i), supplies[i], 0);
+  for(const j in demands) addEdge(inn(j), T, demands[j], 0);
+  const flowEdges = {};
+  for(const i in supplies) for(const j in demands){
+    if(i === j) continue;
+    const c = costs[i] && costs[i][j];
+    if(c != null && c !== Infinity) flowEdges[i + '→' + j] = addEdge(out(i), inn(j), Infinity, c);
+  }
+  let flow = 0, cost = 0; const s = idx[S], t = idx[T];
+  while(true){
+    const dist = new Array(N).fill(Infinity), inq = new Array(N).fill(false);
+    const pe = new Array(N).fill(null), pv = new Array(N).fill(-1);
+    dist[s] = 0; const q = [s]; inq[s] = true;
+    while(q.length){
+      const u = q.shift(); inq[u] = false;
+      for(const e of graph[u]){
+        if(e.cap > 1e-12 && dist[u] + e.cost < dist[e.to] - 1e-12){
+          dist[e.to] = dist[u] + e.cost; pe[e.to] = e; pv[e.to] = u;
+          if(!inq[e.to]){ q.push(e.to); inq[e.to] = true; }
+        }
+      }
+    }
+    if(dist[t] === Infinity) break;
+    let push = Infinity;
+    for(let v = t; v !== s; v = pv[v]) push = Math.min(push, pe[v].cap);
+    for(let v = t; v !== s; v = pv[v]){ pe[v].cap -= push; pe[v].rev.cap += push; }
+    flow += push; cost += push * dist[t];
+  }
+  const assignments = [];
+  for(const k in flowEdges){
+    const used = flowEdges[k].rev.cap;
+    if(used > 1e-12){ const p = k.split('→'); assignments.push({ i:p[0], j:p[1], amount:used }); }
+  }
+  return { flow, cost, assignments };
+}
+
+// —— L2：确保领域通道连通（实体—中枢—实体，双向可达；跨领域无连边，故不会误连）——
+// 世界图是累积的：不同领域的新节点/边会并入同一张 G，而不是每次换一个世界（规格：一个数学对象）
+function ensureChannels(entities, hub, channels){
+  const added = { nodes:0, edges:0 };
+  const link = (a, b, w) => {
+    for(const pair of [[a, b], [b, a]]){
+      const f = pair[0], t = pair[1];
+      if(!WORLD.nodes.includes(f)){ WORLD.nodes.push(f); added.nodes++; }
+      if(!WORLD.nodes.includes(t)){ WORLD.nodes.push(t); added.nodes++; }
+      const dup = WORLD.edges.find(e => e.from === f && e.to === t);
+      if(!dup){ WORLD.edges.push({ from:f, to:t, w:(typeof w === 'number' ? w : 1), p:0.99 }); added.edges++; }
+    }
+  };
+  if(hub){ WORLD.hub = hub; for(const e of (entities || [])) if(e && e.id != null) link(String(e.id), hub, 1); }
+  for(const c of (channels || [])) if(c && c[0] != null && c[1] != null) link(String(c[0]), String(c[1]), c[2]);
+  return added;
+}
+// —— L2：把领域实体（资源持有/缺口/产能）叠加到世界图 G 上 ——
+function attachResources(entities){
+  if(!Array.isArray(entities)) throw new Error('attachResources 需要 entities 数组');
+  WORLD.resources = WORLD.resources || {}; WORLD.needs = WORLD.needs || {}; WORLD.entities = WORLD.entities || {};
+  for(const e of entities){
+    if(!e || e.id == null) throw new Error('实体缺少 id');
+    const id = String(e.id);
+    if(!WORLD.nodes.includes(id)) WORLD.nodes.push(id);
+    WORLD.resources[id] = Object.assign({}, e.resources || {});
+    WORLD.needs[id] = Object.assign({}, e.needs || {});
+    WORLD.entities[id] = { id, name:e.name || id, produces:e.produces || null };
+  }
+  return { nodes:WORLD.nodes.length, entities:Object.keys(WORLD.entities).length,
+           grounding:GROUNDING.KERNEL };
+}
+// —— L2/L3：发现错配（谁缺什么、谁多什么、谁能造什么）——
+function discoverMismatch(){
+  const res = WORLD.resources || {}, need = WORLD.needs || {}, ents = WORLD.entities || {};
+  const out = [];
+  for(const id in need){
+    for(const r in need[id]){
+      const deficit = need[id][r];
+      if(!(deficit > 0)) continue;
+      const direct = [];
+      for(const oid in res){ if(oid === id) continue; const a = res[oid][r] || 0; if(a > 0) direct.push({ entity:oid, surplus:a }); }
+      const makers = [];
+      for(const oid in ents){
+        const en = ents[oid];
+        if(en && en.produces && en.produces.resource === r && oid !== id)
+          makers.push({ entity:oid, makes:r, from:en.produces.from, rate:en.produces.rate });
+      }
+      out.push({ id:'M' + (out.length + 1), resource:r, deficitEntity:id, deficit,
+        direct, makers, type: direct.length ? 'direct' : (makers.length ? 'production' : 'unmet') });
+    }
+  }
+  return out;
+}
+// —— L3：协调（用大脑 reason 求最优流转路径；失败回落全源最短路）——
+function coordinateMismatch(list, opts){
+  opts = opts || {};
+  const aps = allPairsCost(opts.hard);
+  const plans = [];
+  for(const m of list){
+    const supplier = (m.direct[0] && m.direct[0].entity) || (m.makers[0] && m.makers[0].entity);
+    if(!supplier){ plans.push({ matchId:m.id, resource:m.resource, status:'NO_SUPPLIER', route:null }); continue; }
+    let route = null, cost = null, rr = null;
+    try {
+      const r = reason(supplier, m.deficitEntity, opts);
+      if(r && r.path && r.path.length){ route = r.path; cost = r.cost; rr = r; }
+    } catch(e) { /* 回落最短路 */ }
+    if(!route && aps.dist[supplier] && aps.dist[supplier][m.deficitEntity] !== Infinity){
+      route = reconstructPath(aps.prev, supplier, m.deficitEntity);
+      cost = aps.dist[supplier][m.deficitEntity];
+    }
+    plans.push({ matchId:m.id, resource:m.resource, from:supplier, to:m.deficitEntity,
+      route:route || null, cost, reasonResult:rr || null,
+      grounding: rr ? GROUNDING.PROOF : GROUNDING.KERNEL });
+  }
+  return plans;
+}
+// —— L3：数学建模（把资源调拨写成运输问题，最小费用流求精确最优）——
+function planTransport(opts){
+  opts = opts || {};
+  const hard = new Set(opts.hard || []);       // 约束单一真源：分配层同样尊重硬约束
+  const aps = allPairsCost(opts.hard);         // 转运代价不得经由禁区
+  const res = WORLD.resources || {}, need = WORLD.needs || {};
+  const resources = new Set();
+  for(const id in res) for(const r in res[id]) if(res[id][r] > 0) resources.add(r);
+  for(const id in need) for(const r in need[id]) if(need[id][r] > 0) resources.add(r);
+  const flows = [], models = [];
+  let totalCost = 0, totalFlow = 0, unmet = 0;
+  for(const r of resources){
+    const supplies = {}, demands = {};
+    // 禁集节点既不得作为供给方，也不得作为接收方（硬约束 = 不许碰）
+    for(const id in res) if((res[id][r] || 0) > 0 && !hard.has(id)) supplies[id] = res[id][r];
+    for(const id in need) if((need[id][r] || 0) > 0 && !hard.has(id)) demands[id] = need[id][r];
+    if(!Object.keys(supplies).length || !Object.keys(demands).length) continue;
+    const costs = {};
+    for(const i in supplies){
+      costs[i] = {};
+      for(const j in demands){
+        if(i === j) continue;
+        const d = aps.dist[i] && aps.dist[i][j];
+        if(d != null && d !== Infinity) costs[i][j] = d;
+      }
+    }
+    const sol = transportation(supplies, demands, costs);
+    for(const a of sol.assignments){
+      const rt = reconstructPath(aps.prev, a.i, a.j);
+      if(!rt) throw new Error('求解内部错误：' + a.i + '→' + a.j + ' 距离有限但最短路缺失');
+      const uc = aps.dist[a.i][a.j];
+      flows.push({ resource:r, from:a.i, to:a.j, amount:a.amount, unitCost:uc, route:rt });
+      totalCost += uc * a.amount; totalFlow += a.amount;
+    }
+    const totDem = Object.keys(demands).reduce((s, k) => s + demands[k], 0);
+    unmet += totDem - sol.flow;
+    models.push({ resource:r, supplies, demands, optimalCost:sol.cost, method:'min-cost-flow' });
+  }
+  return { flows, models, totalCost:Math.round(totalCost * 1000) / 1000, totalFlow,
+           unmet:Math.round(unmet * 1000) / 1000, method:'min-cost-flow(SSP/SPFA)', optimal:true };
+}
+// —— L1：行动（确定性调拨 + 库存校验 + 落经验 + 发事件）——
+function applyAllocations(flows){
+  const done = [];
+  for(const f of flows){
+    const fromRes = (WORLD.resources || {})[f.from], toRes = (WORLD.resources || {})[f.to];
+    if(!fromRes || !toRes){ done.push(Object.assign({}, f, { status:'SKIPPED', reason:'主体不存在' })); continue; }
+    const avail = fromRes[f.resource] || 0;
+    const need = ((WORLD.needs || {})[f.to] || {})[f.resource] || 0;
+    const amount = Math.max(0, Math.min(avail, need, f.amount));
+    if(!(amount > 0)){ done.push(Object.assign({}, f, { status:'BLOCKED', amount:0 })); continue; }
+    fromRes[f.resource] = avail - amount;
+    toRes[f.resource] = (toRes[f.resource] || 0) + amount;
+    ((WORLD.needs || {})[f.to])[f.resource] = Math.max(0, need - amount);
+    KB.addExperience(f.from, f.to, true, 0.5, 'allocation');
+    WORLD._txCounter = (WORLD._txCounter || 0) + 1;
+    const entry = { id:'TX' + WORLD._txCounter, from:f.from, to:f.to, resource:f.resource,
+                    amount, route:f.route, ts:new Date().toISOString() };
+    if(typeof EventBus !== 'undefined') EventBus.publish('action', entry);
+    done.push(Object.assign({}, f, { amount, status: amount < need ? 'PARTIAL' : 'ALLOCATED', tx:entry.id }));
+  }
+  return done;
+}
+// —— 统一认知循环：感知 → 状态 → 元认知调度 → 推理 → 行动 → 学习 → 审计 ——
+// 这是"大脑"唯一的编排入口；切片只提供领域配置（entities / goal / observations / constraints）。
+function cognitiveCycle(task){
+  task = task || {};
+  const t0 = Date.now();
+  const rep = { cycleId:'CYC' + t0, domain:task.domain || 'generic', ts:new Date().toISOString(), layer:{} };
+  // L1 感知
+  if(task.observations && task.observations.length)
+    rep.layer.L1_perception = perceive({ source:task.source || 'cognitive-cycle', evidence:task.evidence || null, observations:task.observations });
+  else if(task.entities) rep.layer.L1_perception = { ok:true, mode:'structured-input', note:'宿主直供结构化实体（跳过感知）' };
+  // L2 状态空间（先确保连通，再叠加资源）
+  if(task.entities){
+    const ch = ensureChannels(task.entities, task.hub, task.channels);
+    rep.layer.L2_state = Object.assign(attachResources(task.entities), { channels:ch });
+  }
+  const mismatches = discoverMismatch();
+  rep.layer.L2_mismatchCount = mismatches.length;
+  // L5 元认知调度（决定本轮怎么想）
+  const mc = metaCognition({ threshold:task.gapThreshold, alpha:task.alpha });
+  rep.layer.L5_metacognition = { mode:mc.decision.exploreExploit, uncertainty:mc.uncertainty.global,
+    gaps:mc.knowledgeGaps.length, system1Threshold:+(0.6 + 0.35 * mc.uncertainty.global).toFixed(3) };
+  // L3 推理：协调（路径）+ 数学建模（最优分配）
+  const plans = coordinateMismatch(mismatches, task.constraints || {});
+  const transport = planTransport(task.constraints || {});   // 约束贯通到分配层
+  const hardList = ((task.constraints || {}).hard) || [];
+  const violated = transport.flows.filter(f => hardList.indexOf(f.from) >= 0 || hardList.indexOf(f.to) >= 0
+    || f.route.some(n => hardList.indexOf(n) >= 0));
+  rep.layer.L3_planning = { coordination:plans.length, method:transport.method,
+    flows:transport.flows.length, totalCost:transport.totalCost, unmet:transport.unmet, optimal:transport.optimal,
+    hardConstraints:{ nodes:hardList, violated:violated.length, passed:violated.length === 0 } };
+  // L1 行动
+  const allocations = applyAllocations(transport.flows);
+  rep.layer.L1_action = { allocations:allocations.length, total:allocations.reduce((s, a) => s + (a.amount || 0), 0) };
+  // L4 学习（行动内已落 KB 与事件；此处落盘持久化）
+  const saved = Memory.save();
+  rep.layer.L4_learning = { saved:saved.ok, exp:KB.summary().count };
+  // L3 审计：逐条真推理结果审计（fail-closed）
+  const audited = plans.filter(p => p.reasonResult).map(p => {
+    try {
+      const a = generateAudit(p.reasonResult);
+      return { route:p.reasonResult.path, status:a.status, verified:!!(a.proof && a.proof.verified), noHallucination:a.noHallucination };
+    } catch(e) { return { route:p.route, status:'audit_failed', verified:false, noHallucination:false }; }
+  });
+  const passed = audited.filter(a => a.verified).length;
+  rep.layer.L3_audit = { audited:audited.length, passed,
+    status: (audited.length && passed === audited.length) ? 'valid'
+      : (audited.some(a => a.status === 'audit_failed') ? 'audit_failed' : 'unverified'),
+    noHallucination: audited.length > 0 && audited.every(a => a.noHallucination === true) };
+  rep.mismatches = mismatches; rep.plans = plans; rep.transport = transport;
+  rep.allocations = allocations; rep.audited = audited;
+  rep.summary = { domain:rep.domain, mismatches:mismatches.length, allocations:allocations.length,
+    totalCost:transport.totalCost, unmet:transport.unmet, audit:rep.layer.L3_audit.status,
+    noHallucination:rep.layer.L3_audit.noHallucination };
+  rep.elapsedMs = Date.now() - t0;
+  if(typeof EventBus !== 'undefined') EventBus.publish('cycle', rep.summary);
+  return rep;
+}
+
+// 内置能力注册（按五层归属；外部切片可用 Capabilities.register 继续挂载）
+[
+  { id:'world.mismatch',    layer:2, name:'发现错配',        run:(ctx) => discoverMismatch() },
+  { id:'reason.coordinate', layer:3, name:'协调最优路径',    run:(ctx) => coordinateMismatch(discoverMismatch(), (ctx && ctx.constraints) || {}) },
+  { id:'reason.transport',  layer:3, name:'数学建模最优分配', run:() => planTransport() },
+  { id:'act.allocate',      layer:1, name:'执行调拨',        run:(ctx) => applyAllocations((ctx && ctx.flows) || planTransport().flows) },
+  { id:'meta.schedule',     layer:5, name:'元认知调度',      run:(ctx) => metaCognition(ctx || {}) },
+  { id:'audit.report',      layer:3, name:'审计报告',        run:(ctx) => generateAudit((ctx && ctx.path) || {}) }
+].forEach(cap => Capabilities.register(cap));
+
+// ══════════════════════════════════════════════════════════════════════
 // 冷启动自举（置于内核最末：此时所有 const 均已声明，Memory 可安全恢复全部构件）
 // 有存档 → 恢复记忆（不再从零失忆）；无存档 → 注入默认场景并建档
 // ══════════════════════════════════════════════════════════════════════
@@ -1439,7 +1754,9 @@ if(typeof globalThis!=='undefined'){
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
     EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED,
     explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer,
-    Memory, bootMemory, confirmObservation, exploreAlternatives};
+    Memory, bootMemory, confirmObservation, exploreAlternatives,
+    Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch,
+    planTransport, applyAllocations, allPairsCost, reconstructPath, transportation};
 }
 
 // ===================== UI 编排 =====================

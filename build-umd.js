@@ -27,7 +27,11 @@ const EXPORT_NAMES = [
   'ALGO_VERSION', 'SEED', 'explainWithLLM', 'askBrain', 'causalEffect',
   'groundingMeta', 'GROUNDING', 'validateWorld',
   // 三根神经（2026-08-29）：记忆持久化 / 感知建图闭环 / 元认知调度
-  'Memory', 'bootMemory', 'confirmObservation', 'exploreAlternatives'
+  'Memory', 'bootMemory', 'confirmObservation', 'exploreAlternatives',
+  // 认知操作系统（切片融合）：统一编排 + 能力注册 + 图上资源流
+  'Capabilities', 'cognitiveCycle', 'attachResources', 'discoverMismatch',
+  'coordinateMismatch', 'planTransport', 'applyAllocations',
+  'allPairsCost', 'reconstructPath', 'transportation'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';

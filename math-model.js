@@ -10,31 +10,13 @@ const G = L.GROUNDING || { KERNEL: 'KERNEL', PROOF: 'PROOF' };
 const line = (s = '') => console.log(s);
 
 // ---------- 图论：全源最短路（Dijkstra，w=转运代价） ----------
+// 融合（2026-08-29）：委托内核 allPairsCost / reconstructPath，消除与内核重复的第二份实现。
 function allPairsShortest(world) {
-  const adj = {};
-  for (const n of world.graph.nodes) adj[n] = [];
-  for (const e of world.graph.edges) adj[e.from].push([e.to, e.w]);
-  const dist = {}, prev = {};
-  for (const s of world.graph.nodes) {
-    dist[s] = {}; prev[s] = {};
-    const Q = new Set(world.graph.nodes), d = {};
-    for (const n of Q) d[n] = Infinity; d[s] = 0;
-    while (Q.size) {
-      let u = null, best = Infinity;
-      for (const n of Q) if (d[n] < best) { best = d[n]; u = n; }
-      if (u === null) break; Q.delete(u);
-      for (const [v, w] of adj[u]) { const nd = d[u] + w; if (nd < d[v]) { d[v] = nd; prev[s][v] = u; } }
-    }
-    dist[s] = d;
-  }
-  return { dist, prev };
+  if (world && world.graph) L.setWorld(world.graph);   // 确保内核世界与传入空间一致
+  const aps = L.allPairsCost();
+  return { dist: aps.dist, prev: aps.prev };
 }
-function path(prev, s, t) {
-  if (prev[s][t] === undefined && s !== t) return null;
-  const p = [t]; let c = t;
-  while (c !== s) { c = prev[s][c]; if (c === undefined) return null; p.unshift(c); }
-  return p;
-}
+const path = (prev, s, t) => L.reconstructPath(prev, s, t);
 
 // ---------- 数学建模：把空间写成运输问题 ----------
 function buildModel(world) {
@@ -70,59 +52,13 @@ function printModel(model) {
   }
 }
 
-// ---------- 求解：最小费用流（逐次最短路增广 / SPFA），运输问题精确最优 ----------
-// 终止时残差网络无负费用圈 ⇒ LP 最优（确定性、可审计）。每条边流量可从反向边容量读回。
-function solveTransportation(supplies, demands, costs) {
-  const S = '__S__', T = '__T__';
-  // 供需拆点：同一主体可既是供给方又是需求方（持有与缺口并存），必须拆成 i__out / i__in 两个节点，
-  // 且不设 i__out→i__in 边——否则 S→i→T 会造出"自己满足自己"的零代价假流（本模块曾因此虚报满足率）。
-  const out = i => i + '__out', inn = j => j + '__in';
-  const nodes = [S].concat(Object.keys(supplies).map(out), Object.keys(demands).map(inn), [T]);
-  const idx = {}; nodes.forEach((n, k) => { idx[n] = k; });
-  const N = nodes.length;
-  const graph = Array.from({ length: N }, () => []);
-  const addEdge = (u, v, cap, cost) => {
-    const e1 = { to: idx[v], cap, cost, rev: null }, e2 = { to: idx[u], cap: 0, cost: -cost, rev: null };
-    e1.rev = e2; e2.rev = e1;
-    graph[idx[u]].push(e1); graph[idx[v]].push(e2);
-    return e1;
-  };
-  for (const i in supplies) addEdge(S, out(i), supplies[i], 0);
-  for (const j in demands) addEdge(inn(j), T, demands[j], 0);
-  const flowEdges = {};
-  for (const i in supplies) for (const j in demands) {
-    if (i === j) continue;                       // 禁止自环：资源只在主体之间流转
-    const c = costs[i] && costs[i][j];
-    if (c != null && c !== Infinity) flowEdges[i + '→' + j] = addEdge(out(i), inn(j), Infinity, c);
-  }
-  let flow = 0, cost = 0;
-  const s = idx[S], t = idx[T];
-  while (true) {
-    const dist = new Array(N).fill(Infinity), inq = new Array(N).fill(false);
-    const pe = new Array(N).fill(null), pv = new Array(N).fill(-1);
-    dist[s] = 0; const q = [s]; inq[s] = true;
-    while (q.length) {                            // SPFA 找残差网络最短费用路
-      const u = q.shift(); inq[u] = false;
-      for (const e of graph[u]) {
-        if (e.cap > 1e-12 && dist[u] + e.cost < dist[e.to] - 1e-12) {
-          dist[e.to] = dist[u] + e.cost; pe[e.to] = e; pv[e.to] = u;
-          if (!inq[e.to]) { q.push(e.to); inq[e.to] = true; }
-        }
-      }
-    }
-    if (dist[t] === Infinity) break;              // 无增广路 ⇒ 已是最大流且费用最小
-    let push = Infinity;
-    for (let v = t; v !== s; v = pv[v]) push = Math.min(push, pe[v].cap);
-    for (let v = t; v !== s; v = pv[v]) { pe[v].cap -= push; pe[v].rev.cap += push; }
-    flow += push; cost += push * dist[t];
-  }
-  const assignments = [];
-  for (const k in flowEdges) {
-    const used = flowEdges[k].rev.cap;            // 反向边净容量 = 该边净流量
-    if (used > 1e-12) { const p = k.split('→'); assignments.push({ i: p[0], j: p[1], amount: used }); }
-  }
-  return { flow, cost, assignments };
-}
+// ---------- 求解：最小费用流 ----------
+// 融合（2026-08-29）：求解器已收归内核（L3 能力 reason.transport），本模块改为委托，
+// 消除"第二份大脑"——此前本文件与内核各有一套求解实现，是专家审查点名的重复编排。
+// 内核实现：逐次最短路增广（SPFA），终止时残差网络无负费用圈 ⇒ LP 精确最优；
+// 且做供需拆点，杜绝 S→i→T 的"自己满足自己"零代价假流。
+const solveTransportation = (supplies, demands, costs) =>
+  L.transportation(supplies, demands, costs);
 
 function solveModel(model) {
   const { dist, prev } = model.aps;
