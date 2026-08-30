@@ -1,21 +1,90 @@
-MIT License
+灵脑 (LingNao) 商业授权许可协议
+LingNao Commercial License
 
-Copyright (c) 2026 红尘灵境数字科技有限公司 / 太白（邓其聪）
+Copyright (c) 2026 红尘灵境数字科技有限公司 / 太白（邓其聪）.
+版权所有，保留一切权利。All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+--------------------------------------------------------------------------------
+一、著作权与权利保留
+--------------------------------------------------------------------------------
+本软件（包括但不限于源代码、目标代码、二进制文件、模型权重、文档及随附
+资料，以下简称"本软件"）的著作权及相关知识产权均归上述版权方（以下简称
+"版权方"）所有。除本协议明确授予的有限许可外，任何权利（包括但不限于复制、
+修改、分发、再许可、出租、出借、商业使用、制作衍生作品之权利）均由版权方
+保留。
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+--------------------------------------------------------------------------------
+二、非商业性使用（免费）
+--------------------------------------------------------------------------------
+在同时满足下列全部条件的"非商业性使用"范围内，版权方免费授予您一项非独占、
+不可转让、可随时撤销的使用许可：
+  1. 个人学习、研究、教学或技术评测；
+  2. 非营利组织、开源社区或教育机构的内部非营利用途；
+  3. 年营业收入不超过人民币 [__] 万元的团队，将本软件仅用于内部评估，且同时
+     运行的实例数不超过 [__] 个。
+上述许可的前提条件：
+  (a) 您须在每一份副本或任何实质性部分中完整保留本版权声明与许可声明；
+  (b) 未经版权方书面同意，不得移除、遮挡或篡改本软件中的任何版权、商标或
+      许可标识；
+  (c) 为互操作性所必须的法定反向工程情形除外，您不得对本软件进行反向工程、
+      反编译或反汇编。
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+--------------------------------------------------------------------------------
+三、商业使用（须事先取得书面授权）
+--------------------------------------------------------------------------------
+任何"商业使用"均须事先取得版权方签署的书面《商业授权协议》（Commercial
+License），未获书面授权一律禁止。商业使用包括但不限于：
+  - 将本软件用于任何以营利为目的的产品、服务或业务；
+  - 通过 SaaS、云部署、API 或任何其他方式，向第三方提供基于本软件的能力
+    （无论是否收费）；
+  - 将本软件集成、嵌入或捆绑进任何商业发行物、设备或解决方案；
+  - 对本软件进行再分发、转授权或对外提供托管；
+  - 任何超出第二条"非商业性使用"范围的使用。
+未经书面授权的任何商业使用均构成对版权的侵权，版权方保留依法追究全部法律
+责任（包括但不限于停止侵权、损害赔偿及诉讼费用）的权利。
+
+--------------------------------------------------------------------------------
+四、获取商业授权
+--------------------------------------------------------------------------------
+商业授权申请与商务合作，请通过以下渠道联系版权方：
+  联系人：红尘灵境数字科技有限公司 / 太白（邓其聪）
+  渠道：<请在此填写授权联系邮箱或商务对接渠道>
+授权范围、地域、期限与费用以双方签署的书面协议为准。
+
+--------------------------------------------------------------------------------
+五、商标与品牌
+--------------------------------------------------------------------------------
+"灵脑 / LingNao" 及相关名称、标识为版权方的商标或商号。本协议不授予任何
+商标使用权。未经书面许可，您不得使用上述名称、标识进行任何宣传或背书。
+
+--------------------------------------------------------------------------------
+六、无担保与责任限制
+--------------------------------------------------------------------------------
+本软件按"现状"提供，不提供任何明示或默示担保（包括但不限于对适销性、
+特定用途适用性及不侵权的担保）。在任何情况下，无论基于合同、侵权或其他法
+理，版权方均不对因使用或无法使用本软件所产生的任何直接、间接、附带、特殊
+或后果性损害承担责任。
+
+--------------------------------------------------------------------------------
+七、终止
+--------------------------------------------------------------------------------
+若您违反本协议任何条款，本许可自动终止。终止后您须立即停止使用本软件，并
+销毁所持有的全部副本（包括任何备份与衍生作品）。
+
+--------------------------------------------------------------------------------
+八、适用法律
+--------------------------------------------------------------------------------
+本协议受中华人民共和国法律管辖，并按其解释。因本协议产生的争议，提交版权
+方所在地有管辖权的人民法院诉讼解决。
+
+--------------------------------------------------------------------------------
+英文摘要 / English Summary
+--------------------------------------------------------------------------------
+Copyright (c) 2026 红尘灵境数字科技有限公司 / 太白（邓其聪）. All rights reserved.
+This software is NOT open source and NOT free for commercial use. Non-commercial
+use (personal study, research, non-profit / educational internal use, or limited
+internal evaluation within a small low-revenue team) is permitted free of charge
+subject to retaining this notice. ANY commercial use requires a prior written
+Commercial License from the copyright holder. Unauthorized commercial use is
+prohibited and constitutes copyright infringement. Provided "AS IS" without
+warranty; liability is excluded to the maximum extent permitted by law.
