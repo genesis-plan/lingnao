@@ -59,6 +59,12 @@
       "statement": "凸集分离定理：凸函数的一阶条件是最优性的充要条件",
       "field": "凸分析",
       "source": "Rockafellar 凸分析"
+    },
+    {
+      "id": "AX_CONTINUITY",
+      "statement": "拓扑与连续性：在标准拓扑/度量空间（ℝⁿ 欧氏、测度与函数空间的弱/强拓扑）中极限、收敛、连续映射良定义；局部 Lipschitz 连续的 f 使动力学流 φ_t(x) 局部存在唯一",
+      "field": "拓扑学/分析学",
+      "source": "标准拓扑与泛函分析；Cauchy–Lipschitz 存在唯一性"
     }
   ],
   "theorems": [
@@ -94,6 +100,57 @@
       ]
     },
     {
+      "id": "THM_ODE_EXISTENCE",
+      "statement": "f 局部 Lipschitz 连续 ⟹ 初值问题 ẋ = f(x,u) 的解 φ_t(x) 局部存在且唯一（Cauchy–Lipschitz / Picard–Lindelöf）",
+      "by": "DERIVE",
+      "from": [
+        "AX_REAL",
+        "AX_CONTINUITY"
+      ],
+      "field": "常微分方程",
+      "proof": "将 ODE 化为等价积分方程 x(t)=x₀+∫₀ᵗf(x(s),u)ds；Picard 迭代在该等价映射下为压缩（Lipschitz 常数 q 使 q·|t|<1）⟹ 由 Banach 不动点得唯一不动点即解。",
+      "evidence": "CBF 不变性、可达集、LQR 的全部\"流 φ_t 良定义\"断言都建立在此定理上；缺它则动力学推理无地基",
+      "depth": 2,
+      "axioms": [
+        "AX_REAL",
+        "AX_CONTINUITY"
+      ]
+    },
+    {
+      "id": "THM_WEIERSTRASS",
+      "statement": "紧集上的连续函数必取到最大值与最小值（极值定理）⟹ 一切\"最优控制/最优分配\"结论中的最优值存在",
+      "by": "DERIVE",
+      "from": [
+        "AX_REAL",
+        "AX_CONTINUITY"
+      ],
+      "field": "实分析",
+      "proof": "连续性 + 紧性 ⟹ 像集紧；紧子集在 ℝ 中闭且有界 ⟹ 上/下确界作为聚点可达。",
+      "evidence": "LQR / 匈牙利 / CBF 的\"存在最优解\"均依赖此存在性，否则\"最优性\"无从谈起（只能谈下界）",
+      "depth": 2,
+      "axioms": [
+        "AX_REAL",
+        "AX_CONTINUITY"
+      ]
+    },
+    {
+      "id": "THM_BANACH_FP",
+      "statement": "完备度量空间上的压缩映射 T 有唯一不动点，且任意初值迭代 Tⁿ(x) 收敛于它（收敛速率由压缩系数 q<1 决定）",
+      "by": "DERIVE",
+      "from": [
+        "AX_REAL",
+        "AX_CONTINUITY"
+      ],
+      "field": "泛函分析",
+      "proof": "d(Tⁿx,Tⁿy) ≤ qⁿd(x,y)（q<1）⟹ {Tⁿx₀} 为 Cauchy 列；空间完备 ⟹ 极限存在且唯一，且 d(x*,Tⁿx₀) ≤ qⁿ/(1−q)·d(x₀,Tx₀)。",
+      "evidence": "值迭代 / 策略迭代 / 一致启发式 A* 的收敛性由本定理保证；与 THM_KLEENE 互补（序格 vs 度量）",
+      "depth": 2,
+      "axioms": [
+        "AX_REAL",
+        "AX_CONTINUITY"
+      ]
+    },
+    {
       "id": "THM_ASTAR_OPTIMAL",
       "statement": "启发式一致（h(n) ≤ c(n,n′)+h(n′) 且 h(goal)=0）⟹ A* 返回最优解",
       "by": "DERIVE",
@@ -115,13 +172,15 @@
       "statement": "对偶可行 ∧ 互补松弛 ∧ 强对偶（gap=0）⟹ 该分配为整数最优",
       "by": "DERIVE",
       "from": [
+        "AX_LINEAR",
         "AX_CONVEX"
       ],
       "field": "组合优化",
-      "proof": "线性分配 LP 约束矩阵全单模 ⟹ LP 最优解自动整数；对偶可行+零对偶间隙 ⟹ 原问题最优。",
+      "proof": "线性分配 LP 约束矩阵全单模（线性代数）⟹ LP 最优解自动整数；对偶可行+零对偶间隙（凸分析）⟹ 原问题最优。",
       "evidence": "hungarian 返回 (u,v) 对偶证书，三者可独立复核",
       "depth": 2,
       "axioms": [
+        "AX_LINEAR",
         "AX_CONVEX"
       ]
     },
@@ -153,6 +212,23 @@
       "depth": 2,
       "axioms": [
         "AX_PROB"
+      ]
+    },
+    {
+      "id": "THM_LLN",
+      "statement": "独立同分布样本均值依概率收敛到期望：X̄ₙ →ᵖ E[X]（大数定律，弱形式）",
+      "by": "DERIVE",
+      "from": [
+        "AX_PROB",
+        "AX_REAL"
+      ],
+      "field": "概率极限",
+      "proof": "Chebyshev 不等式：P(|X̄ₙ−μ|≥ε) ≤ Var(X)/(nε²) → 0。强形式由 Borel–Cantelli 得几乎必然收敛。",
+      "evidence": "粒子滤波 / 经验频率 / 蒙特卡洛 的一切\"N→∞ 收敛\"断言都建立在此定理上",
+      "depth": 2,
+      "axioms": [
+        "AX_PROB",
+        "AX_REAL"
       ]
     },
     {
@@ -213,14 +289,16 @@
       "statement": "重要性采样的粒子近似在 N→∞ 时一致收敛到真实后验（有限 N 为近似）",
       "by": "DERIVE",
       "from": [
-        "AX_PROB"
+        "AX_PROB",
+        "THM_LLN"
       ],
       "field": "蒙特卡洛",
-      "proof": "大数定律：加权经验测度 → 后验测度。有限 N 须诚实标注为近似。",
+      "proof": "大数定律（THM_LLN）：加权经验测度 → 后验测度。有限 N 须诚实标注为近似。",
       "evidence": "双峰歧义实测：保持 ±2 双峰，单高斯方法做不到",
-      "depth": 2,
+      "depth": 3,
       "axioms": [
-        "AX_PROB"
+        "AX_PROB",
+        "AX_REAL"
       ]
     },
     {
@@ -230,16 +308,19 @@
       "from": [
         "AX_LINEAR",
         "AX_MEASURE_OPT",
-        "AX_CONVEX"
+        "AX_CONVEX",
+        "THM_WEIERSTRASS"
       ],
       "field": "最优控制",
-      "proof": "Kalman (1960)：动态规划 + 二次型归纳 ⟹ Riccati 递推给出最优代价矩阵。",
+      "proof": "Kalman (1960)：动态规划 + 二次型归纳 ⟹ Riccati 递推给出最优代价矩阵；最优控制的存在性由 THM_WEIERSTRASS（代价函数在可控集上取到极小）保证。",
       "evidence": "实测代价精确等于理论下界 x₀ᵀPx₀，优于 6 组其它反馈",
-      "depth": 2,
+      "depth": 3,
       "axioms": [
         "AX_LINEAR",
         "AX_MEASURE_OPT",
-        "AX_CONVEX"
+        "AX_CONVEX",
+        "AX_REAL",
+        "AX_CONTINUITY"
       ]
     },
     {
@@ -269,15 +350,18 @@
       "by": "DERIVE",
       "from": [
         "AX_REAL",
-        "AX_CONVEX"
+        "AX_CONVEX",
+        "THM_ODE_EXISTENCE",
+        "THM_WEIERSTRASS"
       ],
       "field": "安全控制",
-      "proof": "Nagumo 前向不变性定理的屏障函数形式；可行控制集为凸 ⟹ QP 可解。",
+      "proof": "Nagumo 前向不变性定理的屏障函数形式（依赖 THM_ODE_EXISTENCE 保证解流存在）；可行控制集为凸（AX_CONVEX）且最优控制存在（THM_WEIERSTRASS）⟹ QP 可解。",
       "evidence": "cbfFilter 每次求解都返回可行性与 margin",
-      "depth": 2,
+      "depth": 3,
       "axioms": [
         "AX_REAL",
-        "AX_CONVEX"
+        "AX_CONVEX",
+        "AX_CONTINUITY"
       ]
     },
     {
@@ -296,6 +380,18 @@
         "AX_LINEAR",
         "AX_SET"
       ]
+    },
+    {
+      "id": "THM_IA_INCLUSION",
+      "statement": "区间加法包含性：[a,b] + [c,d] ⊆ [a+c, b+d]（对区间内任意代表点成立）——由有限样本表计算核验",
+      "by": "COMPUTE",
+      "from": [],
+      "field": "区间算术",
+      "proof": "区间算术定义：和区间的端点恰为端点之和；对任意 x∈[a,b], y∈[c,d] 有 x+y ∈ [a+c,b+d]。",
+      "evidence": "verify() 在审计时**实际运行**下方 check()，返回 true 方算通过（Tier0 机器检查）",
+      "depth": 1,
+      "axioms": [],
+      "note": "Tier0 机器检查：verify() 实际运行 check() 函数，返回 true 方通过"
     },
     {
       "id": "THM_DO_CALCULUS",
@@ -346,6 +442,12 @@
       "statement": "融合学习启发式（Pearl max）在重复执行下单调改善搜索效率且不破坏可采纳性",
       "field": "启发式搜索",
       "evidence": "可采纳性已由 Pearl 定理保证；\"效率单调改善\"部分仅有实验支持"
+    },
+    {
+      "id": "CONJ_NUMERIC_SOUND",
+      "statement": "IEEE-754 浮点运算是 ℝ 运算的 δ-有界近似（δ = 舍入/截断误差），可使全部数值结论在误差带内保持 sound；精确 δ 边界依赖硬件与算法",
+      "field": "数值分析",
+      "evidence": "全部定理在 ℝ 上成立，但实装用双精度浮点；抽象解释区间/zonotope 过近似正是为吞掉该 δ 而设计，精确边界需 Specifications for floating-point (IEEE 754-2019) 逐算法核定，本内核未做"
     }
   ]
 }
