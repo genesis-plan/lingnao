@@ -4979,6 +4979,17 @@ async function execute(plan, bodyAdapter, opts) {
     if (BODY.observation && step.expect && distinguishable(step.expect, state, BODY.observation) === false) {
       halted = true; haltReason = 'OBSERVATION-BLIND-SPOT ' + step.cap + '(执行结果无法被观测验证)'; break;
     }
+    // 偏差/重规划后，当前状态可能已不满足该步前提 ⇒ 再校验一次（fail-closed）。
+    // 即便偏差在容差内（不触发上面的重规划），若后续某步前提已被破坏（如电量跌到不足以执行），
+    // 也必须拦下而非盲目执行预规划动作——否则"证明安全"会被一个未超容差的偏差悄悄击穿。
+    if (cap.pre != null && !applicable(state, cap, step.params)) {
+      deviations.push({ step: i, cap: step.cap, type: 'pre-violated', state: Object.assign({}, state) });
+      if (typeof EventBus !== 'undefined') EventBus.publish('execution', { type: 'pre-violated', step: i, cap: step.cap });
+      if (replans >= maxReplans) { halted = true; haltReason = 'max-replans-exceeded'; break; }
+      const rp = planTask(opts.goalFn, opts);
+      if (rp.ok) { remaining = rp.plan; i = 0; replans++; continue; }
+      halted = true; haltReason = 'no-plan-after-pre-violation'; break;
+    }
     let obs = null;
     try { obs = await bodyAdapter(step.cap, step.params); } catch (e) { obs = { ok: false, error: 'body-error:' + e.message }; }
     if (!obs || obs.ok === false) {

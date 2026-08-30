@@ -944,6 +944,7 @@ const TOOLS = [
         maxReplans: { type: 'number', description: '最大重规划次数，默认 3（防死循环护栏）' },
         deviationTolerance: { type: 'number', description: '允许偏差字段数，默认 1' },
         faults: { type: 'object', description: '演示用注入：{failAt:[...], deviateAt:[{step,patch}]}' },
+        allowIrreversible: { type: 'boolean', description: '显式授权执行不可逆动作（如封箱/点火/剪切）。缺省 false ⇒ 遇不可逆能力即 IRREVERSIBLE-HALT 停机。大脑绝不依赖事后重规划补救不可逆后果。  / EN: Explicitly authorize irreversible actions (seal / ignite / cut). Default false ⇒ IRREVERSIBLE-HALT on any irreversible capability. The brain never relies on事后 replanning to undo irreversible effects.' },
       },
       required: ['goalSpec'],
     },
@@ -999,7 +1000,7 @@ function callTool(name, args) {
     case 'check_hard': return checkHardLogic(args.state, args.step);
     case 'h_max': return hMaxLogic(args.state, args.goalSpec, args.maxLayer);
     case 'plan_task': return planTaskLogic(args.goalSpec, { maxLayer: args.maxLayer, maxExpansions: args.maxExpansions });
-    case 'execute_task': return executeLogic(args.goalSpec, { maxReplans: args.maxReplans, deviationTolerance: args.deviationTolerance }, args.faults);
+    case 'execute_task': return executeLogic(args.goalSpec, { maxReplans: args.maxReplans, deviationTolerance: args.deviationTolerance, allowIrreversible: args.allowIrreversible === true }, args.faults);
     case 'positioning': return { positioning: K.POSITIONING, body: K.BODY };
     case 'world_model': return worldModelLogic(args.samples, args.state, args.action);
     case 'counterfactual': return counterfactualLogic(args.samples, args.factual, args.intervention);
