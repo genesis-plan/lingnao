@@ -3,7 +3,7 @@
     "type": "function",
     "function": {
       "name": "world_info",
-      "description": "返回当前世界图 𝕎 的节点、边、坐标——外部智能体先调用以了解场景结构。",
+      "description": "返回当前世界图 𝕎 的节点、边、坐标——外部智能体先调用以了解场景结构。 / EN: Return the current world graph 𝕎’s nodes, edges, and coordinates — external agents call this first to understand the scene structure.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -15,7 +15,7 @@
     "type": "function",
     "function": {
       "name": "set_world",
-      "description": "导入任意场景的世界图（外部可定义，灭蚊器仅为默认）。让世界大脑适配你的物理载体/业务。",
+      "description": "导入任意场景的世界图（外部可定义，灭蚊器仅为默认）。让世界大脑适配你的物理载体/业务。 / EN: Import an arbitrary scenario’s world graph (externally definable; the mosquito-killer is just the default). Lets the world-brain adapt to your physical carrier / business.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -49,7 +49,7 @@
     "type": "function",
     "function": {
       "name": "perceive",
-      "description": "免费 LLM 感知层：自然语言/状态描述 → 结构化感知(JSON)。需 OpenRouter API Key（参数或 env OPENROUTER_API_KEY）。无 key 返回 manual 降级。",
+      "description": "免费 LLM 感知层：自然语言/状态描述 → 结构化感知(JSON)。需 OpenRouter API Key（参数或 env OPENROUTER_API_KEY）。无 key 返回 manual 降级。 / EN: Free LLM perception layer: natural-language / state description → structured perception (JSON). Requires an OpenRouter API Key (param or env OPENROUTER_API_KEY). Falls back to manual mode without a key.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -72,7 +72,7 @@
     "type": "function",
     "function": {
       "name": "reason",
-      "description": "可审计推理：系统1快答(高置信复用) + 系统2(A*最优+RSG推理状态图)。输出每步依据、所用系统、RSG、不可判定标记 𝕌。",
+      "description": "可审计推理：系统1快答(高置信复用) + 系统2(A*最优+RSG推理状态图)。输出每步依据、所用系统、RSG、不可判定标记 𝕌。 / EN: Auditable reasoning: System-1 fast answer (high-confidence reuse) + System-2 (A* optimal + RSG reasoning state graph). Outputs per-step rationale, which system was used, the RSG, and the undecidable marker 𝕌.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -113,7 +113,7 @@
     "type": "function",
     "function": {
       "name": "carrier_report",
-      "description": "物理载体上报传感器状态（电量/目标/密度），返回硬/软约束。电量<20 触发硬约束禁离充电座。",
+      "description": "物理载体上报传感器状态（电量/目标/密度），返回硬/软约束。电量<20 触发硬约束禁离充电座。 / EN: Physical carrier reports sensor status (battery / goal / density) and returns hard / soft constraints. Battery <20 triggers a hard constraint forbidding leaving the charging dock.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -140,7 +140,7 @@
     "type": "function",
     "function": {
       "name": "audit",
-      "description": "生成七段审计报告（概要/详细/证据/约束/𝕌/形式化证明证书/可复现）+ 不确定性量化，对应文档 3.4。",
+      "description": "生成七段审计报告（概要/详细/证据/约束/𝕌/形式化证明证书/可复现）+ 不确定性量化，对应文档 3.4。 / EN: Generate a seven-part audit report (summary / detail / evidence / constraints / 𝕌 / formal proof certificate / reproducible) + uncertainty quantification. See doc §3.4.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -177,7 +177,7 @@
     "type": "function",
     "function": {
       "name": "learn",
-      "description": "学习闭环：载体执行回报后更新经验库（成功=正样本+0.1 / 失败=负样本-0.1）。",
+      "description": "学习闭环：载体执行回报后更新经验库（成功=正样本+0.1 / 失败=负样本-0.1）。 / EN: Learning loop: after the carrier executes and reports reward, update the experience base (success = positive sample +0.1 / failure = negative sample −0.1).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -204,7 +204,7 @@
     "type": "function",
     "function": {
       "name": "knowledge_query",
-      "description": "查询经验库（状态→行动→结果的置信度/样本类记录）。",
+      "description": "查询经验库（状态→行动→结果的置信度/样本类记录）。 / EN: Query the experience base (state → action → result confidence / sample-class records).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -225,7 +225,7 @@
     "type": "function",
     "function": {
       "name": "knowledge_add",
-      "description": "向经验库手工添加一条转移经验（带置信度、样本类与来源）。",
+      "description": "向经验库手工添加一条转移经验（带置信度、样本类与来源）。 / EN: Manually add one transition experience to the experience base (with confidence, sample class, and source).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -265,7 +265,7 @@
     "type": "function",
     "function": {
       "name": "meta",
-      "description": "第五层元认知与协调层：全局监控 / 知识熵 H(K) / 一致性 C(K) / 知识缺口 / 冲突仲裁 / 探索-利用决策。可选携带 start+goal 以纳入路径不确定性。",
+      "description": "第五层元认知与协调层：全局监控 / 知识熵 H(K) / 一致性 C(K) / 知识缺口 / 冲突仲裁 / 探索-利用决策。可选携带 start+goal 以纳入路径不确定性。 / EN: Layer-5 metacognition & coordination: global monitoring / knowledge entropy H(K) / consistency C(K) / knowledge gaps / conflict arbitration / explore-exploit decisions. Optionally carry start+goal to include path uncertainty.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -300,7 +300,7 @@
     "type": "function",
     "function": {
       "name": "perceive_belief",
-      "description": "感知数学原理：贝叶斯滤波迭代 + Banach 压缩映射收敛检测（离散信念→不动点）。",
+      "description": "感知数学原理：贝叶斯滤波迭代 + Banach 压缩映射收敛检测（离散信念→不动点）。 / EN: Perception math: Bayesian-filter iteration + Banach contraction-mapping convergence detection (discrete belief → fixed point).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -328,7 +328,7 @@
     "type": "function",
     "function": {
       "name": "knowledge_ann",
-      "description": "LSH 近似最近邻检索（SimHash 投影），从经验库找最相似转移。",
+      "description": "LSH 近似最近邻检索（SimHash 投影），从经验库找最相似转移。 / EN: LSH approximate nearest-neighbor retrieval (SimHash projection) to find the most similar transition in the experience base.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -351,7 +351,7 @@
     "type": "function",
     "function": {
       "name": "knowledge_distill",
-      "description": "规则蒸馏（FP-Growth 风格频繁项集→关联规则）。",
+      "description": "规则蒸馏（FP-Growth 风格频繁项集→关联规则）。 / EN: Rule distillation (FP-Growth-style frequent itemsets → association rules).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -368,7 +368,7 @@
     "type": "function",
     "function": {
       "name": "cog_graph",
-      "description": "认知图谱：由经验库构建概念节点+语义关系有向图。",
+      "description": "认知图谱：由经验库构建概念节点+语义关系有向图。 / EN: Cognitive graph: build a concept-node + semantic-relation directed graph from the experience base.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -380,7 +380,7 @@
     "type": "function",
     "function": {
       "name": "symbolic_verify",
-      "description": "符号验证：霍尔逻辑机器验证证明 A* 路径满足不变量（手写 Z3-lite 等价）。",
+      "description": "符号验证：霍尔逻辑机器验证证明 A* 路径满足不变量（手写 Z3-lite 等价）。 / EN: Symbolic verification: Hoare-logic machine-checked proof that the A* path satisfies an invariant (hand-written Z3-lite equivalent).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -415,7 +415,7 @@
     "type": "function",
     "function": {
       "name": "algebraic_solve",
-      "description": "代数方程系统求解 —— 真正委派给灵数求解器(lingshu-solver)真引擎（区间收缩 + Krawczyk 认证，离线、确定性、可复现；非手写 lite）。输入：equations 为含 \"=\" 的方程字符串数组，如 [\"x^2+y^2=25\",\"x+y=7\"]；支持 + - * / ^ sqrt log sin cos tan exp abs 及 in-text 域约束 \"x ∈ [-30,30]\"。variables 可选（不填自动识别，≤6）；domain 可选 {\"x\":[-30,30]}（exp/sinh 等快增长函数建议显式给定）；fastMode 可选；options 可选 {budget,maxDepth}。输出：resultTypeName=empty(严格证无实数解)/finite(有限已验证解)/infinite(无限解集，仅给距原点最近推荐解)；solutionCount；certified=是否全部 Krawczyk 认证；solutions[] 每解含 values[](6位小数)、tier(proven/likely/candidate)、certified、text(如\"x=4.000000, y=3.000000\")、residual、certifiedRadius；truncated=true 表示预算内未穷尽（多数情况真解已全找到，极端病态可能遗漏个别，可缩 domain/提 budget 重试）。硬限制：变量 ≤6；方程 1–64 且 ≥ 变量数。相同输入永远返回完全相同结果。",
+      "description": "代数方程系统求解 —— 真正委派给灵数求解器(lingshu-solver)真引擎（区间收缩 + Krawczyk 认证，离线、确定性、可复现；非手写 lite）。 / EN: Algebraic equation-system solver — genuinely delegates to the lingshu-solver engine (interval contraction + Krawczyk certification; offline, deterministic, reproducible; not a hand-written lite).输入：equations 为含 \"=\" 的方程字符串数组，如 [\"x^2+y^2=25\",\"x+y=7\"]；支持 + - * / ^ sqrt log sin cos tan exp abs 及 in-text 域约束 \"x ∈ [-30,30]\"。variables 可选（不填自动识别，≤6）；domain 可选 {\"x\":[-30,30]}（exp/sinh 等快增长函数建议显式给定）；fastMode 可选；options 可选 {budget,maxDepth}。输出：resultTypeName=empty(严格证无实数解)/finite(有限已验证解)/infinite(无限解集，仅给距原点最近推荐解)；solutionCount；certified=是否全部 Krawczyk 认证；solutions[] 每解含 values[](6位小数)、tier(proven/likely/candidate)、certified、text(如\"x=4.000000, y=3.000000\")、residual、certifiedRadius；truncated=true 表示预算内未穷尽（多数情况真解已全找到，极端病态可能遗漏个别，可缩 domain/提 budget 重试）。硬限制：变量 ≤6；方程 1–64 且 ≥ 变量数。相同输入永远返回完全相同结果。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -456,7 +456,7 @@
     "type": "function",
     "function": {
       "name": "world_model",
-      "description": "世界模型（lite）：从观测轨迹样本学结构方程模型 SEM（手写最小二乘），并前向模拟下一状态。文档 3.4 给的 VAE/ADM-v2 需神经网络+大数据（无定义），本实装为诚实 lite 等价（线性 SEM + Pearl 反事实框架），确定性、可复现、可审计。samples 为轨迹数组，每项 {state:{变量:值}, action:{变量:值}, next:{变量:值}}；提供 state+action 则同时返回 simulate 预测 next。输出 model（method/变量集/方程系数 eqs[变量].coef/偏置 bias/残差 residuals，全部可审计）与 simulate.next。",
+      "description": "世界模型（lite）：从观测轨迹样本学结构方程模型 SEM（手写最小二乘），并前向模拟下一状态。文档 3.4 给的 VAE/ADM-v2 需神经网络+大数据（无定义），本实装为诚实 lite 等价（线性 SEM + Pearl 反事实框架），确定性、可复现、可审计。 / EN: World model (lite): learn a structural-equation model (SEM) from observed trajectory samples (hand-written least squares) and forward-simulate the next state. The VAE/ADM-v2 from doc §3.4 needs neural nets + big data (undefined), so this is an honest lite equivalent (linear SEM + Pearl counterfactual framework): deterministic, reproducible, auditable.samples 为轨迹数组，每项 {state:{变量:值}, action:{变量:值}, next:{变量:值}}；提供 state+action 则同时返回 simulate 预测 next。输出 model（method/变量集/方程系数 eqs[变量].coef/偏置 bias/残差 residuals，全部可审计）与 simulate.next。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -486,7 +486,7 @@
     "type": "function",
     "function": {
       "name": "counterfactual",
-      "description": "反事实推理（lite，Pearl 三步法 abduction→action→prediction）：给定事实上发生的轨迹 factual={state,action,next} 与干预 intervention={var,value}，保持事实推断噪声 U 下施加 do(var=value) 重算其余变量。确定性、可复现、可审计；非 VAE 潜空间推演。需先以同结构 samples 学出模型。",
+      "description": "反事实推理（lite，Pearl 三步法 abduction→action→prediction）：给定事实上发生的轨迹 factual={state,action,next} 与干预 intervention={var,value}， / EN: Counterfactual reasoning (lite, Pearl’s three-step abduction→action→prediction): given the factual trajectory factual={state,action,next} and the intervention intervention={var,value}, estimate what would have happened under the intervention.保持事实推断噪声 U 下施加 do(var=value) 重算其余变量。确定性、可复现、可审计；非 VAE 潜空间推演。需先以同结构 samples 学出模型。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -518,7 +518,7 @@
     "type": "function",
     "function": {
       "name": "causal_effect",
-      "description": "因果效应估计（do-演算：后门调整 + 前门准则自动识别，呼应已消费 ima_304 因果 / ima_301 反事实）：给定观测轨迹样本 samples 与因果变量 cause / 结果变量 effect，自动学线性 SEM 世界模型并估计 ACE=E[effect|do(cause=1)]-E[effect|do(cause=0)]。· 默认后门调整：后门集=effect 的其余父节点（已观测）；若 cause 对方程残差有显著线性依赖，返回 unobservedConfounderWarning（未观测混杂警示）。· 前门准则：当存在未观测混杂致后门失效时，传 mediator（完全观测的中介，满足前门三条件）即可用两段式 ACE=α·β 从纯观测数据识别 do 效应（Pearl 1995 / Wienöbst-Jeong 识别算法）。samples 为轨迹数组，每项 {state:{}, action:{}, next:{}}；输出 {ace, method, adjustSet|mediator, auditable, imaRef} 或 {error}。",
+      "description": "因果效应估计（do-演算：后门调整 + 前门准则自动识别，呼应已消费 ima_304 因果 / ima_301 反事实）：给定观测轨迹样本 samples 与因果变量 cause / 结果变量 effect，自动学线性 SEM 世界模型并估计 ACE=E[effect|do(cause=1)]-E[effect|do(cause=0)]。 / EN: Causal-effect estimation (do-calculus: back-door adjustment + front-door criterion auto-identification, echoing consumed ima_304 causal / ima_301 counterfactual): given observed trajectory samples and cause/effect variables, auto-learn a linear SEM world model and estimate ACE = E[effect|do(cause=1)] − E[effect|do(cause=0)].· 默认后门调整：后门集=effect 的其余父节点（已观测）；若 cause 对方程残差有显著线性依赖，返回 unobservedConfounderWarning（未观测混杂警示）。· 前门准则：当存在未观测混杂致后门失效时，传 mediator（完全观测的中介，满足前门三条件）即可用两段式 ACE=α·β 从纯观测数据识别 do 效应（Pearl 1995 / Wienöbst-Jeong 识别算法）。samples 为轨迹数组，每项 {state:{}, action:{}, next:{}}；输出 {ace, method, adjustSet|mediator, auditable, imaRef} 或 {error}。",
       "parameters": {
         "type": "object",
         "properties": {
@@ -554,7 +554,7 @@
     "type": "function",
     "function": {
       "name": "dmcts",
-      "description": "D-MCTS 分布式分支探索：并行分支+回溯，返回多候选最优路径。",
+      "description": "D-MCTS 分布式分支探索：并行分支+回溯，返回多候选最优路径。 / EN: D-MCTS distributed branch exploration: parallel branching + backtracking, returns multiple candidate optimal paths.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -589,7 +589,7 @@
     "type": "function",
     "function": {
       "name": "goal_directed",
-      "description": "目标导向决策（消费 IMA 真数学：ima_286 目标导向框架 (S,A,P,G,C,γ) 无奖励最大化到达概率 / ima_288 可达性 BFS / ima_291 值迭代求到达概率 / ima_289 贪心路径规划）。给定世界图起点+目标，返回可达状态数、到达概率 goalProb、最优到达路径。与 reason(A*最优)互补：reason 求代价最优，goal_directed 求到达可靠性最优。",
+      "description": "目标导向决策（消费 IMA 真数学：ima_286 目标导向框架 (S,A,P,G,C,γ) 无奖励最大化到达概率 / ima_288 可达性 BFS / ima_291 值迭代求到达概率 / ima_289 贪心路径规划）。给定世界图起点+目标，返回可达状态数、到达概率 goalProb、最优到达路径。与 reason(A*最优)互补：reason 求代价最优，goal_directed 求到达可靠性最优。 / EN: Goal-directed decision (consumes real IMA math: ima_286 goal framework (S,A,P,G,C,γ) reach-prob w/o reward maximization / ima_288 reachability BFS / ima_291 value iteration for reach prob / ima_289 greedy path planning). Given world-graph start+goal, returns reachable-state count, arrival probability goalProb, optimal arrival path. Complements reason(A* optimal): reason optimizes cost, goal_directed optimizes arrival reliability.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -623,7 +623,7 @@
     "type": "function",
     "function": {
       "name": "pac_bound",
-      "description": "PAC 学习定理：样本复杂度下界 m≥(d_VC·ln(1/ε)+ln(1/δ))/ε²。",
+      "description": "PAC 学习定理：样本复杂度下界 m≥(d_VC·ln(1/ε)+ln(1/δ))/ε²。 / EN: PAC learning bound: sample-complexity lower bound m ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε².",
       "parameters": {
         "type": "object",
         "properties": {
@@ -648,7 +648,7 @@
     "type": "function",
     "function": {
       "name": "ask",
-      "description": "用大白话让大脑理解并规划：免费 LLM 把自然语言理解为结构化目标 → 灵脑确定性可审计推理 → 免费 LLM 把结果+IMA 资料用中文解释。返回 percept/reason/explanation。",
+      "description": "用大白话让大脑理解并规划：免费 LLM 把自然语言理解为结构化目标 → 灵脑确定性可审计推理 → 免费 LLM 把结果+IMA 资料用中文解释。返回 percept/reason/explanation。 / EN: Let the brain understand and plan in plain language: a free LLM parses natural language into a structured goal → LingNao’s deterministic auditable reasoning → a free LLM explains the result + IMA material in Chinese. Returns percept / reason / explanation.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -685,7 +685,7 @@
     "type": "function",
     "function": {
       "name": "explain",
-      "description": "解释层：把一份 reason() 结果 + 命中的 IMA 数学资料，用免费 LLM 讲成非技术用户能读懂的中文。",
+      "description": "解释层：把一份 reason() 结果 + 命中的 IMA 数学资料，用免费 LLM 讲成非技术用户能读懂的中文。 / EN: Explanation layer: turn a reason() result + the hit IMA math material into plain Chinese a non-technical user can read, via a free LLM.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -708,7 +708,7 @@
     "type": "function",
     "function": {
       "name": "causal",
-      "description": "因果发现（PC-lite）+ do演算查询（后门准则）。",
+      "description": "因果发现（PC-lite）+ do演算查询（后门准则）。 / EN: Causal discovery (PC-lite) + do-calculus query (back-door criterion).",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -720,7 +720,7 @@
     "type": "function",
     "function": {
       "name": "event_publish",
-      "description": "EDA 事件总线：发布事件（感知/推理/学习/审计/元认知）。",
+      "description": "EDA 事件总线：发布事件（感知/推理/学习/审计/元认知）。 / EN: EDA event bus: publish an event (perceive / reason / learn / audit / metacognition).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -743,7 +743,7 @@
     "type": "function",
     "function": {
       "name": "knowledge_fabric",
-      "description": "Data Fabric 知识库版本化（git 风格 commit/list/diff）。",
+      "description": "Data Fabric 知识库版本化（git 风格 commit/list/diff）。 / EN: Data-Fabric knowledge base versioning (git-style commit / list / diff).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -771,7 +771,7 @@
     "type": "function",
     "function": {
       "name": "runtime_monitor",
-      "description": "PrSTL 运行时监控：检查决策是否偏离安全约束，违例触发安全停车。",
+      "description": "PrSTL 运行时监控：检查决策是否偏离安全约束，违例触发安全停车。 / EN: PrSTL runtime monitor: check whether a decision deviates from safety constraints; violation triggers a safe stop.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -798,7 +798,7 @@
     "type": "function",
     "function": {
       "name": "continuous_verify",
-      "description": "持续验证管道（仓库级单元+集成断言）。",
+      "description": "持续验证管道（仓库级单元+集成断言）。 / EN: Continuous-verification pipeline (repo-level unit + integration assertions).",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -810,7 +810,7 @@
     "type": "function",
     "function": {
       "name": "ima_load",
-      "description": "加载用户 IMA 数学库知识壳（默认同目录 ima_knowledge.json，431 条公理/定理/定义/方法/思想方法）注入灵脑内核：KB 可检索、审计报告可引用证据、元认知层可路由。可传 {path} 指定文件，或直传 {entries:[...]}。",
+      "description": "加载用户 IMA 数学库知识壳（默认同目录 ima_knowledge.json，431 条公理/定理/定义/方法/思想方法）注入灵脑内核：KB 可检索、审计报告可引用证据、元认知层可路由。可传 {path} 指定文件，或直传 {entries:[...]}。 / EN: Load the user’s IMA math-library knowledge shell (default same-dir ima_knowledge.json, 431 axioms/theorems/definitions/methods/thought-methods) into the LingNao kernel: KB becomes retrievable, the audit report can cite evidence, the metacognition layer can route. Pass {path} for a file or {entries:[...]} directly.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -831,7 +831,7 @@
     "type": "function",
     "function": {
       "name": "ima_query",
-      "description": "检索 IMA 数学库：按关键词命中标题/模块/类型/编号，返回相关公理/定理（确定性）。需先 ima_load。",
+      "description": "检索 IMA 数学库：按关键词命中标题/模块/类型/编号，返回相关公理/定理（确定性）。需先 ima_load。 / EN: Retrieve from the IMA math library: match keywords against title / module / type / id, return related axioms/theorems (deterministic). Requires ima_load first.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -854,7 +854,7 @@
     "type": "function",
     "function": {
       "name": "sl_record",
-      "description": "① 积累层：追加一条原始执行记录（状态/行动/结果/成功/奖励/环境/使用的知识ID），append-only 不可修改。是自我学习闭环的数据源头。",
+      "description": "① 积累层：追加一条原始执行记录（状态/行动/结果/成功/奖励/环境/使用的知识ID），append-only 不可修改。是自我学习闭环的数据源头。 / EN: ① Accumulation layer: append one raw execution record (state / action / result / success / reward / environment / knowledge-ID used); append-only, immutable. The data source of the self-learning loop.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -902,7 +902,7 @@
     "type": "function",
     "function": {
       "name": "sl_discover",
-      "description": "② 发现层：对经验库跑六类统计（关联FP-Growth+因果PC+聚类lite+异常lite+时序lite）并生成待验证假设（带统计证据与 IMA 引用）。",
+      "description": "② 发现层：对经验库跑六类统计（关联FP-Growth+因果PC+聚类lite+异常lite+时序lite）并生成待验证假设（带统计证据与 IMA 引用）。 / EN: ② Discovery layer: run six statistical families on the experience base (association FP-Growth + causal PC + cluster-lite + anomaly-lite + time-series-lite) and generate hypotheses to verify (with statistical evidence and IMA citations).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -930,7 +930,7 @@
     "type": "function",
     "function": {
       "name": "sl_validate",
-      "description": "③ 验证层：对假设做贝叶斯可靠度更新（成功=1/失败=0/部分=0.5），按生命周期升级为确认知识或废弃。",
+      "description": "③ 验证层：对假设做贝叶斯可靠度更新（成功=1/失败=0/部分=0.5），按生命周期升级为确认知识或废弃。 / EN: ③ Validation layer: Bayesian reliability update on a hypothesis (success=1 / failure=0 / partial=0.5), promote by lifecycle to confirmed knowledge or discard.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -964,7 +964,7 @@
     "type": "function",
     "function": {
       "name": "sl_monitor",
-      "description": "④ 监控修正层：人工标记某确认知识(K...)可疑，立即降级为假设（可靠度减半、退回验证流）。自动降级由 sl_record 触发（连续3败/失败率≥40%）。",
+      "description": "④ 监控修正层：人工标记某确认知识(K...)可疑，立即降级为假设（可靠度减半、退回验证流）。自动降级由 sl_record 触发（连续3败/失败率≥40%）。 / EN: ④ Monitoring-correction layer: manually flag a confirmed knowledge (K...) as suspect → immediately demote to hypothesis (reliability halved, back to validation flow). Auto-demotion triggered by sl_record (3 consecutive failures / failure rate ≥40%).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -987,7 +987,7 @@
     "type": "function",
     "function": {
       "name": "sl_status",
-      "description": "三级知识状态机总览：经验数/假设数/确认数/废弃数 + 每条可靠度 + IMA 证据映射。",
+      "description": "三级知识状态机总览：经验数/假设数/确认数/废弃数 + 每条可靠度 + IMA 证据映射。 / EN: Three-tier knowledge state-machine overview: experience count / hypothesis count / confirmed count / discarded count + per-item reliability + IMA evidence mapping.",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -999,7 +999,7 @@
     "type": "function",
     "function": {
       "name": "attach_body",
-      "description": "注册一台物理身体（机器人/无人机/机械臂…）。大脑不含任何具体身体代码——能力契约由调用方以结构化声明传入：每能力含 id、pre.require(进入前状态条件)、effect.set/inc(执行后状态修改，支持 {{params.X}} 模板)、cost、ground({{goal.reach}} 接地目标)。hard=不可逆硬约束禁区。返回已注册能力集与初始状态。",
+      "description": "注册一台物理身体（机器人/无人机/机械臂…）。大脑不含任何具体身体代码——能力契约由调用方以结构化声明传入：每能力含 id、pre.require(进入前状态条件)、effect.set/inc(执行后状态修改，支持 {{params.X}} 模板)、cost、ground({{goal.reach}} 接地目标)。hard=不可逆硬约束禁区。返回已注册能力集与初始状态。 / EN: Register a physical body (robot / drone / arm …). The brain contains no concrete body code — capability contracts are passed structurally by the caller: each capability has id, pre.require (state condition before entry), effect.set/inc (state change after execution, supports {{params.X}} templating), cost, ground({{goal.reach}} grounding goal). hard = irreversible hard-constraint forbidden zone. Returns the registered capability set and initial state.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1037,7 +1037,7 @@
     "type": "function",
     "function": {
       "name": "capabilities",
-      "description": "列出当前已注册身体的能力 id 列表（大脑\"会做什么动作\"）。",
+      "description": "列出当前已注册身体的能力 id 列表（大脑\"会做什么动作\"）。 / EN: List the currently registered body’s capability ids (what ’actions’ the brain can perform).",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -1049,7 +1049,7 @@
     "type": "function",
     "function": {
       "name": "get_state",
-      "description": "返回当前身体状态（大脑维护的信念状态，机器人上报后更新）。",
+      "description": "返回当前身体状态（大脑维护的信念状态，机器人上报后更新）。 / EN: Return the current body state (the belief state maintained by the brain, updated after the robot reports).",
       "parameters": {
         "type": "object",
         "properties": {},
@@ -1061,7 +1061,7 @@
     "type": "function",
     "function": {
       "name": "set_state",
-      "description": "同步/覆盖身体状态（机器人上报传感器真值后调用）。",
+      "description": "同步/覆盖身体状态（机器人上报传感器真值后调用）。 / EN: Sync / overwrite body state (call after the robot reports true sensor values).",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1080,7 +1080,7 @@
     "type": "function",
     "function": {
       "name": "state_diff",
-      "description": "比较两个状态，返回偏差字段 {predicted, observed}。用于执行后偏差检测。",
+      "description": "比较两个状态，返回偏差字段 {predicted, observed}。用于执行后偏差检测。 / EN: Compare two states and return the deviation fields {predicted, observed}. Used for post-execution deviation detection.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1104,7 +1104,7 @@
     "type": "function",
     "function": {
       "name": "check_hard",
-      "description": "在执行不可逆动作前校验 SAFE-STOP：状态/步骤是否命中硬约束禁区。命中返回 {ok:false, violation}。",
+      "description": "在执行不可逆动作前校验 SAFE-STOP：状态/步骤是否命中硬约束禁区。命中返回 {ok:false, violation}。 / EN: Before executing an irreversible action, verify SAFE-STOP: whether the state / step hits a hard-constraint forbidden zone. Hit returns {ok:false, violation}.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1127,7 +1127,7 @@
     "type": "function",
     "function": {
       "name": "h_max",
-      "description": "delete-relaxation 可采纳启发式 h_max：从某状态到目标的最小\"层数\"下界（A* 最优性保证）。调试/可解释用。",
+      "description": "delete-relaxation 可采纳启发式 h_max：从某状态到目标的最小\"层数\"下界（A* 最优性保证）。调试/可解释用。 / EN: delete-relaxation admissible heuristic h_max: the lower bound on the minimum ’number of layers’ from a state to the goal (A* optimality guarantee). For debugging / interpretability.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1154,7 +1154,7 @@
     "type": "function",
     "function": {
       "name": "plan_task",
-      "description": "可审计任务规划：A* + h_max(delete-relaxation 可采纳) 产出相对给定能力集与状态的最优【动作序列】(非路径)。返回 plan=[{cap, params, expect}]、cost、expanded、guarantee。",
+      "description": "可审计任务规划：A* + h_max(delete-relaxation 可采纳) 产出相对给定能力集与状态的最优【动作序列】(非路径)。返回 plan=[{cap, params, expect}]、cost、expanded、guarantee。 / EN: Auditable task planning: A* + h_max (delete-relaxation admissible) produces the optimal [action sequence] (not path) for the given capability set and state. Returns plan=[{cap, params, expect}], cost, expanded, guarantee.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1181,7 +1181,7 @@
     "type": "function",
     "function": {
       "name": "execute_task",
-      "description": "执行闭环（大脑内模拟）：用 plan_task 规划→逐步执行(每步 checkHard SAFE-STOP)→观测偏差→确定性重规划(maxReplans 护栏)。faults 可注入 {failAt:[序号], deviateAt:[{step,patch}]} 演示重规划/SAFE-STOP。真物理执行由机器人侧用 plan 自行驱动。返回 trace/deviations/replans/haltReason/goalSatisfied。",
+      "description": "执行闭环（大脑内模拟）：用 plan_task 规划→逐步执行(每步 checkHard SAFE-STOP)→观测偏差→确定性重规划(maxReplans 护栏)。faults 可注入 {failAt:[序号], deviateAt:[{step,patch}]} 演示重规划/SAFE-STOP。真物理执行由机器人侧用 plan 自行驱动。返回 trace/deviations/replans/haltReason/goalSatisfied。 / EN: Execution loop (simulated inside the brain): plan via plan_task → execute step by step (checkHard SAFE-STOP each step) → observe deviation → deterministic replanning (maxReplans guardrail). Inject faults {failAt:[idx], deviateAt:[{step,patch}]} to demo replanning / SAFE-STOP. Real physical execution is driven by the robot side using the plan. Returns trace / deviations / replans / haltReason / goalSatisfied.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -1212,7 +1212,7 @@
     "type": "function",
     "function": {
       "name": "positioning",
-      "description": "返回灵脑产品定位 POSITIONING（具身智能在物理世界干活的通用大脑）+ 当前注册身体 BODY。让外部智能体确认大脑的自我定位与边界。",
+      "description": "返回灵脑产品定位 POSITIONING（具身智能在物理世界干活的通用大脑）+ 当前注册身体 BODY。让外部智能体确认大脑的自我定位与边界。 / EN: Return LingNao’s product positioning POSITIONING (a general brain for embodied AI working in the physical world) + the currently registered body BODY. Lets external agents confirm the brain’s self-positioning and boundaries.",
       "parameters": {
         "type": "object",
         "properties": {},

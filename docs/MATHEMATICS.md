@@ -88,7 +88,7 @@ proofAudit: capabilities=27, proven=27, unproven=0
 | `THM_KALMAN_MINVAR` | 状态估计 | 线性+高斯 ⟹ 卡尔曼最小方差无偏（高斯下即后验均值） | `AX_GAUSS`,`AX_PROB`,`AX_LINEAR` | 2 | Kalman (1960) | MSE 较直接观测改善 6.0× |
 | `THM_PARTICLE_CONSISTENT` | 蒙特卡洛 | 重要采样粒子近似 N→∞ 一致收敛（有限 N 为近似） | `AX_PROB` | 2 | 大数定律 | 双峰歧义保持 ±2 |
 | `THM_LQR_OPTIMAL` | 最优控制 | 线性+二次代价 ⟹ u=−Kx（K 由 DARE）最优 | `AX_LINEAR`,`AX_MEASURE_OPT`,`AX_CONVEX` | 2 | Kalman (1960) 动态规划 | 代价精确等于理论下界 |
-| `THM_LQG_SEPARATION` | 随机控制 | 卡尔曼与 LQR 可独立设计，组合仍 LQG 最优（分离原理） | `THM_KALMAN_MINVAR`,`THM_LQR_OPTIMAL` | 3 | 分离原理 | 两 Riccati 对偶性 |
+| `THM_LQG_SEPARATION` | 随机控制 | 卡尔曼与 LQR 可独立设计，组合仍 LQG 最优（分离原理） | `AX_LINEAR`,`AX_PROB`,`AX_MEASURE_OPT`,`AX_CONVEX` | 2 | Wonham (1968) 分离原理 | 两 Riccati 对偶性；独立性前提取文献，未运行时核验 |
 | `THM_CBF_INVARIANCE` | 安全控制 | ∃h 使 L_f h+L_g h·u ≥ −α(h) ⟹ 安全集前向不变 | `AX_REAL`,`AX_CONVEX` | 2 | Nagumo 前向不变性 | `cbfFilter` 返回可行性+margin |
 | `THM_ZONOTOPE_SOUND` | 可达性 | Zonotope 对线性变换与 Minkowski 和封闭 ⟹ 可达集过近似可信 | `AX_LINEAR`,`AX_SET` | 2 | 生成元表示封闭性 | `zonoReach.sound` 由本定理支撑 |
 | `THM_DO_CALCULUS` | 因果推断 | 满足后门/前门准则 ⟹ P(Y\|do(X)) 可由观测识别 | `AX_PROB` | 2 | Pearl (1995) do-演算 | 合成数据 ACE 还原真值 |
@@ -110,12 +110,11 @@ proofAudit: capabilities=27, proven=27, unproven=0
 
 ---
 
-## 6. 证明深度：只有两条链到深度 3
+## 6. 证明深度：仅一条链到深度 3
 
 - `THM_ABSINT_SOUND`：公理 → `THM_KLEENE` → `THM_ABSINT_SOUND`（深度 3）
-- `THM_LQG_SEPARATION`：公理 → `THM_KALMAN_MINVAR` / `THM_LQR_OPTIMAL` → `THM_LQG_SEPARATION`（深度 3）
 
-其余 14 条深度均为 2（直接挂在公理或单个中间定理上）。**最大深度仅 3**——这是有意为之：链越短越可被人类逐条复核，也越难藏匿"裸断言"。代价是内核不做任何深的形式化发展。
+`THM_LQG_SEPARATION` 已改为 `DERIVE`（Wonham 1968 分离原理，独立定理），直接挂在支撑公理上，深度 2。其余 15 条深度均为 2（直接挂在公理或单个中间定理上）。**最大深度仅 3**——这是有意为之：链越短越可被人类逐条复核，也越难藏匿"裸断言"。代价是内核不做任何深的形式化发展。
 
 依赖图见 [`kernel-dag.svg`](./kernel-dag.svg)。
 
@@ -123,7 +122,7 @@ proofAudit: capabilities=27, proven=27, unproven=0
 
 ## 7. 需要数学家审视的几点（诚实清单，欢迎挑刺）
 
-**7.1 分离原理的登记方式偏弱。** `THM_LQG_SEPARATION` 用规则 `CONJ`（合取）从卡尔曼+LQR 推出，但分离原理本身是独立定理。其 `proof` 字段写的是"估计误差与控制独立 ⟹ 期望代价可分解"——这其实是 DERIVE 的内容。建议把它从 `CONJ` 改为 `DERIVE` 并补独立证明链。这是**登记标签问题，不影响陈述正确性**。
+**7.1 分离原理的登记方式（已修正）。** 原 `THM_LQG_SEPARATION` 用 `CONJ` 从卡尔曼+LQR 推出，已改为 `DERIVE`（Wonham 1968 分离原理，独立定理），`from` 改为支撑公理 `AX_LINEAR`/`AX_PROB`/`AX_MEASURE_OPT`/`AX_CONVEX`，证明深度由 3 降为 2，并在 `proof` 注明"估计误差/控制独立性"前提取文献、本内核未运行时核验其证书。这是**登记标签修正，不影响陈述正确性**。
 
 **7.2 证书成立依赖运行时前提，内核不替你验证前提。** 例如：
 - `THM_KALMAN_MINVAR` 要求"线性 + 高斯"。若实际系统非线性/非高斯，证书即失效；

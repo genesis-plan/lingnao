@@ -245,19 +245,20 @@
     {
       "id": "THM_LQG_SEPARATION",
       "statement": "卡尔曼(LQE) 与 LQR 可独立设计，组合后仍为 LQG 最优（分离原理）",
-      "by": "CONJ",
+      "by": "DERIVE",
       "from": [
-        "THM_KALMAN_MINVAR",
-        "THM_LQR_OPTIMAL"
+        "AX_LINEAR",
+        "AX_PROB",
+        "AX_MEASURE_OPT",
+        "AX_CONVEX"
       ],
       "field": "随机控制",
-      "proof": "分离原理：估计误差与控制独立 ⟹ 期望代价可分解为估计代价 + 控制代价。",
+      "proof": "Wonham (1968) 分离原理：线性高斯下估计误差与控制输入条件独立 ⟹ 期望 LQR 代价可加性分解，估计与控制可分别最优后再拼装。注：独立性前提取文献结论，本内核未运行时核验该证书。",
       "evidence": "估计与控制两个 Riccati 方程存在对偶性（控制向后 / 估计向前）",
-      "depth": 3,
+      "depth": 2,
       "axioms": [
-        "AX_GAUSS",
-        "AX_PROB",
         "AX_LINEAR",
+        "AX_PROB",
         "AX_MEASURE_OPT",
         "AX_CONVEX"
       ]
