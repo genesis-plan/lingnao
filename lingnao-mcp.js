@@ -401,7 +401,7 @@ function compileCapability(spec) {
       return p;
     };
   }
-  return { id, desc: spec.desc, pre, eff, cost, ground };
+  return { id, desc: spec.desc, pre, eff, cost, ground, irreversible: spec.irreversible === true };
 }
 
 function attachBodyLogic(body) {
