@@ -4827,7 +4827,12 @@ function stateDiff(a, b) {
   return d;
 }
 function checkHard(state, step) {
-  const hard = (BODY.hard || []).concat((WORLD && WORLD.hard) ? WORLD.hard : []);
+  // 安全校验同时覆盖两层硬约束：
+  //   · 身体级 BODY.hard（离散禁区标签 + 声明式包线，跨 JSON-RPC 传入）
+  //   · 能力级 cap.hard（每个能力自带的安全包线，如角度极限/力上限/电子围栏）
+  // 二者任一违反即 fail-closed 拦截。此前 cap.hard 未被检查，导致连续物理量安全门形同虚设。
+  const cap = (step && step.cap && CAPS[step.cap]) || null;
+  const hard = (BODY.hard || []).concat((WORLD && WORLD.hard) ? WORLD.hard : []).concat((cap && cap.hard) || []);
   for (let i = 0; i < hard.length; i++) {
     const h = hard[i];
     if (typeof h === 'string') {
@@ -4841,25 +4846,69 @@ function checkHard(state, step) {
       try { r = h.predicate(state, step) !== false; } catch (e) { r = false; }
       if (!r) return { ok: false, violation: h.desc || ('hard#' + i) };
     }
+    // 声明式硬约束（可跨 JSON-RPC 传入，无需函数）——让「角度极限/力上限/电子围栏/高度下限」
+    // 这类连续物理安全包线可以只用数据描述。三种写法可组合：
+    //   { forbid:'ZONE_B' }                     离散禁区（等价于字符串写法）
+    //   { params:{ angle:{min:-95,max:95} } }   指令参数边界（该参数缺席则跳过）
+    //   { require:{ force:{max:5} }, scope:'both' }  状态安全包线；scope: pre|post|both(默认)
+    // post 用该步的预测后状态 step.expect 校验 ⇒ 越界指令在下发前就被拦下，而非事后补救。
+    if (h && typeof h === 'object' && !Array.isArray(h)) {
+      const desc = h.desc || ('hard#' + i);
+      if (h.forbid !== undefined) {
+        const p = step.params || {};
+        if (p.to === h.forbid || p.target === h.forbid || p.region === h.forbid) return { ok: false, violation: 'forbidden:' + h.forbid + '(' + desc + ')' };
+      }
+      if (h.params && typeof h.params === 'object') {
+        const p = step.params || {};
+        for (const f in h.params) {
+          if (p[f] === undefined) continue; // 参数缺席 ⇒ 该边界与本步无关
+          const one = {}; one[f] = h.params[f];
+          if (!evalRequire(p, one)) return { ok: false, violation: desc + '(指令参数越界:' + f + '=' + p[f] + ')' };
+        }
+      }
+      if (h.require && typeof h.require === 'object') {
+        const scope = h.scope || 'both';
+        if ((scope === 'pre' || scope === 'both') && !evalRequire(state, h.require)) {
+          return { ok: false, violation: desc + '(当前状态越出安全包线)' };
+        }
+        if ((scope === 'post' || scope === 'both') && step.expect && !evalRequire(step.expect, h.require)) {
+          return { ok: false, violation: desc + '(预测后状态越出安全包线)' };
+        }
+      }
+    }
   }
   return { ok: true };
 }
 // ── 声明式契约求值（可静态分析 / 可区间传播，与黑盒函数式并存）─────────────
 // 契约四态：声明式 pre.require / effect 可被验证；函数式 pre/eff 为黑盒，不可验证。
 // pre.require 形式：{ 字段: 值 | {min,max,gte,lte,eq} }
+// 声明式条件求值（fail-closed）。比较器：
+//   数值区间 min/max/gte/lte/gt/lt（要求该字段是数值，非数值 ⇒ 无法判定 ⇒ false）
+//   等值/枚举 eq/ne/in（支持字符串、布尔等非数值，用于离散状态如 damaged:false、mode:"idle"）
+// 约定：字段缺失时数值比较必然 false（不能证明安全 ⇒ 不放行），这是安全语义的一部分。
 function evalRequire(s, req) {
   if (!req || typeof req !== 'object') return true;
   for (const k in req) {
     const v = s ? s[k] : undefined;
     const c = req[k];
     if (c == null) return false;
-    if (c && typeof c === 'object') {
-      if (typeof v !== 'number') return false;
-      if (c.min != null && !(v >= c.min)) return false;
-      if (c.max != null && !(v <= c.max)) return false;
-      if (c.gte != null && !(v >= c.gte)) return false;
-      if (c.lte != null && !(v <= c.lte)) return false;
-      if (c.eq  != null && !(v === c.eq))  return false;
+    if (c && typeof c === 'object' && !Array.isArray(c)) {
+      // 离散比较器：先判，允许非数值类型（布尔/字符串）
+      if (c.eq !== undefined && v !== c.eq) return false;
+      if (c.ne !== undefined && v === c.ne) return false;
+      if (c.in !== undefined && !(Array.isArray(c.in) && c.in.indexOf(v) >= 0)) return false;
+      if (c.nin !== undefined && Array.isArray(c.nin) && c.nin.indexOf(v) >= 0) return false;
+      // 数值区间比较器：仅当声明了区间才要求数值类型
+      const hasNum = (c.min != null || c.max != null || c.gte != null || c.lte != null || c.gt != null || c.lt != null);
+      if (hasNum) {
+        if (typeof v !== 'number' || !isFinite(v)) return false;
+        if (c.min != null && !(v >= c.min)) return false;
+        if (c.max != null && !(v <= c.max)) return false;
+        if (c.gte != null && !(v >= c.gte)) return false;
+        if (c.lte != null && !(v <= c.lte)) return false;
+        if (c.gt  != null && !(v >  c.gt))  return false;
+        if (c.lt  != null && !(v <  c.lt))  return false;
+      }
     } else if (v !== c) return false;
   }
   return true;

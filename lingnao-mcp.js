@@ -347,7 +347,17 @@ let lastGoalSpec = null;            // 供 ground 模板从目标规范取字段
 function goalFnFromSpec(spec) {
   if (!spec || typeof spec !== 'object') throw new Error('goalSpec 必须是对象 {reach|match|all}');
   if (spec.reach !== undefined) { const t = spec.reach; return s => !!(s && s.node === t); }
-  if (spec.match) { const m = spec.match; const ks = Object.keys(m); return s => ks.every(k => !!(s && s[k] === m[k])); }
+  if (spec.match) {
+    const m = spec.match; const ks = Object.keys(m);
+    // 离散相等 或 区间/容差匹配（连续物理量：角度/坐标/力/电量）。
+    // 区间写法复用内核 evalRequire 语义：{min,max,gte,lte,gt,lt}。
+    // 例：match:{angle:{min:44.5,max:45.5}} 表示传感器读数落在此容差带即视为达成。
+    return s => ks.every(k => {
+      const want = m[k];
+      if (want && typeof want === 'object' && !Array.isArray(want)) return K.evalRequire(s, { [k]: want });
+      return !!(s && s[k] === want);
+    });
+  }
   if (spec.all) { const fns = spec.all.map(goalFnFromSpec); return s => fns.every(f => f(s)); }
   throw new Error('goalSpec 需含 reach / match / all 之一');
 }
@@ -358,11 +368,14 @@ function compileCapability(spec) {
   if (!id) throw new Error('capability 需 id');
   const set = (spec.effect && spec.effect.set) || {};
   const inc = (spec.effect && spec.effect.inc) || {};
+  // 整串模板（如 "{{params.target}}"）保留原始类型：数值仍是数值。
+  // 否则数值物理量会被 String.replace 变成 "45" 这类字符串，导致后续
+  // 数值区间比较（安全包线、目标判定）全部 fail-closed 误拦。
   function resolveTpl(v, params) {
-    if (typeof v === 'string' && v.indexOf('{{') >= 0) {
-      return v.replace(/\{\{\s*params\.(\w+)\s*\}\}/g, (_, k) => (params && params[k] !== undefined ? params[k] : ''));
-    }
-    return v;
+    if (typeof v !== 'string' || v.indexOf('{{') < 0) return v;
+    const full = /^\s*\{\{\s*params\.(\w+)\s*\}\}\s*$/.exec(v);
+    if (full) { const raw = params ? params[full[1]] : undefined; return raw === undefined ? '' : raw; }
+    return v.replace(/\{\{\s*params\.(\w+)\s*\}\}/g, (_, k) => (params && params[k] !== undefined ? params[k] : ''));
   }
   const eff = function (state, params) {
     const next = Object.assign({}, state);
@@ -373,35 +386,48 @@ function compileCapability(spec) {
   let pre = undefined;
   if (spec.pre && spec.pre.require) {
     const req = spec.pre.require;
-    pre = function (state) {
-      for (const f in req) {
-        const cond = req[f]; const cur = state ? state[f] : undefined;
-        if (cond && typeof cond === 'object') {
-          if (cond.min !== undefined && !(Number(cur) >= cond.min)) return false;
-          if (cond.max !== undefined && !(Number(cur) <= cond.max)) return false;
-          if (cond.gte !== undefined && !(Number(cur) >= cond.gte)) return false;
-          if (cond.lte !== undefined && !(Number(cur) <= cond.lte)) return false;
-          if (cond.eq !== undefined && !(Number(cur) === cond.eq)) return false;
-        } else if (cur !== cond) return false;
-      }
-      return true;
-    };
+    // 单一真源：前置条件与 hard / match 共用内核 evalRequire 语义（区间 + 枚举）。
+    pre = function (state) { return K.evalRequire(state, req); };
   }
   const cost = (typeof spec.cost === 'function') ? spec.cost : (spec.cost == null ? 1 : spec.cost);
   let ground = undefined;
   if (spec.ground) {
+    // 从目标值里抽取"具体要执行到的标量"。区间/容差目标（{min,max}/{target,tol}/{center}）
+    // 取其几何中心作为动作参数；离散值原样透传。这样连续物理量（角度/坐标/力）的
+    // 目标既能带容差判定，又能驱动机体执行到一个确定的点。
+    // 关键：整串模板（如 "{{goal.match.angle}}"）直接返回原始类型的值（数值仍是数值），
+    // 不能走 String.replace —— replace 会把 replacer 的返回值强制转成字符串（"45"），
+    // 导致后续数值区间比较全部 fail-closed 误拦。只有模板嵌在更长字符串里才用 replace。
+    const goalScalar = function (v) {
+      if (typeof v === 'number') return v;
+      if (v && typeof v === 'object') {
+        if ('target' in v) return v.target;
+        if ('center' in v) return v.center;
+        if ('eq' in v) return v.eq;
+        if ('min' in v && 'max' in v) return (Number(v.min) + Number(v.max)) / 2;
+      }
+      return v;
+    };
+    const reMatch = /^\s*\{\{\s*goal\.match\.(\w+)\s*\}\}\s*$/;
+    const reTop = /^\s*\{\{\s*goal\.(\w+)\s*\}\}\s*$/;
     ground = function () {
       const p = {};
       for (const k in spec.ground) {
         const v = spec.ground[k];
-        if (typeof v === 'string' && v.indexOf('{{goal.') >= 0) {
-          p[k] = v.replace(/\{\{\s*goal\.(\w+)\s*\}\}/g, (_, f) => (lastGoalSpec && lastGoalSpec[f] !== undefined ? lastGoalSpec[f] : ''));
-        } else p[k] = v;
+        if (typeof v !== 'string' || v.indexOf('{{goal.') < 0) { p[k] = v; continue; }
+        const fm = reMatch.exec(v);
+        if (fm) { const m = lastGoalSpec && lastGoalSpec.match; p[k] = (m && m[fm[1]] !== undefined) ? goalScalar(m[fm[1]]) : ''; continue; }
+        const ft = reTop.exec(v);
+        if (ft) { p[k] = (lastGoalSpec && lastGoalSpec[ft[1]] !== undefined) ? lastGoalSpec[ft[1]] : ''; continue; }
+        // 模板嵌在更长字符串里：仍用 replace（结果本就是字符串，可接受）
+        p[k] = v
+          .replace(/\{\{\s*goal\.match\.(\w+)\s*\}\}/g, (_, f) => (lastGoalSpec && lastGoalSpec.match && lastGoalSpec.match[f] !== undefined ? goalScalar(lastGoalSpec.match[f]) : ''))
+          .replace(/\{\{\s*goal\.(\w+)\s*\}\}/g, (_, f) => (lastGoalSpec && lastGoalSpec[f] !== undefined ? lastGoalSpec[f] : ''));
       }
       return p;
     };
   }
-  return { id, desc: spec.desc, pre, eff, cost, ground, irreversible: spec.irreversible === true };
+  return { id, desc: spec.desc, pre, eff, cost, ground, hard: spec.hard || [], irreversible: spec.irreversible === true };
 }
 
 function attachBodyLogic(body) {
