@@ -334,7 +334,7 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | **MCP 市场：Smithery** | 已备 `smithery.yaml`（stdio + 可选 Key）；登录 smithery.ai → Import from npm: `lingnao-mcp`，或给我 Smithery Key 我来跑 | 仓库已备 `smithery.yaml` |
 | **MCP 市场：mcp.so / Glama / PulseMCP** | 已随 npm 包 `lingnao-mcp` 自动收录（关键词 mcp）；也可在站点粘贴仓库 URL 或根目录 `mcp.json` | 搜索 `lingnao-mcp` 或访问仓库 |
 | **在线试用（免安装）** | 双击 `lingnao-console.html`（同目录需 `lingnao.umd.js`）；或静态托管后给链接 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html> |
-| **npm** | ✅ 已发布 `lingnao-mcp@3.1.0`：`npm i -g lingnao-mcp` 或 `npx lingnao-mcp`（自测 51 项，algebraic_solve 需 lingshu-solver 依赖，`npm i` 后 51/51 全过） | `npx -y lingnao-mcp` |
+| **npm** | ⏳ 待发布 `lingnao-mcp@3.2.0`（tarball 已打包并在干净目录验证通过，待 npm 凭据）：`npm i -g lingnao-mcp` 或 `npx lingnao-mcp`（自测 51 项 + 传输层 9 项）。注：此前**从未以 `lingnao-mcp` 名发布过**（registry 404），仅有旧名 `lingjing-mcp@3.1.0` | `npx -y lingnao-mcp` |
 
 > 让别人用的三种方式（任选其一）：① 双击 `lingnao-console.html`（人）② `node lingnao-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
 

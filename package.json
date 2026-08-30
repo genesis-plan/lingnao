@@ -1,6 +1,6 @@
 {
   "name": "lingnao-mcp",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "description": "灵脑 LingNao（世界通用大脑）— 可审计推理 MCP 服务：把「世界图 → A* 可审计推理 → 物理载体执行 → 学习闭环」封装为标准 MCP stdio 服务。零依赖、免费面向 AI Agent 分发。",
   "keywords": [
     "mcp",
@@ -24,9 +24,18 @@
     "lingnao-mcp.js",
     "lingshu-bridge.js",
     "灵脑.html",
+    "lingnao.umd.js",
     "ima_knowledge.json",
     "ima_lingnao_map.json",
     "ima_index.json",
+    "llms.txt",
+    "openai-tools.json",
+    "anthropic-tools.json",
+    "gen-agent-manifests.js",
+    "selftest-umd.js",
+    "test-mcp-stdio-transport.js",
+    "ARCHITECTURE.md",
+    "VERIFIABLE-PHYSICAL-AI.md",
     "README.md",
     "LICENSE"
   ],
@@ -45,7 +54,10 @@
   "author": "红尘灵脑 / 太白",
   "scripts": {
     "selftest": "node lingnao-mcp.js --selftest",
-    "test": "node lingnao-mcp.js --selftest"
+    "test": "node lingnao-mcp.js --selftest && node test-mcp-stdio-transport.js",
+    "test:umd": "node selftest-umd.js",
+    "test:transport": "node test-mcp-stdio-transport.js",
+    "gen:manifests": "node gen-agent-manifests.js"
   },
   "dependencies": {
     "lingshu-solver": "^1.0.2"
