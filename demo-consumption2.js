@@ -1,7 +1,7 @@
 // demo-consumption2.js — 证明三个判断算法"消费定理"（判断由数学思想派生，非魔法阈值）
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 
-console.log('=== 灵境 · 数学思想消费演示（第二批）===\n');
+console.log('=== 灵脑 · 数学思想消费演示（第二批）===\n');
 
 // ① quantifyUncertainty 消费 Shannon：认知不确定度 = 1 - C(K)（香农熵派生）
 const path = L.aStar('CHARGE', 'C');

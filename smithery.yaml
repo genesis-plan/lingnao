@@ -1,8 +1,8 @@
 # Smithery 清单（MCP 服务器）
 # 提交方式：在 smithery.ai 选 "Add Server" → 粘贴本仓库 GitHub URL，
 # 或待 Smithery Key 就绪后由维护者后台导入。
-name: lingjing
-displayName: 灵境 LingJing（可审计·不幻觉通用大脑）
+name: lingnao
+displayName: 灵脑 LingNao（可审计·不幻觉通用大脑）
 description: >-
   本地确定性、可审计的推理大模型（非概率生成式 LLM）。对外以 MCP stdio 暴露 46 个工具：
   免费 LLM 感知(NL→JSON) / 世界图 / A* 可审计推理 / 七段审计+霍尔证明 / 代数方程求解(委派灵数求解器) /
@@ -11,7 +11,7 @@ startCommand:
   type: stdio
   command: npx
   args:
-    - github:genesis-plan/lingjing
+    - github:genesis-plan/lingnao
   env:
     - key: OPENROUTER_API_KEY
       description: OpenRouter 免费 LLM Key（可选；留空则大脑以结构化输入降级运行，100% 确定性可用）

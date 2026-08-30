@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>世界大脑 WorldBrain — 可审计推理引擎 · 物理载体接入</title>
+<style>
+  :root{ --bg:#f7f8fa; --card:#fff; --ink:#1f2933; --sub:#52606d; --line:#e4e7eb;
+         --blue:#2563eb; --green:#0f9d58; --red:#d93025; --amber:#f4b400; --soft:#eef2ff; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  header{background:linear-gradient(90deg,#1e3a8a,#2563eb);color:#fff;padding:16px 20px}
+  header h1{margin:0;font-size:19px} header p{margin:4px 0 0;font-size:12.5px;opacity:.9}
+  .wrap{max-width:1080px;margin:0 auto;padding:16px 16px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--soft);color:var(--blue);font-weight:600}
+  .tag.todo{background:#fef7e0;color:#b06000}
+  label{display:block;font-size:12.5px;color:var(--sub);margin:8px 0 4px}
+  input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:7px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
+  textarea{resize:vertical;min-height:54px}
+  button{background:var(--blue);color:#fff;border:none;border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;margin:6px 6px 0 0}
+  button.ghost{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+  button:active{transform:translateY(1px)}
+  .row{display:flex;gap:12px;flex-wrap:wrap} .row>div{flex:1;min-width:240px}
+  pre{background:#0f172a;color:#e2e8f0;padding:12px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.5;max-height:360px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:left} th{background:var(--soft);color:var(--blue)}
+  .pill{padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .ok{background:#e6f4ea;color:var(--green)} .warn{background:#fef7e0;color:#b06000} .bad{background:#fce8e6;color:var(--red)}
+  .muted{color:var(--sub);font-size:12px}
+  .carrier{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .zone{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;min-width:120px}
+  .zone b{font-size:13px} .bar{height:7px;border-radius:4px;background:#e4e7eb;margin-top:5px;overflow:hidden} .bar>i{display:block;height:100%}
+  details{margin-top:8px} summary{cursor:pointer;font-size:12.5px;color:var(--blue)}
+  .note{font-size:11.5px;color:var(--sub);border-left:3px solid var(--amber);padding:6px 10px;background:#fffdf5;margin-top:8px}
+  .todo-box{font-size:11.5px;border-left:3px solid var(--amber);padding:6px 10px;background:#fffdf5;margin-top:8px}
+  .todo-box b{color:#b06000}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌐 世界大脑 WorldBrain</h1>
+  <p>可审计推理引擎 · 物理载体智能接入即服务 — 驱动所有具身设备的透明决策大脑（MVP v1.0，按开发书模块重构）</p>
+</header>
+<div class="wrap">
+
+  <div class="card">
+    <h2>① 设置 · 免费 LLM 感知层 <span class="tag">OpenRouter :free</span></h2>
+    <label>OpenRouter API Key（留空=手动模式，确定性不依赖 LLM）</label>
+    <input id="apiKey" placeholder="sk-or-... 存于本机 localStorage，不上传任何服务器" autocomplete="off">
+    <div class="note">免费档约 50 次/天、20 RPM；I/O 可能进厂商训练，<b>勿填敏感数据</b>。LLM 只做"自然语言→结构化状态"的感知，<b>推理/审计/学习全确定性、不幻觉</b>。</div>
+    <button class="ghost" onclick="showMCP()">一键接入智能体（MCP）</button>
+    <div id="mcpBox" class="note" style="display:none"></div>
+  </div>
+
+  <div class="card">
+    <h2>② 物理载体接入层 <span class="tag">核心</span></h2>
+    <div class="row">
+      <div>
+        <label>电量 %（&lt;20 触发硬约束：禁止离开充电座 CHARGE）</label>
+        <input id="battery" type="number" value="100" min="0" max="100">
+      </div>
+      <div>
+        <label>目标区（A / B / C）</label>
+        <input id="goal" value="C">
+      </div>
+    </div>
+    <label>各区蚊子密度（JSON，如 {"A":8,"B":3,"C":5,"CHARGE":0}）</label>
+    <textarea id="density">{"A":8,"B":3,"C":5,"CHARGE":0}</textarea>
+    <button onclick="carrierReport()">载体上报状态</button>
+    <div id="carrierOut" class="carrier"></div>
+  </div>
+
+  <div class="card">
+    <h2>③ 推理引擎 <span class="tag">A* + 硬/软约束</span> <span class="tag todo">Banach感知/PAC/do演算/形式化 待补</span></h2>
+    <div class="row">
+      <div><label>起点</label><input id="start" value="CHARGE"></div>
+      <div><label>目标</label><input id="rgoal" value="C"></div>
+    </div>
+    <label>硬约束（禁经节点，逗号分隔，如 D）</label>
+    <input id="hard" placeholder="如 D">
+    <label>软约束（尽量避开节点，逗号分隔，如 B）</label>
+    <input id="soft" placeholder="如 B">
+    <button onclick="runReason()">运行可审计推理</button>
+    <button class="ghost" onclick="testUnknown()">测试不可判定区域 U</button>
+    <div id="reasonOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>④ 审计报告 <span class="tag">五段：概要/详细/证据/约束/附录</span></h2>
+    <div id="auditOut"></div>
+  </div>
+
+  <div class="card">
+    <h2>⑤ 知识库 <span class="tag">经验表+置信度+冲突检测</span> <span class="tag todo">LSH/向量库 待补</span></h2>
+    <button onclick="renderKB()">刷新知识库</button>
+    <div id="kbOut"></div>
+    <div class="todo-box"><b>TODO（文档要求，当前未实现，不虚构）：</b> 相似性检索当前为数组遍历（状态指纹精确匹配），未接 LSH/余弦相似度；知识库压缩效率（柯尔莫哥洛夫复杂性）未算。</div>
+  </div>
+
+  <div class="card">
+    <h2>⑥ 学习模块 <span class="tag">反馈→置信度</span> <span class="tag todo">PAC界/蒸馏 待补</span></h2>
+    <label>执行路径（数组，如 ["CHARGE","A","C"]）</label>
+    <input id="fbPath" value='["CHARGE","A","C"]'>
+    <label>执行结果</label>
+    <select id="fbRes"><option value="true">成功</option><option value="false">失败</option></select>
+    <button onclick="learn()">提交反馈 · 学习</button>
+    <div id="learnOut"></div>
+    <div class="todo-box"><b>TODO（文档 Layer2/6，待补算法）：</b> 当前为启发式置信度±步长更新；PAC 样本复杂度界、在线凸优化、知识蒸馏未实现。</div>
+  </div>
+
+  <div class="card">
+    <h2>⑦ 世界图（外部可定义） <span class="tag">JSON 导入任意场景</span></h2>
+    <label>世界图 JSON（nodes/edges/coord，留空=默认灭蚊器场景）</label>
+    <textarea id="worldJson" placeholder='{"nodes":["S","T"],"edges":[{"from":"S","to":"T","w":1}],"coord":{"S":[0,0],"T":[1,0]}}'></textarea>
+    <button onclick="loadWorld()">导入世界图</button>
+    <div id="worldOut" class="muted"></div>
+  </div>
+
+  <div class="todo-box">
+    <b>诚实边界（按你定的口径）：</b> 文档宣称的 8 层 Agent 中，已确定性实装＝推理(A*+约束)、审计(文本级依据链)、知识库(经验+置信度)、学习(单步反馈)、物理载体接入、MCP。
+    显式标记未实现（有真实算法但超单人30天预算，或非虚构不可为）＝感知 Banach 不动点、PAC 学习界、do演算因果、世界模型/反事实、霍尔逻辑形式化验证、分布式部署。
+    这些在代码里为 <b>TODO 接口桩</b>，未用名词堆砌假装实现。
+  </div>
+</div>
+
+<script>
+// ==KERNEL START==  （WorldBrain 确定性内核；可被 Node 抽取校验，亦被 MCP server 复用）
+// 核心数据模型（文档 3.1）：
+//   State{id,data,fingerprint,ts}  Action{id,data,cost?}  Transition{from,action,to,cost}
+//   Experience{id,transition,success,confidence,source,createdAt,meta}
+//   ReasonStep{seq,state,action,result,reason,confidence,evidenceIds}
+//   ReasonPath{id,start,goal,steps,totalCost,status,searchLog,ts}
+//   AuditReport{pathId,reportId,summary,details[],evidence[],constraints[],unknown[],status,generatedAt,version}
+
+// IMA 数学库素材（仅作知识库依据引用，非核心）——文档融合框架 Layer3 素材来源
+const IMA = [
+  {id:'IMA-35', t:'皮亚诺公理：自然数良序，归纳法基础'},
+  {id:'IMA-33', t:'整数构造：等价类定义加法逆元'},
+  {id:'IMA-44', t:'实数完备性：戴德金分割'},
+  {id:'IMA-50', t:'微积分基本定理：积分与微分的互逆'},
+  {id:'IMA-45', t:'度量空间：距离函数三公理'}
+];
+
+// 默认世界图（智能灭蚊器场景）——文档 MVP 演示场景
+let WORLD = {
+  nodes:['CHARGE','A','B','C'],
+  edges:[
+    {from:'CHARGE',to:'A',w:Math.hypot(3,0)}, {from:'A',to:'CHARGE',w:Math.hypot(3,0)},
+    {from:'A',to:'B',w:Math.hypot(3,3)}, {from:'B',to:'A',w:Math.hypot(3,3)},
+    {from:'B',to:'C',w:Math.hypot(3,0)}, {from:'C',to:'B',w:Math.hypot(3,0)},
+    {from:'CHARGE',to:'B',w:Math.hypot(3,3)}, {from:'B',to:'CHARGE',w:Math.hypot(3,3)},
+    {from:'A',to:'C',w:Math.hypot(3,3)}, {from:'C',to:'A',w:Math.hypot(3,3)}
+  ],
+  coord:{CHARGE:[0,0], A:[3,0], B:[3,3], C:[6,0]}
+};
+
+// ⑦ 世界图外部可定义（文档：状态建模可配置）——灭蚊器仅为默认场景，非硬编码绑定
+function setWorld(json){
+  if(!json || !json.nodes || !json.edges) throw new Error('世界图需含 nodes/edges');
+  const coord = json.coord || {};
+  json.nodes.forEach(n=>{ if(!coord[n]) coord[n]=[Math.random()*10, Math.random()*10]; });
+  WORLD.nodes = json.nodes; WORLD.edges = json.edges; WORLD.coord = coord;
+}
+
+// 可采纳启发式：欧氏距离（≤真实代价，保证 A* 最优）——文档附录B建议
+function heuristic(a,b){
+  const ca=WORLD.coord[a], cb=WORLD.coord[b];
+  if(!ca||!cb) return 0;
+  return Math.hypot(ca[0]-cb[0], ca[1]-cb[1]);
+}
+
+// ② 推理引擎：A* 最优搜索 + 硬约束剪枝 + 软约束代价加成（文档 3.2）
+function aStar(start, goal, opts={}){
+  const hard = new Set(opts.hard||[]);
+  const soft = new Set(opts.soft||[]);
+  const log=[];
+  if(!WORLD.nodes.includes(start)) return {status:'unknown', U:['起点不在世界图'], path:[], cost:0, steps:[], searchLog:log};
+  if(!WORLD.nodes.includes(goal))  return {status:'unknown', U:['目标不在世界图'], path:[], cost:0, steps:[], searchLog:log};
+  if(hard.has(goal)) return {status:'unknown', U:['目标位于硬约束禁集'], path:[], cost:0, steps:[], searchLog:log};
+  const edgeW=(e)=> e.w + (soft.has(e.to)? 2 : 0);
+  const open=[{node:start, g:0, f:heuristic(start,goal), parent:null}];
+  const closed=new Map();
+  let expanded=0;
+  while(open.length){
+    open.sort((x,y)=>x.f-y.f);
+    const cur=open.shift(); expanded++;
+    log.push({expand:cur.node, g:+cur.g.toFixed(3), f:+cur.f.toFixed(3)});
+    if(cur.node===goal){
+      const path=[]; let p=cur; while(p){path.unshift(p.node); p=p.parent;}
+      const steps=path.slice(1).map((node,i)=>({
+        seq:i+1, state:path[i], action:'move→'+node, result:node,
+        reason:'A* 选择最小 f 值后继；代价 '+edgeW(WORLD.edges.find(e=>e.from===path[i]&&e.to===node)).toFixed(3),
+        confidence:1, evidenceIds:['IMA-45']
+      }));
+      return {status:'optimal', path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log};
+    }
+    if(closed.has(cur.node) && closed.get(cur.node)<=cur.g) continue;
+    closed.set(cur.node, cur.g);
+    if(hard.has(cur.node) && cur.node!==start) continue;
+    for(const e of WORLD.edges.filter(e=>e.from===cur.node)){
+      if(hard.has(e.to)) continue;
+      const ng=cur.g+edgeW(e);
+      if(closed.has(e.to) && closed.get(e.to)<=ng) continue;
+      open.push({node:e.to, g:ng, f:ng+heuristic(e.to,goal), parent:cur});
+    }
+  }
+  return {status:'unknown', U:['世界图中无满足约束的可达路径'], path:[], cost:0, steps:[], searchLog:log};
+}
+
+// ③ 知识库：经验存储 + 置信度 + 冲突检测（文档 3.3）
+const KB = {
+  _exp: [],
+  _key(from,to){ return from+'→'+to; },
+  addExperience(from,to,success,confidence=0.5,source='manual'){
+    const id='E'+(this._exp.length+1);
+    const e={id, transition:{from,action:'move→'+to,to}, success, confidence, source, createdAt:Date.now()};
+    const dup=this._exp.find(x=>x.transition.from===from&&x.transition.to===to);
+    if(dup){ dup.confidence=confidence; dup.success=success; dup.createdAt=Date.now(); return dup; }
+    this._exp.push(e); return e;
+  },
+  // 相似度检索：当前为状态指纹精确匹配（TODO LSH/余弦）——文档 3.3
+  query(from,to){
+    return this._exp.filter(x=>x.transition.from===from && (to? x.transition.to===to : true));
+  },
+  findExperience(from,to){ return this.query(from,to)[0] || null; },
+  updateConfidence(from,to,success,step=0.1){
+    let e=this.findExperience(from,to);
+    if(!e) e=this.addExperience(from,to,success,0.5,'learn');
+    e.confidence = success ? Math.min(1, e.confidence+step) : Math.max(0, e.confidence-step);
+    e.success = success; return e;
+  },
+  // 冲突检测：同状态同行动不同结果 → 置信度竞争（文档 3.3）
+  detectConflicts(){
+    const m=new Map();
+    this._exp.forEach(e=>{ const k=this._key(e.transition.from,e.transition.to); (m.get(k)||m.set(k,[]).get(k)).push(e); });
+    const c=[]; m.forEach((v,k)=>{ if(v.length>1 && new Set(v.map(x=>x.success)).size>1) c.push(k); });
+    return c;
+  },
+  stats(){ return {count:this._exp.length, conflicts:this.detectConflicts()}; }
+};
+// 预置 100 条基础经验（文档 3.5 冷启动策略）——此处注：单机 MVP 用少量代表，非千条硬指标
+KB.addExperience('CHARGE','A',true,0.5);
+KB.addExperience('A','C',true,0.5);
+KB.addExperience('CHARGE','B',true,0.5);
+KB.addExperience('B','C',true,0.5);
+
+// ① 感知接口：标准化状态 + 指纹 + 合法性校验（文档 3.1）
+// TODO(文档 Layer1): 当前为结构化 JSON 校验；Banach 不动点信念收敛未实现
+function perceive(input){
+  if(typeof input==='string'){ try{ input=JSON.parse(input); }catch(e){ return {ok:false, error:'JSON 解析失败'}; } }
+  if(!input || !input.goal) return {ok:false, error:'缺少 goal'};
+  const fp = JSON.stringify({battery:input.battery, goal:input.goal, density:input.density});
+  return {ok:true, state:{id:'S'+Date.now(), data:input, fingerprint:fp, ts:Date.now()}};
+}
+
+// ④ 审计：五段报告（概要/详细/证据/约束/附录）+ 不可判定列表（文档 3.4）
+function generateAudit(path, opts={}){
+  const details = path.steps.map(s=>({
+    step:s.seq, state:s.state, action:s.action, result:s.result,
+    reason:s.reason, confidence:s.confidence, evidence:s.evidenceIds
+  }));
+  const evidence = [...new Set(path.steps.flatMap(s=>s.evidenceIds))].map(id=>{
+    const ima=IMA.find(x=>x.id===id); return ima? {id, t:ima.t} : {id, t:'(经验依据)'};
+  });
+  const constraints = [
+    {type:'hard', nodes:opts.hard||[], passed: !(opts.hard||[]).some(n=>path.path.includes(n))},
+    {type:'soft', nodes:opts.soft||[], applied:'代价 +2/节点'}
+  ];
+  const unknown = path.status==='unknown' ? (path.U||['不可判定']) : [];
+  const status = unknown.length? 'warning' : 'valid';
+  return {
+    reportId:'AUD'+Date.now(), pathId:path.id||'P', summary:{
+      totalCost:path.cost, status:path.status, nodes:path.path.length,
+      key:'最优路径 '+path.path.join('→')
+    },
+    details, evidence, constraints, unknown, status, generatedAt:new Date().toISOString(), version:'1.0'
+  };
+}
+
+// ⑤ 学习：反馈→置信度更新 + 学习日志（文档 3.5）
+// TODO(文档 Layer2/6): 启发式更新；PAC 样本复杂度界、在线凸优化、知识蒸馏未实现
+function learn(path, success, step=0.1){
+  const updated = path.slice(1).map((node,i)=> KB.updateConfidence(path[i], node, success, step));
+  return {updated:updated.map(e=>({id:e.id, transition:e.transition.from+'→'+e.transition.to, confidence:+e.confidence.toFixed(3)})), log:'学习日志：'+path.join('→')+' 反馈='+(success?'成功':'失败')};
+}
+
+// 物理载体接入：上报→推理约束生成（文档：物理载体智能接上要用）
+function carrierReport(battery, goal, density){
+  const h=[]; if(+battery<20 && Array.isArray(WORLD.nodes)) WORLD.nodes.forEach(n=>{ if(n!=='CHARGE') h.push(n); }); // 电量<20 禁止离开充电座（硬约束：禁 A/B/C）
+  return {battery, goal, density, hard:h, note: h.length? '电量<20%：硬约束禁止离开 CHARGE（禁 '+h.join('/')+'）' : '电量充足'};
+}
+// 兼容 MCP / 外部调用的全局别名（与 worldbrain-mcp.js 抽取契约一致）
+function findExperience(from,to){ return KB.findExperience(from,to); }
+function updateConfidence(from,to,success,step){ return KB.updateConfidence(from,to,success,step); }
+// ==KERNEL END==
+
+// 导出供 MCP / Node 校验复用
+if(typeof globalThis!=='undefined'){
+  globalThis.__WB = {WORLD, IMA, setWorld, heuristic, aStar, KB, perceive, generateAudit, learn, carrierReport};
+}
+
+// ===================== UI 编排 =====================
+const $ = id=>document.getElementById(id);
+function showMCP(){
+  const box=$('mcpBox'); box.style.display='block';
+  box.innerHTML='外部智能体接入配置（stdio）：<br>node worldbrain-mcp.js<br>工具：reason / carrier_report / learn / audit / query / add';
+}
+function carrierReportUI(){
+  const r=carrierReport($('battery').value, $('goal').value, JSON.parse($('density').value||'{}'));
+  $('carrierOut').innerHTML = `<div class="zone"><b>电量</b> ${r.battery}%<div class="bar"><i style="width:${r.battery}%;background:${r.battery<20?'var(--red)':'var(--green)'}"></i></div></div>`
+    + `<div class="zone"><b>目标</b> ${r.goal}</div>`
+    + `<div class="zone"><b>硬约束</b> ${r.hard.length? r.hard.join(',') : '无'}</div>`;
+  window.__carrier = r;
+}
+function carrierReport(){ carrierReportUI(); }
+function runReason(){
+  const hard=($('hard').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const soft=($('soft').value||'').split(',').map(s=>s.trim()).filter(Boolean);
+  const start=$('start').value.trim(), goal=$('rgoal').value.trim();
+  const r=aStar(start, goal, {hard, soft});
+  let html=`<div class="pill ${r.status==='optimal'?'ok':'warn'}">${r.status==='optimal'?'最优':'不可判定 U'}</div> `;
+  if(r.status==='optimal'){
+    html+=`<b>路径</b> ${r.path.join(' → ')} ｜ <b>代价</b> ${r.cost} ｜ <b>扩展节点</b> ${r.expanded}<br><table><tr><th>步</th><th>状态</th><th>行动</th><th>结果</th><th>依据</th><th>置信度</th></tr>`;
+    r.steps.forEach(s=>html+=`<tr><td>${s.seq}</td><td>${s.state}</td><td>${s.action}</td><td>${s.result}</td><td>${s.reason}</td><td>${s.confidence}</td></tr>`);
+    html+='</table>';
+  } else {
+    html+=`<b>U=</b> ${r.U.join('; ')}`;
+  }
+  $('reasonOut').innerHTML=html;
+  window.__path = r;
+  const aud=generateAudit(r, {hard, soft});
+  renderAudit(aud);
+}
+function testUnknown(){
+  $('start').value='CHARGE'; $('rgoal').value='Z'; $('hard').value=''; $('soft').value='';
+  runReason();
+}
+function renderAudit(aud){
+  let h=`<div class="pill ${aud.status==='valid'?'ok':'warn'}">审计 ${aud.status}</div> `;
+  h+=`<b>概要：</b>${aud.summary.key} ｜ 代价 ${aud.summary.totalCost} ｜ 状态 ${aud.summary.status}<br>`;
+  h+=`<details open><summary>详细（${aud.details.length} 步）</summary><table><tr><th>步</th><th>状态</th><th>行动</th><th>结果</th><th>依据</th><th>置信度</th></tr>`;
+  aud.details.forEach(d=>h+=`<tr><td>${d.step}</td><td>${d.state}</td><td>${d.action}</td><td>${d.result}</td><td>${d.reason}</td><td>${d.confidence}</td></tr>`);
+  h+='</table></details>';
+  h+=`<details><summary>证据（${aud.evidence.length}）</summary><ul>`+aud.evidence.map(e=>`<li>${e.id}: ${e.t}</li>`).join('')+'</ul></details>';
+  h+=`<details><summary>约束检查</summary><ul>`+aud.constraints.map(c=>`<li>${c.type}: ${JSON.stringify(c.nodes)} passed=${c.passed}</li>`).join('')+'</ul></details>';
+  h+=`<details><summary>附录：不可判定 U</summary>`+(aud.unknown.length? aud.unknown.join('; ') : '无')+'</details>';
+  $('auditOut').innerHTML=h;
+}
+function renderKB(){
+  const s=KB.stats();
+  let h=`<b>经验数</b> ${s.count} ｜ <b>冲突</b> ${s.conflicts.length? s.conflicts.join(',') : '无'}<br><table><tr><th>ID</th><th>转移</th><th>成功</th><th>置信度</th><th>来源</th></tr>`;
+  KB._exp.forEach(e=>h+=`<tr><td>${e.id}</td><td>${e.transition.from}→${e.transition.to}</td><td>${e.success}</td><td>${e.confidence}</td><td>${e.source}</td></tr>`);
+  h+='</table>';
+  $('kbOut').innerHTML=h;
+}
+function learnUI(){
+  const path=JSON.parse($('fbPath').value||'[]'); const success=$('fbRes').value==='true';
+  if(!path.length){ $('learnOut').innerHTML='<span class="bad">路径为空</span>'; return; }
+  const r=learn(path, success);
+  $('learnOut').innerHTML=`<b>学习：</b>${r.log}<br>更新：${r.updated.map(u=>u.transition+'='+u.confidence).join('， ')}`;
+  renderKB();
+}
+function learn(){ learnUI(); }
+function loadWorld(){
+  try{ const j=JSON.parse($('worldJson').value); setWorld(j); $('worldOut').innerHTML='已导入 '+j.nodes.length+' 节点 / '+j.edges.length+' 边'; }
+  catch(e){ $('worldOut').innerHTML='<span class="bad">导入失败：'+e.message+'</span>'; }
+}
+const savedKey=localStorage.getItem('worldbrain_key'); if(savedKey) $('apiKey').value=savedKey;
+$('apiKey').addEventListener('change',e=>localStorage.setItem('worldbrain_key', e.target.value));
+renderKB();
+</script>
+</body>
+</html>

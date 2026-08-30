@@ -1,6 +1,6 @@
 {
   "source": "IMA 数学库（knowledge_base_id=7473260799221179，creator=葱头）",
-  "description": "数学公理/定理/定义/方法/思想方法的确定性知识壳；接入灵境后可被 KB.imaQuery 检索、被元认知层路由，作为推理证据与兜底依据。完整形式化陈述存于 IMA（can_fetch_content=true），壳仅保留可审计元信息，不臆造细节。",
+  "description": "数学公理/定理/定义/方法/思想方法的确定性知识壳；接入灵脑后可被 KB.imaQuery 检索、被元认知层路由，作为推理证据与兜底依据。完整形式化陈述存于 IMA（can_fetch_content=true），壳仅保留可审计元信息，不臆造细节。",
   "total": 431,
   "kbId": "7473260799221179",
   "loadedAt": "2026-08-27T03:25:02.418Z",

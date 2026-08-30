@@ -1,5 +1,5 @@
-// 无头复现 lingjing-console.html 的接线逻辑，确认真函数不抛错且产出真实规划/执行/审计
-const L = require('./lingjing.umd.js');
+// 无头复现 lingnao-console.html 的接线逻辑，确认真函数不抛错且产出真实规划/执行/审计
+const L = require('./lingnao.umd.js');
 
 const CAPS_DEFAULT = [
   {id:'step_CA', pre:s=>s.location==='CHARGE', eff:s=>{s.location='A';}, cost:1, ground:()=>({target:'A'})},

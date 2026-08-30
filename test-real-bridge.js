@@ -4,9 +4,9 @@
  * 覆盖：正常到达 / SAFE-STOP / 重规划护栏
  */
 'use strict';
-const L = require('./lingjing.umd.js');
-const { start } = require('./lingjing-body-sim-server.js');
-const { createBodyBridge } = require('./lingjing-body-bridge.js');
+const L = require('./lingnao.umd.js');
+const { start } = require('./lingnao-body-sim-server.js');
+const { createBodyBridge } = require('./lingnao-body-bridge.js');
 
 const CAPS_DEFAULT = [
   { id: 'step_CHARGE_A', pre: s => s.location === 'CHARGE', eff: s => { s.location = 'A'; }, cost: 1, ground: () => ({ target: 'A' }) },

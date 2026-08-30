@@ -2,9 +2,9 @@
 /**
  * demo-mathline.js — 端到端演示「数学主线贯穿」：
  * 每个核心算法的判断都追溯到 七元组 𝔹 分量 + 具体 IMA 公理，
- * 审计报告输出可机器检查的数学依据链（灵境相对黑箱 LLM 的世界前沿差异化）。
+ * 审计报告输出可机器检查的数学依据链（灵脑相对黑箱 LLM 的世界前沿差异化）。
  */
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 
 function line(s){ console.log('\n' + '─'.repeat(64) + '\n' + s); }
 function showMath(tag, r){
@@ -49,4 +49,4 @@ console.log('  状态:', au.status);
 console.log('  收引分量:', au.mathFoundation.cited.map(c => c.septId + '(' + c.septuple + ')').join('  |  '));
 console.log('  收引公理:', [...new Set(au.mathFoundation.cited.flatMap(c => c.ima.map(x => x.id)))].join(' '));
 
-line('结论：灵境每个算法的判断均可追溯到 七元组 𝔹 分量 + 具体 IMA 公理，审计可输出数学依据链。');
+line('结论：灵脑每个算法的判断均可追溯到 七元组 𝔹 分量 + 具体 IMA 公理，审计可输出数学依据链。');

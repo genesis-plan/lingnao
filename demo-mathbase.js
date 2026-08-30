@@ -1,6 +1,6 @@
 // demo-mathbase.js —— 数学基岩统一框架端到端演示
 // 展示：集合论 ZFC 为底层 + 范畴论胶水 + L1 分支公理 + L2 未决公理 + 每个判断的完整公理链
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 
 console.log('=== ① 大脑数学基岩 MathAxioms 全框架 ===');
 const rep = L.MathAxioms.report();

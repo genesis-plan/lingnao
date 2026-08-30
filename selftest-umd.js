@@ -1,7 +1,7 @@
-// selftest-umd.js — 验证 lingjing.umd.js 在 Node 下可直接 require 并实装核心能力
+// selftest-umd.js — 验证 lingnao.umd.js 在 Node 下可直接 require 并实装核心能力
 // 重构后（2026-08-29）：大脑不内置经验库(KB 已移除)、不自我贴标(数学标签层已移除)；
 // 判断仍由定理派生（Banach 不动点 / A* 一致性三角不等式 / Shannon 信息熵 / PrSTL 时态语义），但不往 return 里塞 math 装饰。
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 function assert(c, msg) { if (!c) { console.error('FAIL: ' + msg); process.exit(1); } console.log('PASS: ' + msg); }
 
 // 自测必须从确定状态起步：神经① 会把感知增量落盘，若不清理，上一轮学到的

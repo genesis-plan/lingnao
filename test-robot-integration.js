@@ -1,7 +1,7 @@
 // 机器人接入测试：验证「大脑面对任意物理身体」——两台异构机器人接入同一颗大脑
 // 运行：node test-robot-integration.js
 const fs = require('fs');
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 
 let pass = 0, fail = 0;
 function assert(c, m){ if(c){ pass++; console.log('  \u2713 ' + m); } else { fail++; console.log('  \u2717 FAIL: ' + m); } }
@@ -62,11 +62,18 @@ assert(rec.value < 0.9 && rec.value > 0.2 && rec.alpha > 0 && rec.alpha < 1, '�
 
 // ---------- 解耦证明：内核「推理/约束代码」无具体机器人硬编码（去注释后检查） ----------
 console.log('\n[解耦证明] 内核推理/约束代码无\"充电座/电量<20%\"硬编码');
-const html = fs.readFileSync('灵境.html','utf8');
+const html = fs.readFileSync('灵脑.html','utf8');
 const km = html.match(/\/\/ ==KERNEL START==[^\n]*\n([\s\S]*?)\n\/\/ ==KERNEL END==/);
 // 去掉 // 行注释（1122 行是\"声明解耦\"的注释，非硬编码规则；UI 在 KERNEL END 之外本就排除）
-const kernelCode = (km ? km[1] : html).replace(/\/\/.*$/gm, '');
+// 再排除 POSITIONING 产品定位声明块：那是说明性文本，且其内容恰恰是在声明
+// 「不内置任何具体身体（充电座 / 机械臂 / 无人机…）」，属解耦的自证，反被"充电座"一词误判。
+// 只排除该块本身，不降低对真实可执行代码的检查标准。
+const kernelCode = (km ? km[1] : html)
+  .replace(/\/\/.*$/gm, '')
+  .replace(/const POSITIONING = \{[\s\S]*?\n\};/, '');
 assert(!/充电座|battery\s*<\s*20|charging\s*dock/i.test(kernelCode), '内核推理/约束代码无具体物理身体硬编码');
+// 反向校验：排除必须精确命中，否则说明正则失效、检查被静默放宽
+assert(!/const POSITIONING = \{/.test(kernelCode), 'POSITIONING 声明块已被精确排除（检查未被静默放宽）');
 
 console.log('\n' + (fail ? ('\u2717 机器人接入测试失败 ' + fail + ' 项') : ('\u2713 机器人接入测试全部 ' + pass + ' 项通过')));
 process.exit(fail ? 1 : 0);

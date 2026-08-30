@@ -1,10 +1,10 @@
-// 灵境 LingJing v3.0 — 真实世界机器人机队 · 资源分配示范
+// 灵脑 LingNao v3.0 — 真实世界机器人机队 · 资源分配示范
 // 复用 virtual-world.js：把"虚拟空间"里的主体换成真实部署的机器人机队，
 // 让大脑对它们做「发现错配（谁缺电/谁超载）→ 协调（调度中心寻路）→ 分配（负载均衡+充电调度）」。
 // 机器人原型（依公开资料简化建模，可考据）：Amazon Kiva/Proteus 仓储、Aethon TUG 医院配送、
 //   Starship 校园/人行道配送、废墟搜救机器人。规划内核/审计/不幻觉保证与真实部署同代码。
 const { VirtualWorld, runBrainCycle } = require('./virtual-world.js');
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 const line = (s = '') => console.log(s);
 const hr = (t) => { line('\n' + '═'.repeat(72)); line('  ' + t); line('═'.repeat(72)); };
 
@@ -27,7 +27,7 @@ const fleet = {
 
 const world = new VirtualWorld(fleet).setAdjacency([['KIVA', 'STAR', 1.5]]); // KIVA-STAR 同属配送，就近
 
-hr('灵境 · 真实机器人机队资源分配（大脑循环调用 发现错配/协调/分配）');
+hr('灵脑 · 真实机器人机队资源分配（大脑循环调用 发现错配/协调/分配）');
 line('  机队初始状态：');
 for (const e of world.entities)
   line('    ' + e.name + '：持有[' + JSON.stringify(e.resources) + ']  缺口[' + JSON.stringify(e.needs) + ']');

@@ -1,5 +1,5 @@
-// 灵境 LingJing v3.0 — 常用指令实测（真实内核签名）
-const L = require('./lingjing.umd.js');
+// 灵脑 LingNao v3.0 — 常用指令实测（真实内核签名）
+const L = require('./lingnao.umd.js');
 const line = (s = '') => console.log(s);
 const hr = (t) => { line('\n' + '═'.repeat(64)); line('  ' + t); line('═'.repeat(64)); };
 const g = (r) => (r && r.grounding ? r.grounding.tier : '（由 askBrain/audit 分层）');
@@ -66,7 +66,7 @@ hr('指令 5 · 不幻觉边界：离线无 Key 让 LLM 理解自然语言');
   line('  PERCEPTION 档：LLM 自然语言理解 → 可能幻觉，绝不进证明链');
   line('  KERNEL    档：A* 规划 / 因果 ACE / 审计 → 确定性、可复现');
   line('  PROOF     档：霍尔机器验证的规划路径 → 可形式化验证、可审计');
-  line('\n  一句话：灵境对每条结论显式标「落在哪一档、证据在哪、能否复现」');
-  line('          别的 LLM 只说"我可能错"，灵境说"错在哪一层"。');
-  line('\n═══ 常用指令实测完毕 · 单一真源 genesis-plan/lingjing ═══');
+  line('\n  一句话：灵脑对每条结论显式标「落在哪一档、证据在哪、能否复现」');
+  line('          别的 LLM 只说"我可能错"，灵脑说"错在哪一层"。');
+  line('\n═══ 常用指令实测完毕 · 单一真源 genesis-plan/lingnao ═══');
 })();

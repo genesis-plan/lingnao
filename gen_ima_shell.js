@@ -1,4 +1,4 @@
-// 由 ima_index.json（原始全量爬取）生成 灵境 接入用的知识壳 ima_knowledge.json
+// 由 ima_index.json（原始全量爬取）生成 灵脑 接入用的知识壳 ima_knowledge.json
 // 壳结构：元信息 + 431 条条目 + 模块倒排索引（供 metaKnowledgeRouter 快速路由）
 const fs = require('fs');
 const path = require('path');
@@ -12,12 +12,12 @@ for (const e of idx) {
 }
 const shell = {
   source: 'IMA 数学库（knowledge_base_id=7473260799221179，creator=葱头）',
-  description: '数学公理/定理/定义/方法/思想方法的确定性知识壳；接入灵境后可被 KB.imaQuery 检索、被元认知层路由，作为推理证据与兜底依据。完整形式化陈述存于 IMA（can_fetch_content=true），壳仅保留可审计元信息，不臆造细节。',
+  description: '数学公理/定理/定义/方法/思想方法的确定性知识壳；接入灵脑后可被 KB.imaQuery 检索、被元认知层路由，作为推理证据与兜底依据。完整形式化陈述存于 IMA（can_fetch_content=true），壳仅保留可审计元信息，不臆造细节。',
   total: idx.length,
   kbId: '7473260799221179',
   loadedAt: new Date().toISOString(),
   schema: { id: 'ima_<编号>', no: '编号(1..431)', type: '知识类型', module: '所属模块', title: '标题', status: '状态' },
-  // 顶层思想摘要（与灵境 v3.0 同源、可对齐吸收的核心概念）
+  // 顶层思想摘要（与灵脑 v3.0 同源、可对齐吸收的核心概念）
   coreConcepts: [
     '开放世界 X已知∪U未知（ima_351）',
     '未知状态 28 条处理路径（ima_380）',

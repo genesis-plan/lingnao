@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 灵境 LingJing — 真实机器人案例接入示例「把灵境当大脑」
+ * 灵脑 LingNao — 真实机器人案例接入示例「把灵脑当大脑」
  * ============================================================
- * 本文件把 4 个真实、可考据的机器人部署案例，用灵境世界图建模后接入灵境大脑，
- * 演示「免费 LLM 感知(可能幻觉) → 灵境 A* 确定性规划(不幻觉) → 七段审计(可验证)」。
+ * 本文件把 4 个真实、可考据的机器人部署案例，用灵脑世界图建模后接入灵脑大脑，
+ * 演示「免费 LLM 感知(可能幻觉) → 灵脑 A* 确定性规划(不幻觉) → 七段审计(可验证)」。
  *
  * 案例（均附公开来源，数字来自厂商/媒体披露）：
  *   1) Amazon Kiva/Proteus 仓储机器人  — 把货架/料箱送到拣货站
@@ -12,7 +12,7 @@
  *   4) 废墟搜救机器人(CMU/DARPA SubT)  — 从基地抵达疑似幸存者区
  *
  * 诚实边界：下面每个 world 是依据公开规格「简化的教学模型」（真实仓库/医院地图远比这复杂），
- *           但规划内核、审计、不幻觉保证与真实部署用的是同一套灵境代码。
+ *           但规划内核、审计、不幻觉保证与真实部署用的是同一套灵脑代码。
  *
  * 运行：
  *   node examples/real-robots.js                 # 离线(零成本)，跑全部 4 个案例
@@ -23,7 +23,7 @@
  * 任何人 clone 本仓库后，把 K.reason / K.generateAudit 接到自己的机器人控制器即可。
  */
 
-const K = require('../lingjing-mcp'); // 灵境内核（单一真源，零依赖）
+const K = require('../lingnao-mcp'); // 灵脑内核（单一真源，零依赖）
 
 // ── 案例定义（world 均为依据公开规格的简化教学模型）──
 const SCENARIOS = {
@@ -165,9 +165,9 @@ async function runScenario(name, sc, useLLM) {
   const start = per.percept.start || sc.start;
   const goal = per.percept.goal || sc.goal;
 
-  // 2) 推理：灵境内核 A* 确定性规划（不幻觉）
+  // 2) 推理：灵脑内核 A* 确定性规划（不幻觉）
   const plan = K.reason(start, goal, {});
-  console.log('\n[BRAIN] 灵境规划(确定性内核):');
+  console.log('\n[BRAIN] 灵脑规划(确定性内核):');
   if (plan.status === 'unknown') {
     console.log('   目标 ' + goal + ' 不可达 → 诚实返回 unknown，不编造路径');
     console.log('   U(未知集): ' + JSON.stringify(plan.U));
@@ -218,14 +218,14 @@ async function main() {
   if (useLLM && !hasKey) console.log('[note] 未设 OPENROUTER_API_KEY，--llm 将失败并自动降级离线。');
 
   const targets = names.length ? names : Object.keys(SCENARIOS);
-  console.log('\n=== 灵境 LingJing · 真实机器人案例接入（' + targets.length + ' 例）===');
-  console.log('大脑: 灵境 v3.0 | 免费API感知: ' + (useLLM ? (hasKey ? '开(openrouter/free)' : '开(但无key→降级)') : '关(离线降级)'));
+  console.log('\n=== 灵脑 LingNao · 真实机器人案例接入（' + targets.length + ' 例）===');
+  console.log('大脑: 灵脑 v3.0 | 免费API感知: ' + (useLLM ? (hasKey ? '开(openrouter/free)' : '开(但无key→降级)') : '关(离线降级)'));
 
   for (const n of targets) {
     if (!SCENARIOS[n]) { console.log('\n[skip] 未知案例: ' + n + '（可选: warehouse/hospital/delivery/rescue）'); continue; }
     await runScenario(n, SCENARIOS[n], useLLM);
   }
-  console.log('\n[done] 以上案例证明：别人可把灵境当任何机器人的大脑——感知用免费 LLM，规划/审计用确定性内核（不幻觉、可复现、可审计）。');
+  console.log('\n[done] 以上案例证明：别人可把灵脑当任何机器人的大脑——感知用免费 LLM，规划/审计用确定性内核（不幻觉、可复现、可审计）。');
 }
 
 main().catch(e => { console.error('示例运行失败:', e); process.exit(1); });

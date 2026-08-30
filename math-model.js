@@ -1,11 +1,11 @@
-// 灵境 LingJing v3.0 — 能力④ 数学建模（把虚拟空间形式化为最优化模型并求最优分配）
+// 灵脑 LingNao v3.0 — 能力④ 数学建模（把虚拟空间形式化为最优化模型并求最优分配）
 // 在「发现错配/协调/分配」之上，让大脑先对空间做数学建模：
 //   把资源调拨写成运输问题：变量 x_{i→j}^r、供给/需求约束、min 总转运代价。
 //   用「全源最短路(Dijkstra) + 最小费用流(逐次最短路增广/SPFA)」求精确最优——
 //   注：升序代价贪心对一般运输问题不保证最优（反例 c=[[1,2],[2,100]] 贪心101 vs 最优4），已弃用。
-// 内核真源：lingjing.umd.js（UMD）。本模块仅用已验证签名 + 自实现可审计求解器（不依赖外部求解器）。
+// 内核真源：lingnao.umd.js（UMD）。本模块仅用已验证签名 + 自实现可审计求解器（不依赖外部求解器）。
 const { VirtualWorld } = require('./virtual-world.js');
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 const G = L.GROUNDING || { KERNEL: 'KERNEL', PROOF: 'PROOF' };
 const line = (s = '') => console.log(s);
 
@@ -139,7 +139,7 @@ function demo() {
   };
   const world = new VirtualWorld(fleet).setAdjacency([['KIVA', 'STAR', 1.5]]);
 
-  hr('灵境 · 能力④ 数学建模｜' + world.region);
+  hr('灵脑 · 能力④ 数学建模｜' + world.region);
   line('  机队初始：');
   for (const e of world.entities) line('    ' + e.name + '：持有 ' + JSON.stringify(e.resources) + '  缺口 ' + JSON.stringify(e.needs));
 

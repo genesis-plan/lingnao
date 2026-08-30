@@ -1,4 +1,4 @@
-// 灵境 · 切片融合后的统一大脑（2026-08-29）
+// 灵脑 · 切片融合后的统一大脑（2026-08-29）
 // ─────────────────────────────────────────────────────────────────────
 // 按 v3.0 完整骨架"三个核心"融合：
 //   · 一个数学对象：带权有向图 G=(V,E,W,P,C,U)
@@ -12,7 +12,7 @@
 //   知识蒸馏以第四层能力注册进 OS（依赖方向：切片 → 内核）。
 //
 // 跑法：node brain-unified-demo.js
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 require('./knowledge-distillery.js');   // 副作用：把"知识蒸馏"注册为第四层能力
 
 const line = (s = '') => console.log(s);

@@ -35,6 +35,6 @@ body:
     id: self
     attributes:
       label: 自测输出
-      description: 运行 `node lingjing-mcp.js --selftest` 的完整输出（便于定位是否已有回归）
+      description: 运行 `node lingnao-mcp.js --selftest` 的完整输出（便于定位是否已有回归）
     validations:
       required: false

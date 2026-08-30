@@ -1,13 +1,13 @@
-// 灵境 LingJing v3.0 — 虚拟空间模块（目标地区仿真）
+// 灵脑 LingNao v3.0 — 虚拟空间模块（目标地区仿真）
 // 让大脑在一个可控的"虚拟世界 / 目标地区"里循环调用三类能力：
 //   ① 发现错配  discoverMismatch  — 谁缺什么、谁多什么、谁能造什么
 //   ② 协调资源  coordinateResources — 用大脑 reason() 找最优流转路径（含经由中枢/多跳）
 //   ③ 分配资源  allocateResources   — 确定性地把资源从盈余方拨给缺口方（可审计、不幻觉）
-// 内核真源：lingjing.umd.js（UMD，零依赖）。本模块仅用已验证签名。
+// 内核真源：lingnao.umd.js（UMD，零依赖）。本模块仅用已验证签名。
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./lingjing.umd.js'));
-  else if (typeof define === 'function' && define.amd) define(['./lingjing.umd.js'], factory);
-  else root.VirtualWorld = factory(root.LingJing);
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./lingnao.umd.js'));
+  else if (typeof define === 'function' && define.amd) define(['./lingnao.umd.js'], factory);
+  else root.VirtualWorld = factory(root.LingNao);
 }(typeof self !== 'undefined' ? self : this, function (L) {
   'use strict';
   const G = L.GROUNDING || { KERNEL: 'KERNEL', PERCEPTION: 'PERCEPTION', PROOF: 'PROOF' };
@@ -229,7 +229,7 @@
       ['FARM_A', 'FARM_B', 2], ['BAMBOO_D', 'CRAFT_C', 0.5]
     ]);
 
-    hr('灵境 · 虚拟空间｜' + world.region + '（让大脑循环调用三类能力）');
+    hr('灵脑 · 虚拟空间｜' + world.region + '（让大脑循环调用三类能力）');
     line('  初始状态：');
     for (const e of world.entities)
       line('    ' + e.name + '：持有[' + JSON.stringify(e.resources) + ']  缺口[' + JSON.stringify(e.needs) + ']'

@@ -23,7 +23,7 @@
  */
 
 'use strict';
-const L = require('./lingjing.umd.js');
+const L = require('./lingnao.umd.js');
 const G = L.GROUNDING;
 
 function nowISO() { return new Date().toISOString(); }
@@ -172,7 +172,7 @@ function buildAudit(manual) {
         ? '含未验证步骤(' + unverified + ')，扉页已标红；请先小批试做后再升 KERNEL'
         : '全部步骤已验证，可放心按流程执行'),
     reproducible: true,
-    source: 'KnowledgeDistillery@LingJing'
+    source: 'KnowledgeDistillery@LingNao'
   };
 }
 

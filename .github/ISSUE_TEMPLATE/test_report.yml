@@ -1,5 +1,5 @@
 name: 测试报告
-description: 运行 / 测试灵境后的反馈（任何人都能提交）
+description: 运行 / 测试灵脑后的反馈（任何人都能提交）
 title: "[test]: "
 labels: ["test-report"]
 body:
@@ -10,7 +10,7 @@ body:
       options:
         - "内核自测 45/45"
         - "MCP 工具调用"
-        - "网页演示（灵境.html）"
+        - "网页演示（灵脑.html）"
         - "因果模块（causal_effect 前门/后门）"
         - "审计 / 不幻觉分层"
         - "知识库 / 学习闭环"

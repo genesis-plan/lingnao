@@ -1,5 +1,5 @@
-// demo-consumption.js —— 证明灵境「消费数学」：判断由定理派生，非魔法阈值
-const L = require('./lingjing.umd.js');
+// demo-consumption.js —— 证明灵脑「消费数学」：判断由定理派生，非魔法阈值
+const L = require('./lingnao.umd.js');
 
 console.log('══════════════════════════════════════════════════════════');
 console.log('① perceiveBelief 消费 Banach 不动点定理');

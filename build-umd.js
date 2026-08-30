@@ -1,21 +1,21 @@
 #!/usr/bin/env node
 /**
- * build-umd.js — 从 灵境.html 单一真源抽取确定性内核，构建浏览器/Node 通用 UMD。
- * 输出 lingjing.umd.js：浏览器 window.LingJing / Node require / ESM import 三态可用。
- * 零依赖（仅 Node 内置 fs / path / vm）。与 lingjing-mcp.js 共用同一份内核，行为一致。
+ * build-umd.js — 从 灵脑.html 单一真源抽取确定性内核，构建浏览器/Node 通用 UMD。
+ * 输出 lingnao.umd.js：浏览器 window.LingNao / Node require / ESM import 三态可用。
+ * 零依赖（仅 Node 内置 fs / path / vm）。与 lingnao-mcp.js 共用同一份内核，行为一致。
  */
 const fs = require('fs');
 const path = require('path');
 
-const HTML = path.join(__dirname, '灵境.html');
+const HTML = path.join(__dirname, '灵脑.html');
 const html = fs.readFileSync(HTML, 'utf8');
 
-// 与 lingjing-mcp.js 同一正则抽取内核（单一真源）
+// 与 lingnao-mcp.js 同一正则抽取内核（单一真源）
 const m = html.match(/\/\/ ==KERNEL START==[^\n]*\n([\s\S]*?)\n\/\/ ==KERNEL END==/);
 if (!m) throw new Error('未在内核标记中找到世界大脑内核');
 const KERNEL_SRC = m[1];
 
-// 导出名列表（对齐 lingjing-mcp.js 的 __exp）
+// 导出名列表（对齐 lingnao-mcp.js 的 __exp）
 const EXPORT_NAMES = [
   'WORLD', 'IMA', 'imaKnowledge', 'loadIMAKB', 'setWorld', 'heuristic', 'aStar',
   'perceive', 'perceiveLLM', 'perceiveBelief', 'reconcile', 'configureLLM', 'getLLMConfig', 'system1', 'system2', 'reason', 'goalDirected',
@@ -35,7 +35,47 @@ const EXPORT_NAMES = [
   // 七元组 𝔹=(𝕎,K,Φ,Ψ,Θ,Λ,Ξ) 与八层（依 ARCHITECTURE.md）；ℙ=命题
   'Brain', 'Layers', 'brainManifest', 'evaluateProposition', 'edgeHolds',
   // 具身层（2026-08-29）：通用大脑 + 任意物理身体（具身智能在物理世界干活的通用大脑）
-  'attachBody', 'capabilities', 'getState', 'setState', 'stateDiff', 'checkHard', 'hMax', 'planTask', 'execute', 'doWork', 'POSITIONING', 'BODY'
+  'attachBody', 'capabilities', 'getState', 'setState', 'stateDiff', 'checkHard', 'hMax', 'planTask', 'execute', 'doWork', 'POSITIONING', 'BODY',
+  // 连接契约（2026-08-30）：声明式契约求值 + 观测契约可区分性
+  'evalRequire', 'applyEffect', 'capVerifiable', 'distinguishable', 'observationBlindSpots',
+  // 量纲分析（2026-08-30）：物理正确性约束层（SI 七基本量纲 + Buckingham π）
+  'DIM', 'DIM_AXES', 'dimOf', 'dimMul', 'dimDiv', 'dimPow', 'dimEq', 'dimAdd', 'dimFormat',
+  'buckinghamPi', 'unwrapDimValue', 'checkDimensions',
+  // 高等数学工具箱（2026-08-30）：已证明定理的可执行判据
+  'dual', 'dAdd', 'dSub', 'dMul', 'dDiv', 'dPow', 'dNeg', 'dSin', 'dCos', 'dExp', 'dLog', 'dSqrt', 'dAbs',
+  'grad', 'jacobian', 'lieDerivative',
+  'graphColoring', 'planarityCheck', 'hallCondition',
+  'KEPLER_DENSITY', 'packingBound', 'lyapunovCheck',
+  // 控制障碍函数（2026-08-30）：CBF-QP 安全滤子（物理 AI 安全保证）
+  'cbfFilter', 'cbfMargin',
+  // 物理 AI 安全栈补齐（2026-08-30 下午）
+  'STL', 'stlHorizon', 'stlRobustness', 'stlMonitor',                    // STL 定量语义 ρ
+  'zono', 'zonoSupport', 'zonoBox', 'zonoLinear', 'zonoSum', 'zonoReduce',
+  'zonoContains', 'zonoIntersectsHalfspace', 'zonoSafe', 'zonoReach',    // Zonotope 可达集过近似
+  'cbfCompose',                                                          // 多约束组合 CBF（Hildreth 对偶 QP）
+  'hybridAutomaton', 'hybridStep', 'hybridLipschitz', 'hybridReach',     // 混合自动机 × AD
+  'heuristicEvolve',                                                     // 启发式自演化（保持可采纳性）
+  // 最优分配与抽象解释（2026-08-30）
+  'hungarian',                                                           // 匈牙利算法 + LP 对偶最优性证书
+  'ITV_BOT', 'itv', 'itvIsBot', 'itvTop', 'itvLe', 'itvEq', 'itvJoin', 'itvMeet',
+  'itvAddI', 'itvMulI', 'itvWiden', 'itvNarrow', 'absFixpoint', 'absSafe', // 抽象解释：区间格 + widening 不动点
+  'learnedEdgePenalty', 'recordPlanHistory', 'getPlanHistory', 'resetPlanHistory', // 学习回流：真实反馈→规划
+  'conformalQuantile', 'conformalInterval', 'conformalPValue', 'conformalIsAnomaly', // 融合①保形预测：分布无关覆盖保证
+  'affordanceOf', 'sayCanRank', // 融合②SayCan：P(有用)×P(可行) 可分离审计
+  'thompsonSample', // 融合③Thompson 采样：Beta 后验探索-利用（确定性 PRNG）
+  'matEye', 'matT', 'matMul', 'matAdd', 'matSub', 'matScale', 'matInv', // 融合④零依赖数值线性代数基石
+  'kalmanUpdate', // 融合⑤卡尔曼滤波（形式F 估计器）：线性高斯下最小方差无偏
+  'lqrSolve', // 融合⑥LQR（形式G 控制器）：Riccati 解析求解连续控制，填 MPC 缺口
+  'cvar', // 融合⑦CVaR（形式C 证书）：一致性风险度量，尾部风险（注意：不可加，禁止塞进 A* 边权）
+  'effectiveSampleSize', 'particleFilterStep', // 融合⑧粒子滤波（形式F 估计器）：非线性/非高斯，补卡尔曼缺口
+  'entropyOf', 'expectedInfoGain', 'selectByInfoGain', // 融合⑨EIG（形式E 选择器）：主动感知，互信息恒等式可交叉验证
+  'shapleyValues', // 融合⑩Shapley（形式C 证书）：四公理唯一归因，效率公理可自检
+  'wasserstein1', 'driftCheck', // 融合⑪漂移检测（形式C 证书）：W₁ 最优传输 + 保形 p 值，保形预测必要配套
+  'absVerdict', // 审视①补抽象解释的另一半：用同一过近似得"确定安全/确定不安全/真𝕌"三值严格结论
+  'galoisAlphaSet', 'galoisGammaContains', 'galoisCheck', // 审视②把 sound:true 从断言升级为 Galois 连接可验证性质
+  'beliefPlausibility', 'decideImprecise', // 审视③𝕌 从布尔位升级为不精确概率区间 [belief, plausibility]
+  'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
+  'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';
@@ -50,7 +90,7 @@ const umd = `(function (root, factory) {
   } else if (typeof define === 'function' && define.amd) {
     define([], function () { return factory('browser'); });
   } else {
-    root.LingJing = factory('browser');
+    root.LingNao = factory('browser');
   }
 }(typeof self !== 'undefined' ? self : this, function (runtime) {
   'use strict';
@@ -58,12 +98,13 @@ const umd = `(function (root, factory) {
   const litSrc = ${litJSON};
 
   if (runtime === 'node' && typeof require === 'function') {
-    // ---- Node 分支：vm 隔离执行 + 内存桩（同 lingjing-mcp.js） ----
+    // ---- Node 分支：vm 隔离执行 + 内存桩（同 lingnao-mcp.js） ----
     const vm = require('vm');
     // 神经①：localStorage 桩落盘 —— 内核写 localStorage 即写磁盘，进程退出不再失忆。
-    // 存档路径可用环境变量 LINGJING_MEMORY 覆盖；读写失败一律降级为纯内存，不影响内核运行。
+    // 存档路径可用环境变量 LINGNAO_MEMORY 覆盖（旧名 LINGJING_MEMORY 仍兼容）；
+    // 读写失败一律降级为纯内存，不影响内核运行。
     const _fs = require('fs'), _path = require('path');
-    const MEM_FILE = process.env.LINGJING_MEMORY || _path.join(process.cwd(), '.lingjing-memory.json');
+    const MEM_FILE = process.env.LINGNAO_MEMORY || process.env.LINGJING_MEMORY || _path.join(process.cwd(), '.lingnao-memory.json');
     let store = {};
     try { if (_fs.existsSync(MEM_FILE)) store = JSON.parse(_fs.readFileSync(MEM_FILE, 'utf8') || '{}'); } catch (e) { store = {}; }
     const localStorageStub = {
@@ -90,8 +131,8 @@ const umd = `(function (root, factory) {
       });
     }
     let bridge;
-    try { bridge = require('lingshu-solver'); }
-    catch (e) { bridge = { available: false, algebraicSolve: () => ({ available: false, error: 'lingshu-solver 未安装：' + (e && e.message) }) }; }
+    try { bridge = require('./lingshu-bridge'); }   // 走适配层（与 lingnao-mcp.js 一致）：把原始包包成内核期望的 {available, algebraicSolve}
+    catch (e) { bridge = { available: false, algebraicSolve: () => ({ available: false, error: 'lingshu-bridge 未载入：' + (e && e.message) }) }; }
     const sandbox = {
       console, Math, JSON, Date, Buffer, Object, Array, Set, Map, Number, String,
       Infinity, NaN, isNaN, parseFloat, parseInt,
@@ -113,5 +154,5 @@ const umd = `(function (root, factory) {
 }));
 `;
 
-fs.writeFileSync(path.join(__dirname, 'lingjing.umd.js'), umd, 'utf8');
-console.log('OK 生成 lingjing.umd.js  bytes=' + umd.length + '  导出=' + EXPORT_NAMES.length);
+fs.writeFileSync(path.join(__dirname, 'lingnao.umd.js'), umd, 'utf8');
+console.log('OK 生成 lingnao.umd.js  bytes=' + umd.length + '  导出=' + EXPORT_NAMES.length);

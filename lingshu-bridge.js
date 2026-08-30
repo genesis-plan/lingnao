@@ -1,21 +1,21 @@
 'use strict';
 /**
- * 灵境 LingJing → 灵数求解器 lingshu-solver 委派桥（Node 端，零额外依赖）
+ * 灵脑 LingNao → 灵数求解器 lingshu-solver 委派桥（Node 端，零额外依赖）
  *
  * 两个独立 GitHub 仓库的关系（均在 genesis-plan 账号下）：
  *   - 灵数求解器 = genesis-plan/lingshu-solver，已发布 npm 包 lingshu-solver@1.0.2
- *   - 灵境       = genesis-plan/lingjing
- * 灵境不重写任何求解逻辑，通过 npm 依赖 lingshu-solver 调用其真引擎
+ *   - 灵脑       = genesis-plan/lingnao
+ * 灵脑不重写任何求解逻辑，通过 npm 依赖 lingshu-solver 调用其真引擎
  * （区间收缩 + Krawczyk 认证，离线零依赖）。本桥只把「方程字符串数组」
- * 转交真引擎，并把返回结构精简为灵境机器友好的形状。
+ * 转交真引擎，并把返回结构精简为灵脑机器友好的形状。
  *
  * 寻路优先级（resolve 真实 solver-core）：
- *   1) 已安装 npm 包 'lingshu-solver'（生产形态：别人 clone lingjing 后 `npm install` 即得）
+ *   1) 已安装 npm 包 'lingshu-solver'（生产形态：别人 clone lingnao 后 `npm install` 即得）
  *   2) 环境变量 LINGSHU_SOLVER_CORE 显式指向的 solver-core 文件（开发期本地覆盖）
  *   3) 工作区同级 ../灵数求解器/solver-core
  *   4) 桌面真源 C:/Users/Administrator/Desktop/灵数求解器/solver-core（本地 fallback）
  *
- * 若真引擎不可用，available=false 且 algebraicSolve 返回诚实降级——灵境绝不假装求解。
+ * 若真引擎不可用，available=false 且 algebraicSolve 返回诚实降级——灵脑绝不假装求解。
  */
 const path = require('path');
 

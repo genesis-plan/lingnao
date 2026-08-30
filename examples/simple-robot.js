@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * 灵境 LingJing — 极简机器人示例「把灵境当大脑」
+ * 灵脑 LingNao — 极简机器人示例「把灵脑当大脑」
  * ============================================================
  * 场景：一台在 CHARGE / A / B / C 网格中移动的地面机器人（如灭蚊器 / 扫地机）。
- *       它接收一句中文口语指令，灵境负责：
+ *       它接收一句中文口语指令，灵脑负责：
  *         感知(免费 LLM 把人话转成结构化状态) →
  *         推理(内核 A* 确定性规划) →
  *         执行(模拟机器人按规划移动) →
@@ -21,7 +21,7 @@
  *   任何人都能 clone 本仓库后，把 K.reason / K.generateAudit 接到自己的机器人控制器上。
  */
 
-const K = require('../lingjing-mcp'); // 灵境内核（单一真源，零依赖）
+const K = require('../lingnao-mcp'); // 灵脑内核（单一真源，零依赖）
 
 // ── 1. 给机器人定义它的世界（状态图，可任意 setWorld 自定义）──
 const WORLD = {
@@ -58,7 +58,7 @@ async function main() {
   const text = process.argv.slice(2).join(' ').trim() || '机器人电量低，去C点充电';
   const hasKey = !!process.env.OPENROUTER_API_KEY;
   console.log('\n[ROBOT] 指令(人话):', text);
-  console.log('   大脑: 灵境 LingJing v3.0 | 免费API感知:', hasKey ? '开(openrouter/free)' : '关(离线降级)');
+  console.log('   大脑: 灵脑 LingNao v3.0 | 免费API感知:', hasKey ? '开(openrouter/free)' : '关(离线降级)');
 
   // ── 2. 感知：免费 LLM 把人话转成结构化状态；失败则离线降级 ──
   let percept, start, goal, perceptMode;
@@ -77,9 +77,9 @@ async function main() {
   }
   console.log('   感知结果:', JSON.stringify(percept), '[' + perceptMode + ', 可能幻觉 → 仅用于理解]');
 
-  // ── 3. 推理：灵境内核 A* 确定性规划（不幻觉）──
+  // ── 3. 推理：灵脑内核 A* 确定性规划（不幻觉）──
   const plan = K.reason(start, goal, {});
-  console.log('\n[BRAIN] 灵境规划(确定性内核):');
+  console.log('\n[BRAIN] 灵脑规划(确定性内核):');
   if (plan.status === 'unknown') {
     console.log('   目标', goal, '不可达（不在世界图中）→ 诚实返回 unknown，不编造路径');
     console.log('   U(未知集):', JSON.stringify(plan.U));
@@ -105,7 +105,7 @@ async function main() {
   if (audit.reflection) console.log('   反思:', audit.reflection.insight);
   console.log('   不幻觉保证:', audit.noHallucination === true ? '决策依据全部来自确定性内核/审计' : 'NOT GUARANTEED');
 
-  console.log('\n[done] 示例完成：别人 clone 仓库后，设 OPENROUTER_API_KEY 即可让灵境当任何机器人的大脑（感知用免费 LLM，规划/审计用确定性内核）。');
+  console.log('\n[done] 示例完成：别人 clone 仓库后，设 OPENROUTER_API_KEY 即可让灵脑当任何机器人的大脑（感知用免费 LLM，规划/审计用确定性内核）。');
 }
 
 main().catch(e => { console.error('示例运行失败:', e); process.exit(1); });

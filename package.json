@@ -1,7 +1,7 @@
 {
-  "name": "lingjing-mcp",
+  "name": "lingnao-mcp",
   "version": "3.1.0",
-  "description": "灵境 LingJing（世界通用大脑）— 可审计推理 MCP 服务：把「世界图 → A* 可审计推理 → 物理载体执行 → 学习闭环」封装为标准 MCP stdio 服务。零依赖、免费面向 AI Agent 分发。",
+  "description": "灵脑 LingNao（世界通用大脑）— 可审计推理 MCP 服务：把「世界图 → A* 可审计推理 → 物理载体执行 → 学习闭环」封装为标准 MCP stdio 服务。零依赖、免费面向 AI Agent 分发。",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -10,22 +10,22 @@
     "audit",
     "a-star",
     "embodied",
-    "lingjing",
-    "灵境",
+    "lingnao",
+    "灵脑",
     "世界通用大脑",
     "可信推理",
     "物理载体"
   ],
   "bin": {
-    "lingjing-mcp": "lingjing-mcp.js"
+    "lingnao-mcp": "lingnao-mcp.js"
   },
-  "main": "lingjing-mcp.js",
+  "main": "lingnao-mcp.js",
   "files": [
-    "lingjing-mcp.js",
+    "lingnao-mcp.js",
     "lingshu-bridge.js",
-    "灵境.html",
+    "灵脑.html",
     "ima_knowledge.json",
-    "ima_lingjing_map.json",
+    "ima_lingnao_map.json",
     "ima_index.json",
     "README.md",
     "LICENSE"
@@ -36,16 +36,16 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/genesis-plan/lingjing.git"
+    "url": "git+https://github.com/genesis-plan/lingnao.git"
   },
-  "homepage": "https://github.com/genesis-plan/lingjing#readme",
+  "homepage": "https://github.com/genesis-plan/lingnao#readme",
   "bugs": {
-    "url": "https://github.com/genesis-plan/lingjing/issues"
+    "url": "https://github.com/genesis-plan/lingnao/issues"
   },
-  "author": "红尘灵境 / 太白",
+  "author": "红尘灵脑 / 太白",
   "scripts": {
-    "selftest": "node lingjing-mcp.js --selftest",
-    "test": "node lingjing-mcp.js --selftest"
+    "selftest": "node lingnao-mcp.js --selftest",
+    "test": "node lingnao-mcp.js --selftest"
   },
   "dependencies": {
     "lingshu-solver": "^1.0.2"
