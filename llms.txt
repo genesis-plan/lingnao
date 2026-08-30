@@ -1,0 +1,73 @@
+# 灵脑 LingNao — a deterministic, auditable decision kernel for AI agents and robots
+
+> LingNao is NOT a language model. It is a zero-dependency, deterministic kernel that
+> decides **whether an action may be taken** and returns a traceable proof chain.
+> When a question is undecidable it honestly returns U instead of guessing.
+> LLM output is confined to perception/explanation and never enters the decision or proof chain.
+
+## Why use it
+- **Deterministic & reproducible** — identical input always yields identical output.
+- **No hallucination** — the LLM only parses intent; planning is symbolic and auditable.
+- **Mathematically grounded** — axioms → theorems → proof chains; every guarantee is traceable.
+- **Safety stack** — CBF-QP safety filter, zonotope reachability, STL robustness, abstract interpretation.
+- **Body-agnostic** — attach any robot via a declarative capability contract.
+
+## Three ways to connect
+1. **MCP (recommended)** — `npx -y lingnao-mcp`; config: see `mcp.json` / `mcp.example.json`.
+   Works with Claude Desktop, Cursor, Cline, and any MCP client.
+2. **Node library** — `const K = require('./lingnao-mcp'); K.reason(start, goal)` (no server started).
+3. **Browser** — `<script src="lingnao.umd.js"></script>` then `window.LingNao` (zero install).
+
+## Tools (46 total)
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`
+
+### Recommended call sequence (plain reasoning)
+1. `world_info` — inspect the world graph
+2. `set_world` — (optional) load your own scenario
+3. `carrier_report` — report physical state (battery/density) to derive hard/soft constraints
+4. `reason` — auditable optimal plan (System 1 fast path + System 2 A* + RSG)
+5. `audit` — seven-section audit report with proof certificate
+6. `learn` — feed the real outcome back; confidence updates and flows into future planning
+
+### Recommended call sequence (embodied / robots)
+`attach_body` → `plan_task` → `check_hard` (SAFE-STOP before irreversible actions) →
+`execute_task` → `state_diff` → replan (bounded by `maxReplans`)
+
+## Honest limits
+- No world knowledge, no open-domain language ability; perception degrades offline.
+- World model is a lite linear SEM; causality is PC-lite; planning runs on finite graphs.
+- Eight mathematical areas are not yet implemented (MPC, SOS/SDP barrier certificates,
+  general LP solver, general nonlinear reachability, …). See `docs/数学与模块现状总览.md`.
+
+---
+
+# 灵脑 LingNao —— 面向 AI Agent 与机器人的确定性可审计决策内核
+
+> 灵脑不是语言模型，而是一个零依赖的确定性内核：它裁决「这个动作能不能做」，
+> 并给出可追溯的证明链；不可判定时诚实返回 𝕌，绝不编造。
+> 大模型输出被严格限制在感知/解释两端，不进入决策链与证明链。
+
+## 核心特性
+- **确定性可复现**：同样输入必得同样输出
+- **不幻觉**：LLM 只解析意图，规划与审计全在本地符号内核
+- **数学可证**：公理 → 定理 → 证明链，每条保证可回溯
+- **安全栈**：CBF-QP 安全滤子 / Zonotope 可达集 / STL 鲁棒度 / 抽象解释
+- **具身无关**：用声明式能力契约接入任意物理身体
+
+## 三种接入方式
+1. **MCP（推荐）**：`npx -y lingnao-mcp`，配置见 `mcp.json`
+2. **Node 库**：`const K = require('./lingnao-mcp')`（不自启服务）
+3. **浏览器**：引入 `lingnao.umd.js`，零安装
+
+## 工具（共 46 个）
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`
+
+## 诚实边界
+- 无世界知识、无开放域语言能力；离线时感知降级
+- 世界模型为 lite（线性 SEM）、因果为 PC-lite、规划基于有限图
+- 8 类数学尚未实装（MPC、SOS/SDP 障碍证书、一般 LP 求解器、一般非线性可达集等）
+
+## 更多
+- README: ./README.md
+- 架构白皮书: ./ARCHITECTURE.md
+- 可验证物理 AI 定位: ./VERIFIABLE-PHYSICAL-AI.md

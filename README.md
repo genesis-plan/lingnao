@@ -12,7 +12,7 @@
 > - 🟢 在线试用（零安装，双击即用）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html>
 > - 🟢 在线试用「开始干活」控制台（三步接入身体/大模型/大脑 + 真实身体）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html>
 > - 💬 求测帖 & 反馈：<https://github.com/genesis-plan/lingnao/discussions/1>
-> - 🤖 AI Agent 零安装接入：`npx github:genesis-plan/lingnao`（47 工具）
+> - 🤖 AI Agent 零安装接入：`npx github:genesis-plan/lingnao`（46 工具）
 
 ---
 
@@ -25,7 +25,7 @@
 | 内核 | 本地确定性 A\* 推理 + 七段审计 + 正·负·边界样本知识库，不经大模型、不幻觉 |
 | 感知层 | **免费 LLM（OpenRouter `:free`）做 NL→JSON** + 贝叶斯滤波/Banach 信念收敛，把自然语言理解成结构化目标；无 key 可手动降级 |
 | 定位 | 驱动一切具身 / 物理载体的透明决策大脑（五层认知操作系统全实装） |
-| 接入 | MCP stdio（47 工具）/ 单文件网页演示（HTML，双击即用） |
+| 接入 | MCP stdio（46 工具）/ 单文件网页演示（HTML，双击即用） |
 | 许可 | MIT，免费、开源、面向 AI Agent 分发 |
 
 **它能做什么**
@@ -44,14 +44,14 @@
 
 **它不做什么（诚实边界）**
 - 不生成文本、不编造事实；推理结果可复现、可审计、不幻觉
-- **v3.0 完整骨架已全部确定性实装**（UMD 导出 163 个函数；Node 自测 51 项，其中 `algebraic_solve` 需灵数求解器 `lingshu-solver` 依赖，安装后 51/51 全过）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）** / **安全栈（CBF-QP 安全滤子 + 组合 CBF + STL 定量语义 + Zonotope 可达集 + 混合自动机×自动微分）** / **最优分配（匈牙利算法 + LP 对偶证书）** / **抽象解释（区间格 + widening/narrowing 不动点）**
+- **v3.0 完整骨架已全部确定性实装**（UMD 导出 207 个函数；Node 自测 51 项，其中 `algebraic_solve` 需灵数求解器 `lingshu-solver` 依赖，安装后 51/51 全过）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）** / **安全栈（CBF-QP 安全滤子 + 组合 CBF + STL 定量语义 + Zonotope 可达集 + 混合自动机×自动微分）** / **最优分配（匈牙利算法 + LP 对偶证书）** / **抽象解释（区间格 + widening/narrowing 不动点）**
 - **轻量替代标注（手写 lite 版、非工业级外部求解器，均可运行、均确定性、均不虚构）**：符号验证=自写约束求解器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq 机器证明）；因果发现=PC-lite 离散近似（非真实 PC/FCI）；LSH=SimHash 投影（非 Milvus）；**世界模型/反事实已 lite 实装**（SEM 线性结构方程 + Pearl 反事实三步法，确定性可审计；文档原仅给 VAE/ADM-v2 等名词无定义，本实装为诚实 lite 等价，非 VAE）
 
 ---
 
 ## 数学原理与安全栈（内核已实装，可审计）
 
-灵脑的可审计性不靠外部知识库背书，而靠内核里**已证明定理的可执行判据**。已实装并导出（UMD 163 函数）的数学层：
+灵脑的可审计性不靠外部知识库背书，而靠内核里**已证明定理的可执行判据**。已实装并导出（UMD 207 函数）的数学层：
 
 - **最优与图论**：A\* 完备最优（可采纳启发式）、D-MCTS 分支探索、运输问题最小费用流精确最优、匈牙利算法（Kuhn–Munkres，返回 LP 对偶最优性证书 (u,v)，总互异性 ⇒ 整数 LP 最优，禁边诚实 `feasible:false`）。
 - **控制与物理 AI 安全**：CBF-QP 安全滤子（`cbfFilter`/`cbfMargin` 凸 QP 解析投影）、组合 CBF（Hildreth 对偶 QP 多约束）、STL 定量语义鲁棒度 ρ、Zonotope 线性可达集过近似（sound）、混合自动机 × 自动微分（Gershgorin Lipschitz 界 + Zeno 检测）。
@@ -86,7 +86,7 @@ node lingnao-mcp.js --selftest      # 零依赖验证（51 项工具自检，含
 # 灵数求解器真引擎以 npm 依赖 lingshu-solver 接入（ genesis-plan/lingshu-solver ，独立仓库，已发 npm）
 ```
 
-任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制 [`mcp.example.json`](./mcp.example.json) 即可接入，**不用开网页、不用服务器、不用本地装包**（`npx github:genesis-plan/lingnao` 自动拉仓库并暴露 47 个工具）：
+任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制 [`mcp.example.json`](./mcp.example.json) 即可接入，**不用开网页、不用服务器、不用本地装包**（`npx github:genesis-plan/lingnao` 自动拉仓库并暴露 46 个工具）：
 
 ```json
 {
@@ -107,7 +107,7 @@ node lingnao-mcp.js --selftest      # 零依赖验证（51 项工具自检，含
 
 - **① 接入具身智能**：填身体配置 JSON（状态/硬约束/能力），点「连接身体」→ `setWorld`+`attachBody` 把机器人能力注册进大脑状态空间（**任何物理身体**都行：AGV / 机械臂 / 无人机，内核只认能力契约，不写死身体类型）。
 - **② 接入外部大模型**：填 OpenRouter Key + 选模型 → `configureLLM`；自然语言任务经 `perceiveLLM` 翻成结构化意图。**不填 Key 也能干活**（降级结构化输入，大脑 100% 确定性运行）。
-- **③ 接入灵脑大脑**：随页面载入 UMD（163 导出），点「自检」跑 `reason('CHARGE','C')` 验证就绪。
+- **③ 接入灵脑大脑**：随页面载入 UMD（207 导出），点「自检」跑 `reason('CHARGE','C')` 验证就绪。
 - **开始干活**：`plan_task`（A\*+hMax 状态空间最优）→ `doWork`（含 `check_hard` SAFE-STOP + `maxReplans` 护栏）→ `generateAudit`（七段审计）。输出 **规划 / 执行 / 审计 / 置信** 四标签，置信页显式标 `PERCEPTION(可能幻觉) / KERNEL(确定性) / PROOF(审计可验证)` 三档。
 - **真实身体模式**：选「真实身体(WebSocket)」填 ws 地址 → 点连接 → 动作发往真身体执行（规划/审计不变）。协议见 [`lingnao-body-bridge.js`](./lingnao-body-bridge.js) + 零依赖仿真服务端 [`lingnao-body-sim-server.js`](./lingnao-body-sim-server.js)（先 `node lingnao-body-sim-server.js` 起一个仿真 AGV 即可端到端试通）。**接入你自己的真机器人**：灵脑**不直接连传感器**——真实链路是四层：
 
@@ -143,7 +143,7 @@ node lingnao-body-sim-server.js          # 终端1：起仿真真身体（默认
 
 ---
 
-## 工具接口（MCP，47 个）
+## 工具接口（MCP，46 个）
 
 | 能力 | 工具 | 说明 |
 |---|---|---|
@@ -262,7 +262,7 @@ OPENROUTER_API_KEY=sk-or-... node examples/simple-robot.js "机器人电量低�
 
 | 方式 | 适用 | 怎么用 |
 |---|---|---|
-| **MCP 服务**（推荐给 AI 客户端） | Claude Desktop / Cursor / Cline 等 | 见上方 `mcpServers` 配置，`lingnao-mcp` 暴露 47 个工具（含具身层 10 个） |
+| **MCP 服务**（推荐给 AI 客户端） | Claude Desktop / Cursor / Cline 等 | 见上方 `mcpServers` 配置，`lingnao-mcp` 暴露 46 个工具（含具身层 10 个） |
 | **库 require**（推荐给开发者/机器人） | Node 项目直接调内核 | `const K = require('./lingnao-mcp'); K.reason(start, goal)`（不自启服务） |
 | **浏览器单文件** | 非技术用户 / 演示 | 双击 `灵脑.html`，用大白话让大脑理解并规划 |
 
@@ -316,6 +316,10 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | `VERIFIABLE-PHYSICAL-AI.md` | **可验证物理 AI 定位**：与产业界「三道门槛」（泛化性/可靠性/持续学习）的对齐，量纲分析的作用，以及 4 条诚实边界 |
 | `test-contract-layer.js` | 连接契约层验证（32 项）：声明式契约求值、硬约束 fail-closed、观测可区分性、不可逆动作拦截 |
 | `test-dimension-layer.js` | 量纲分析层验证（34 项）：量纲代数、齐次性、Buckingham π、物理荒谬动作不进入规划 |
+| `test-mcp-stdio-transport.js` | **MCP stdio 传输层验证（9 项）**：NDJSON（现代 MCP 客户端）与 Content-Length（旧客户端）双帧格式握手 + `tools/list` + 端到端 `tools/call`。**必须独立存在**——`--selftest` 直接调内核函数、绕开传输层，传输坏了自测照样全绿 |
+| `gen-agent-manifests.js` | 生成「给前沿大模型用」的接入清单：真起 MCP 服务走 `tools/list` **实时抓取**（与客户端所见一致、永不过期），产出 `llms.txt` / `openai-tools.json` / `anthropic-tools.json` |
+| `llms.txt` | LLM 发现文档（中英双语，[llmstxt.org](https://llmstxt.org) 标准）：给大模型/爬虫读的项目说明、接入方式、推荐调用顺序、诚实边界 |
+| `openai-tools.json` / `anthropic-tools.json` | 46 个工具的 function-calling / tool-use 清单，供 OpenAI Agents SDK、各家 function calling 框架直接加载 |
 | `docs/` `docs/archive/` `legacy/` | 文档导览见上文；过程稿归档 16 篇；WorldBrain 历史归档 |
 
 > 部署时 `lingnao-mcp.js` 与 `灵脑.html` 需同目录（或设 `LINGNAO_HTML` 环境变量，旧名 `LINGJING_HTML` 仍兼容）。
@@ -332,7 +336,7 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | **在线试用（免安装）** | 双击 `lingnao-console.html`（同目录需 `lingnao.umd.js`）；或静态托管后给链接 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html> |
 | **npm** | ✅ 已发布 `lingnao-mcp@3.1.0`：`npm i -g lingnao-mcp` 或 `npx lingnao-mcp`（自测 51 项，algebraic_solve 需 lingshu-solver 依赖，`npm i` 后 51/51 全过） | `npx -y lingnao-mcp` |
 
-> 让别人用的三种方式（任选其一）：① 双击 `lingnao-console.html`（人）② `node lingnao-mcp.js`（AI 客户端 stdio，47 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
+> 让别人用的三种方式（任选其一）：① 双击 `lingnao-console.html`（人）② `node lingnao-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
 
 ---
 

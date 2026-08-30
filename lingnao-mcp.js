@@ -1010,9 +1010,16 @@ function callTool(name, args) {
 
 // ---------- 4. stdio 字节级分帧（JSON-RPC 2.0） ----------
 let buf = Buffer.alloc(0);
+// 输出帧格式**镜像**客户端的输入格式：客户端发 NDJSON 就回 NDJSON，
+// 客户端发 Content-Length 就回 Content-Length。默认 NDJSON（MCP 现行规范）。
+let useContentLength = false;
 function send(obj) {
   const body = Buffer.from(JSON.stringify(obj), 'utf8');
-  process.stdout.write(Buffer.concat([Buffer.from('Content-Length: ' + body.length + '\r\n\r\n'), body]));
+  if (useContentLength) {
+    process.stdout.write(Buffer.concat([Buffer.from('Content-Length: ' + body.length + '\r\n\r\n'), body]));
+  } else {
+    process.stdout.write(Buffer.concat([body, Buffer.from('\n', 'utf8')]));
+  }
 }
 function handle(msg) {
   if (!msg || msg.jsonrpc !== '2.0' || msg.id === undefined) return;
@@ -1039,6 +1046,28 @@ function handle(msg) {
   }
 }
 function pump() {
+  // ── ① 换行分隔 JSON（NDJSON）：MCP stdio 现行规范 ────────────────
+  // 此前只实现了 Content-Length 分帧，而 Claude Desktop / Cursor / Cline 等
+  // 现代 MCP 客户端一律发送 NDJSON（每行一个 JSON）。旧实现找不到 \r\n\r\n，
+  // 循环一次都不进 ⇒ 客户端收不到任何响应，表现为"连上了但永远无回音"。
+  // 这是传输层缺陷，且 --selftest 直接调内核函数、绕开传输层，所以测不出来。
+  let nl;
+  while ((nl = buf.indexOf(0x0A)) !== -1) {
+    const line = buf.slice(0, nl).toString('utf8').trim();
+    if (line === '') { buf = buf.slice(nl + 1); continue; }
+    if (/^Content-Length:/i.test(line)) { useContentLength = true; break; }  // 交给 ② 分帧逻辑
+    let msg = null;
+    try { msg = JSON.parse(line); }
+    catch (e) {
+      // 美化过的多行 JSON：以 { 或 [ 开头说明还没收完，等更多数据
+      if (/^[{[]/.test(line)) return;
+      buf = buf.slice(nl + 1);                          // 非 JSON 噪声行，丢弃
+      continue;
+    }
+    buf = buf.slice(nl + 1);
+    handle(msg);
+  }
+  // ── ② Content-Length 分帧（旧客户端 / LSP 风格，保留兼容）────────
   const SEP = Buffer.from('\r\n\r\n');
   let i;
   while ((i = buf.indexOf(SEP)) !== -1) {
@@ -1047,7 +1076,9 @@ function pump() {
     if (!m) { buf = buf.slice(i + 4); continue; }
     const len = +m[1], start = i + 4;
     if (buf.length < start + len) return;
-    const msg = JSON.parse(buf.slice(start, start + len).toString('utf8'));
+    let msg;
+    try { msg = JSON.parse(buf.slice(start, start + len).toString('utf8')); }
+    catch (e) { buf = buf.slice(start + len); continue; }
     buf = buf.slice(start + len);
     handle(msg);
   }
