@@ -4,9 +4,18 @@
 > 内核把「世界图 → A\* 可审计推理 → 物理载体执行 → 学习闭环」封装为单一引擎，对外以 **MCP stdio / 网页演示** 两种接口暴露。
 > 零依赖 · 零服务器 · 免费面向 AI Agent 分发。
 
-- 仓库（模型主仓，独立于灵数求解器 lingshu-solver）：<https://github.com/genesis-plan/lingnao>
+- 仓库（灵脑主仓）：<https://github.com/genesis-plan/lingnao>
+
+> **两个独立产品，分属两个仓库，请勿混淆**
+> | 产品 | 是什么 | 仓库 | npm |
+> |---|---|---|---|
+> | **灵脑 LingNao**（本仓库） | **大脑**：感知 / 规划 / 审计 / 学习 / 具身裁决 | `genesis-plan/lingnao` | `lingnao-mcp` |
+> | **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk 认证） | `genesis-plan/lingshu-solver` | `lingshu-solver` |
+>
+> 灵脑不重写任何求解逻辑：`algebraic_solve` **委派**给灵数真引擎。灵数是**可选依赖**
+> （`optionalDependencies`）——不装它，灵脑其余能力照常运行，仅该项诚实降级。
 - 架构白皮书：[ARCHITECTURE.md](./ARCHITECTURE.md)
-- 直接使用：克隆仓库后 `node lingnao-mcp.js`（MCP stdio，零依赖）；或 npm 包 `npx lingnao-mcp`（已发布 `lingnao-mcp@3.1.0`）
+- 直接使用：克隆仓库后 `node lingnao-mcp.js`（MCP stdio，零依赖）；npm 包 `lingnao-mcp` 版本 **1.0.0**（⏳ 待发布，包已打包验证通过）
 
 > 🧪 **正在求测 / 求反馈**：我们做了一个「不幻觉、可审计」的通用大脑，请做 Agent / 机器人 / 严谨 AI 的朋友来跑、来挑刺。
 > - 🟢 在线试用（零安装，双击即用）：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html>
@@ -44,7 +53,7 @@
 
 **它不做什么（诚实边界）**
 - 不生成文本、不编造事实；推理结果可复现、可审计、不幻觉
-- **v3.0 完整骨架已全部确定性实装**（UMD 导出 207 个函数；Node 自测 51 项，其中 `algebraic_solve` 需灵数求解器 `lingshu-solver` 依赖，安装后 51/51 全过）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）** / **安全栈（CBF-QP 安全滤子 + 组合 CBF + STL 定量语义 + Zonotope 可达集 + 混合自动机×自动微分）** / **最优分配（匈牙利算法 + LP 对偶证书）** / **抽象解释（区间格 + widening/narrowing 不动点）**
+- **v1.0 内核已全部确定性实装**（UMD 导出 207 个函数；Node 自测 51 项 + 传输层 9 项；其中 `algebraic_solve` 委派**独立产品「灵数求解器」**，装了 `lingshu-solver` 后该项才可用）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）** / **安全栈（CBF-QP 安全滤子 + 组合 CBF + STL 定量语义 + Zonotope 可达集 + 混合自动机×自动微分）** / **最优分配（匈牙利算法 + LP 对偶证书）** / **抽象解释（区间格 + widening/narrowing 不动点）**
 - **轻量替代标注（手写 lite 版、非工业级外部求解器，均可运行、均确定性、均不虚构）**：符号验证=自写约束求解器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq 机器证明）；因果发现=PC-lite 离散近似（非真实 PC/FCI）；LSH=SimHash 投影（非 Milvus）；**世界模型/反事实已 lite 实装**（SEM 线性结构方程 + Pearl 反事实三步法，确定性可审计；文档原仅给 VAE/ADM-v2 等名词无定义，本实装为诚实 lite 等价，非 VAE）
 
 ---
@@ -334,7 +343,7 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | **MCP 市场：Smithery** | 已备 `smithery.yaml`（stdio + 可选 Key）；登录 smithery.ai → Import from npm: `lingnao-mcp`，或给我 Smithery Key 我来跑 | 仓库已备 `smithery.yaml` |
 | **MCP 市场：mcp.so / Glama / PulseMCP** | 已随 npm 包 `lingnao-mcp` 自动收录（关键词 mcp）；也可在站点粘贴仓库 URL 或根目录 `mcp.json` | 搜索 `lingnao-mcp` 或访问仓库 |
 | **在线试用（免安装）** | 双击 `lingnao-console.html`（同目录需 `lingnao.umd.js`）；或静态托管后给链接 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html> |
-| **npm** | ⏳ 待发布 `lingnao-mcp@3.2.0`（tarball 已打包并在干净目录验证通过，待 npm 凭据）：`npm i -g lingnao-mcp` 或 `npx lingnao-mcp`（自测 51 项 + 传输层 9 项）。注：此前**从未以 `lingnao-mcp` 名发布过**（registry 404），仅有旧名 `lingjing-mcp@3.1.0` | `npx -y lingnao-mcp` |
+| **npm** | ⏳ 待发布 `lingnao-mcp@1.0.0`（tarball 已打包并在干净目录验证通过，待 npm 凭据）：`npm i -g lingnao-mcp` 或 `npx lingnao-mcp`（自测 51 项 + 传输层 9 项）。注：此前**从未以 `lingnao-mcp` 名发布过**（registry 404），存在的是另一个产品线的旧名 `lingjing-mcp@3.1.0`；灵脑作为独立产品自 **1.0.0** 起算 | `npx -y lingnao-mcp` |
 
 > 让别人用的三种方式（任选其一）：① 双击 `lingnao-console.html`（人）② `node lingnao-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
 

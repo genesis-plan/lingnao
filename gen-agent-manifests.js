@@ -100,6 +100,15 @@ function main() {
 2. **Node library** — \`const K = require('./lingnao-mcp'); K.reason(start, goal)\` (no server started).
 3. **Browser** — \`<script src="lingnao.umd.js"></script>\` then \`window.LingNao\` (zero install).
 
+## Two separate products (do not confuse)
+| Product | What it is | Repo | npm |
+|---|---|---|---|
+| **LingNao** (this) | **the brain** — perception, planning, audit, learning, embodied arbitration | genesis-plan/lingnao | lingnao-mcp |
+| **LingShu** | **the solver** — real roots of equation systems (interval contraction + Krawczyk certification) | genesis-plan/lingshu-solver | lingshu-solver |
+
+LingNao reimplements no solving logic: \`algebraic_solve\` **delegates** to LingShu.
+LingShu is an **optional dependency** — without it LingNao still works, that one tool degrades honestly.
+
 ## Tools (${n} total)
 ${names}
 
@@ -140,6 +149,15 @@ ${names}
 1. **MCP（推荐）**：\`npx -y lingnao-mcp\`，配置见 \`mcp.json\`
 2. **Node 库**：\`const K = require('./lingnao-mcp')\`（不自启服务）
 3. **浏览器**：引入 \`lingnao.umd.js\`，零安装
+
+## 两个独立产品，分属两个仓库
+| 产品 | 是什么 | 仓库 | npm |
+|---|---|---|---|
+| **灵脑 LingNao**（本仓库） | **大脑**：感知 / 规划 / 审计 / 学习 / 具身裁决 | genesis-plan/lingnao | lingnao-mcp |
+| **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk 认证） | genesis-plan/lingshu-solver | lingshu-solver |
+
+灵脑不重写求解逻辑：\`algebraic_solve\` 委派给灵数真引擎。灵数是**可选依赖**，
+不装它灵脑其余能力照常运行，仅该项诚实降级。
 
 ## 工具（共 ${n} 个）
 ${names}

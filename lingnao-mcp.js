@@ -1026,7 +1026,7 @@ function handle(msg) {
   const { id, method, params } = msg;
   try {
     if (method === 'initialize') {
-      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '2.0' } } });
+      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.0.0' } } });
     } else if (method === 'tools/list') {
       send({ jsonrpc: '2.0', id, result: { tools: TOOLS } });
     } else if (method === 'tools/call') {
@@ -1099,6 +1099,9 @@ function mulberry32(seed) { let a = seed >>> 0; return function () { a |= 0; a =
 function selftest() {
   const ok = [];
   const bad = [];
+  // degraded：因**可选依赖缺失**而诚实降级的项。这不是内核缺陷，
+  // 绝不能让它污染整条自测——否则用户全新安装（未装可选依赖）就会看到 FAIL。
+  const degraded = [];
   const T = (name, cond, extra) => (cond ? ok : bad).push(name + (extra ? ' :: ' + extra : ''));
   try {
     T('world_info', worldInfo().nodes.length === 4);
@@ -1142,7 +1145,13 @@ function selftest() {
     T('symbolic-verify', sv && sv.verified === true && sv.tool === 'lingnao-hoare-lite', 'steps=' + (sv.steps && sv.steps.length));
     // 真引擎委派：灵数求解器解 x^2+y^2=25, x+y=7 → 2 解且全部 Krawczyk 认证
     const aso = algebraicSolveLogic({ equations: ['x^2+y^2=25', 'x+y=7'] });
-    T('algebraic-solve', aso && aso.available === true && aso.solutionCount === 2 && aso.certified === true && aso.solutions[0].values.length === 2, 'sols=' + (aso && aso.solutionCount) + ' engine=' + (aso && aso.engine));
+    // algebraic_solve 委派给**独立产品「灵数求解器」**（可选依赖，独立仓库）。
+    // 未安装 ⇒ 诚实降级，记入 degraded；已安装 ⇒ 按完整契约严格断言。
+    if (!aso || aso.available !== true) {
+      degraded.push('algebraic-solve :: 可选依赖 lingshu-solver 未安装，该项诚实降级（非内核缺陷）');
+    } else {
+      T('algebraic-solve', aso.solutionCount === 2 && aso.certified === true && aso.solutions[0].values.length === 2, 'sols=' + aso.solutionCount + ' engine=' + aso.engine);
+    }
     const dm = dmctsLogic('CHARGE', 'C', [], []);
     T('dmcts', dm && dm.status === 'found' && dm.best && dm.best.path[dm.best.path.length - 1] === 'C' && dm.best.cost <= 3, 'best=' + (dm.best && dm.best.path.join('>')) + ' cost=' + (dm.best && dm.best.cost));
     T('dmcts-ima', dm && dm.note && /ima_292|ima_285/.test(dm.note), 'note=' + (dm && dm.note));
@@ -1279,6 +1288,10 @@ function selftest() {
     }
     console.log('SELFTEST OK — 全部 ' + ok.length + ' 项工具验证通过：');
     ok.forEach(o => console.log('  ✓ ' + o));
+    if (degraded.length) {
+      console.log('诚实降级 ' + degraded.length + ' 项（可选依赖缺失，非内核缺陷，安装后即恢复）：');
+      degraded.forEach(d => console.log('  – ' + d));
+    }
     process.exit(0);
   }
 }
