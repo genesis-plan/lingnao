@@ -1,0 +1,350 @@
+{
+  "axioms": [
+    {
+      "id": "AX_LOGIC",
+      "statement": "经典一阶逻辑：排中律、无矛盾律、假言推理可靠",
+      "field": "逻辑基础",
+      "source": "Frege/Russell–Whitehead 经典逻辑"
+    },
+    {
+      "id": "AX_SET",
+      "statement": "集合论 ZFC：外延公理、并集、幂集、选择（限于可数）",
+      "field": "数学基础",
+      "source": "Zermelo–Fraenkel + Choice"
+    },
+    {
+      "id": "AX_REAL",
+      "statement": "实数是有序完备域：域公理 + 序公理 + 戴德金完备性",
+      "field": "分析学",
+      "source": "Dedekind/Cantor 实数构造"
+    },
+    {
+      "id": "AX_PROB",
+      "statement": "概率测度公理（Kolmogorov）：非负性、规范性 P(Ω)=1、可数可加性",
+      "field": "概率论",
+      "source": "Kolmogorov (1933)"
+    },
+    {
+      "id": "AX_ORDER",
+      "statement": "偏序公理：自反、反对称、传递；完备格上任意子集有上确界与下确界",
+      "field": "序理论/格论",
+      "source": "Birkhoff 格论"
+    },
+    {
+      "id": "AX_EXCH",
+      "statement": "可交换性：随机变量的联合分布对任意排列不变（弱于独立同分布）",
+      "field": "统计学",
+      "source": "de Finetti 可交换性"
+    },
+    {
+      "id": "AX_LINEAR",
+      "statement": "线性系统叠加原理：齐次性 + 可加性 ⟹ 响应可分解",
+      "field": "线性代数/系统论",
+      "source": "线性空间公理"
+    },
+    {
+      "id": "AX_GAUSS",
+      "statement": "高斯分布由均值与协方差完全确定；线性变换与条件化后仍为高斯",
+      "field": "概率论",
+      "source": "高斯分布的共轭封闭性"
+    },
+    {
+      "id": "AX_MEASURE_OPT",
+      "statement": "最优性原理：全局最优策略的任意后缀也是最优的（Bellman 最优性原理）",
+      "field": "最优控制/动态规划",
+      "source": "Bellman (1957)"
+    },
+    {
+      "id": "AX_CONVEX",
+      "statement": "凸集分离定理：凸函数的一阶条件是最优性的充要条件",
+      "field": "凸分析",
+      "source": "Rockafellar 凸分析"
+    }
+  ],
+  "theorems": [
+    {
+      "id": "THM_KLEENE",
+      "statement": "单调函数 F 在完备格上的最小不动点存在，且 Kleene 迭代（配 widening）收敛到其过近似",
+      "by": "DERIVE",
+      "from": [
+        "AX_ORDER"
+      ],
+      "field": "序理论",
+      "proof": "Kleene 不动点定理：lfp(F) = ⊔ Fⁿ(⊥)。widening 使升链有限化 ⟹ 终止且仍为过近似。",
+      "evidence": "absFixpoint 的迭代即此定理的实现",
+      "depth": 2,
+      "axioms": [
+        "AX_ORDER"
+      ]
+    },
+    {
+      "id": "THM_ABSINT_SOUND",
+      "statement": "Galois 连接 α(c)⊑a ⟺ c≤γ(a) 成立 ⟹ 抽象解释结果可靠（sound）",
+      "by": "DERIVE",
+      "from": [
+        "AX_ORDER",
+        "THM_KLEENE"
+      ],
+      "field": "抽象解释",
+      "proof": "Cousot & Cousot (1977)：Galois 连接保证抽象转移函数对具体转移的守恒性；结合 Kleene 得不动点过近似。",
+      "evidence": "galoisCheck 采样验证通过（36 组 0 违反）",
+      "depth": 3,
+      "axioms": [
+        "AX_ORDER"
+      ]
+    },
+    {
+      "id": "THM_ASTAR_OPTIMAL",
+      "statement": "启发式一致（h(n) ≤ c(n,n′)+h(n′) 且 h(goal)=0）⟹ A* 返回最优解",
+      "by": "DERIVE",
+      "from": [
+        "AX_ORDER",
+        "AX_MEASURE_OPT"
+      ],
+      "field": "图搜索",
+      "proof": "一致性 ⟹ f=g+h 沿路径非减 ⟹ 首次弹出目标节点时代价最小。",
+      "evidence": "verifyHeuristicConsistency 每次规划都实测该前提",
+      "depth": 2,
+      "axioms": [
+        "AX_ORDER",
+        "AX_MEASURE_OPT"
+      ]
+    },
+    {
+      "id": "THM_HUNGARIAN_OPTIMAL",
+      "statement": "对偶可行 ∧ 互补松弛 ∧ 强对偶（gap=0）⟹ 该分配为整数最优",
+      "by": "DERIVE",
+      "from": [
+        "AX_CONVEX"
+      ],
+      "field": "组合优化",
+      "proof": "线性分配 LP 约束矩阵全单模 ⟹ LP 最优解自动整数；对偶可行+零对偶间隙 ⟹ 原问题最优。",
+      "evidence": "hungarian 返回 (u,v) 对偶证书，三者可独立复核",
+      "depth": 2,
+      "axioms": [
+        "AX_CONVEX"
+      ]
+    },
+    {
+      "id": "THM_SHAPLEY_UNIQUE",
+      "statement": "满足效率、对称、哑元、可加性四公理的归因唯一，且由 Shapley 公式给出",
+      "by": "DERIVE",
+      "from": [
+        "AX_SET"
+      ],
+      "field": "博弈论",
+      "proof": "Shapley (1953) 唯一性定理；效率公理 Σφᵢ=v(N)−v(∅) 可自检。",
+      "evidence": "shapleyValues 每次都自检效率公理",
+      "depth": 2,
+      "axioms": [
+        "AX_SET"
+      ]
+    },
+    {
+      "id": "THM_BAYES_CONJUGACY",
+      "statement": "Beta 是 Bernoulli 的共轭先验 ⟹ 后验仍为 Beta，可靠度可由 α,β 精确递推",
+      "by": "DERIVE",
+      "from": [
+        "AX_PROB"
+      ],
+      "field": "贝叶斯统计",
+      "proof": "P(R|D) ∝ Beta(α,β)·Bernoulli 似然 = Beta(α+k, β+n−k)。",
+      "evidence": "SelfLearn 的可靠度即用此递推",
+      "depth": 2,
+      "axioms": [
+        "AX_PROB"
+      ]
+    },
+    {
+      "id": "THM_CONFORMAL_COVERAGE",
+      "statement": "校准分数与新样本分数可交换 ⟹ P(Y ∈ Ĉ(X)) ≥ 1−α（有限样本、分布无关）",
+      "by": "DERIVE",
+      "from": [
+        "AX_EXCH",
+        "AX_PROB"
+      ],
+      "field": "统计推断",
+      "proof": "Vovk–Gammerman–Shafer：新息分数的秩在可交换性下均匀 ⟹ 取 ⌈(n+1)(1−α)⌉/n 分位数即达覆盖。",
+      "evidence": "四种分布（含无均值的柯西）蒙特卡洛实测覆盖 ≈0.90",
+      "depth": 2,
+      "axioms": [
+        "AX_EXCH",
+        "AX_PROB"
+      ]
+    },
+    {
+      "id": "THM_CVAR_COHERENT",
+      "statement": "CVaR 满足单调性、平移不变性、正齐次性、次可加性 ⟹ 是一致性风险度量",
+      "by": "DERIVE",
+      "from": [
+        "AX_PROB",
+        "AX_CONVEX"
+      ],
+      "field": "风险理论",
+      "proof": "Artzner et al. (1999)；Rockafellar–Uryasev 变分公式给出凸性。",
+      "evidence": "3000 次重尾试验：CVaR 违反 0 次，VaR 违反 535 次",
+      "depth": 2,
+      "axioms": [
+        "AX_PROB",
+        "AX_CONVEX"
+      ]
+    },
+    {
+      "id": "THM_KALMAN_MINVAR",
+      "statement": "线性系统 + 高斯噪声 ⟹ 卡尔曼滤波给出最小方差无偏估计（高斯下即后验均值）",
+      "by": "DERIVE",
+      "from": [
+        "AX_GAUSS",
+        "AX_PROB",
+        "AX_LINEAR"
+      ],
+      "field": "状态估计",
+      "proof": "Kalman (1960)：正交投影于观测张成的空间；高斯下条件期望即线性最小方差估计。",
+      "evidence": "闭式解一致；MSE 较\"直接用观测\"改善 6.0×",
+      "depth": 2,
+      "axioms": [
+        "AX_GAUSS",
+        "AX_PROB",
+        "AX_LINEAR"
+      ]
+    },
+    {
+      "id": "THM_PARTICLE_CONSISTENT",
+      "statement": "重要性采样的粒子近似在 N→∞ 时一致收敛到真实后验（有限 N 为近似）",
+      "by": "DERIVE",
+      "from": [
+        "AX_PROB"
+      ],
+      "field": "蒙特卡洛",
+      "proof": "大数定律：加权经验测度 → 后验测度。有限 N 须诚实标注为近似。",
+      "evidence": "双峰歧义实测：保持 ±2 双峰，单高斯方法做不到",
+      "depth": 2,
+      "axioms": [
+        "AX_PROB"
+      ]
+    },
+    {
+      "id": "THM_LQR_OPTIMAL",
+      "statement": "线性系统 + 二次代价 ⟹ u = −Kx（K 由 DARE 解出）为最优控制",
+      "by": "DERIVE",
+      "from": [
+        "AX_LINEAR",
+        "AX_MEASURE_OPT",
+        "AX_CONVEX"
+      ],
+      "field": "最优控制",
+      "proof": "Kalman (1960)：动态规划 + 二次型归纳 ⟹ Riccati 递推给出最优代价矩阵。",
+      "evidence": "实测代价精确等于理论下界 x₀ᵀPx₀，优于 6 组其它反馈",
+      "depth": 2,
+      "axioms": [
+        "AX_LINEAR",
+        "AX_MEASURE_OPT",
+        "AX_CONVEX"
+      ]
+    },
+    {
+      "id": "THM_LQG_SEPARATION",
+      "statement": "卡尔曼(LQE) 与 LQR 可独立设计，组合后仍为 LQG 最优（分离原理）",
+      "by": "CONJ",
+      "from": [
+        "THM_KALMAN_MINVAR",
+        "THM_LQR_OPTIMAL"
+      ],
+      "field": "随机控制",
+      "proof": "分离原理：估计误差与控制独立 ⟹ 期望代价可分解为估计代价 + 控制代价。",
+      "evidence": "估计与控制两个 Riccati 方程存在对偶性（控制向后 / 估计向前）",
+      "depth": 3,
+      "axioms": [
+        "AX_GAUSS",
+        "AX_PROB",
+        "AX_LINEAR",
+        "AX_MEASURE_OPT",
+        "AX_CONVEX"
+      ]
+    },
+    {
+      "id": "THM_CBF_INVARIANCE",
+      "statement": "存在 h 使 L_f h + L_g h·u ≥ −α(h) ⟹ 安全集前向不变（系统永不离开安全集）",
+      "by": "DERIVE",
+      "from": [
+        "AX_REAL",
+        "AX_CONVEX"
+      ],
+      "field": "安全控制",
+      "proof": "Nagumo 前向不变性定理的屏障函数形式；可行控制集为凸 ⟹ QP 可解。",
+      "evidence": "cbfFilter 每次求解都返回可行性与 margin",
+      "depth": 2,
+      "axioms": [
+        "AX_REAL",
+        "AX_CONVEX"
+      ]
+    },
+    {
+      "id": "THM_ZONOTOPE_SOUND",
+      "statement": "Zonotope 对线性变换与闵可夫斯基和封闭 ⟹ 可达集计算结果是可信过近似",
+      "by": "DERIVE",
+      "from": [
+        "AX_LINEAR",
+        "AX_SET"
+      ],
+      "field": "可达性分析",
+      "proof": "生成元表示的线性变换封闭性 ⟹ 每步都是包含真实集的凸多面体。",
+      "evidence": "zonoReach 的 sound 标记即由此定理支撑",
+      "depth": 2,
+      "axioms": [
+        "AX_LINEAR",
+        "AX_SET"
+      ]
+    },
+    {
+      "id": "THM_DO_CALCULUS",
+      "statement": "满足后门/前门准则 ⟹ 干预分布 P(Y|do(X)) 可由观测数据识别",
+      "by": "DERIVE",
+      "from": [
+        "AX_PROB"
+      ],
+      "field": "因果推断",
+      "proof": "Pearl (1995) do-演算三条规则；后门调整公式；前门准则处理未观测混杂。",
+      "evidence": "合成数据上 ACE 精确还原真值",
+      "depth": 2,
+      "axioms": [
+        "AX_PROB"
+      ]
+    },
+    {
+      "id": "THM_BUCKINGHAM_PI",
+      "statement": "物理定律在量纲变换下不变 ⟹ 可化为无量纲 π 项的齐次函数（ Buckingham π 定理）",
+      "by": "DERIVE",
+      "from": [
+        "AX_REAL"
+      ],
+      "field": "量纲分析",
+      "proof": "量纲矩阵的零空间给出 π 群；齐次性 ⟹ 非法量纲运算可被拦截。",
+      "evidence": "dimAdd 对不同量纲相加返回 null",
+      "depth": 2,
+      "axioms": [
+        "AX_REAL"
+      ]
+    }
+  ],
+  "conjectures": [
+    {
+      "id": "CONJ_POMDP_APPROX",
+      "statement": "确定化重规划（determinized replanning）在部分可观测下的后悔值有界",
+      "field": "规划",
+      "evidence": "工程实践广泛有效；精确 POMDP 解为 PSPACE-complete，无一般近似保证"
+    },
+    {
+      "id": "CONJ_NONLINEAR_REACH",
+      "statement": "一般非线性系统的可达集可由有限步过近似任意逼近",
+      "field": "可达性分析",
+      "evidence": "理论上一般非线性可达性不可判定；仅在受限系统类上成立"
+    },
+    {
+      "id": "CONJ_HEURISTIC_EVOLVE_MONOTONE",
+      "statement": "融合学习启发式（Pearl max）在重复执行下单调改善搜索效率且不破坏可采纳性",
+      "field": "启发式搜索",
+      "evidence": "可采纳性已由 Pearl 定理保证；\"效率单调改善\"部分仅有实验支持"
+    }
+  ]
+}
