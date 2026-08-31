@@ -711,7 +711,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'dmcts', description: 'D-MCTS 分布式分支探索：并行分支+回溯，返回多候选最优路径。  / EN: D-MCTS distributed branch exploration: parallel branching + backtracking, returns multiple candidate optimal paths.',
+    name: 'dmcts', description: '确定性 D-MCTS（determinized MCTS）：可复现的多候选探索规划器（UCB1 选择 + 确定性 rollout），默认固定种子 ⇒ 同输入同输出。注意：此为近似探索层，非 KERNEL/PROOF，结果须经 liftToBelief 提升为信念方可进决策，不直接构成证明链。  / EN: Deterministic D-MCTS: reproducible multi-candidate exploration planner. Approximation layer only — not a KERNEL proof; lift to belief before use in decisions.',
     inputSchema: {
       type: 'object',
       properties: {

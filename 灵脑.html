@@ -350,6 +350,21 @@ function verifyHeuristicConsistency(goal){
     basis: '一致启发式 = 三角不等式 h(n)≤c(n,n\')+h(n\')；一致 ⟹ A* 最优由定理保证，非断言' + (_sc.contaminated ? '；图含 PERCEPTION 感知边，最优性仅对确定边成立，含感知边路径须诚实降级' : '') };
 }
 
+// 二叉最小堆（确定性优先队列）：A* 的 open 集原每轮 open.sort 全排序 = O(n²log n)，对大图是教科书级低效；
+// 换成二叉堆后每轮 O(log n)，最优性与确定性不变（按 f 升序、f 相同按入堆序 _seq 稳定 tie-break），
+// 仍产出定理保证的 A* 最优路径，RSG 可审计轨迹不变。
+function makeMinHeap(){
+  const a = []; let _seq = 0;
+  function _less(i,j){ if(a[i].f !== a[j].f) return a[i].f < a[j].f; return a[i]._seq < a[j]._seq; }
+  function _up(i){ while(i>0){ const p=(i-1)>>1; if(_less(i,p)){ const t=a[i]; a[i]=a[p]; a[p]=t; i=p; } else break; } }
+  function _down(i){ const n=a.length; for(;;){ let l=2*i+1, r=2*i+2, s=i; if(l<n&&_less(l,s)) s=l; if(r<n&&_less(r,s)) s=r; if(s!==i){ const t=a[i]; a[i]=a[s]; a[s]=t; i=s; } else break; } }
+  return {
+    push(x){ x._seq = _seq++; a.push(x); _up(a.length-1); },
+    pop(){ if(!a.length) return null; const top=a[0]; const last=a.pop(); if(a.length){ a[0]=last; _down(0); } return top; },
+    get size(){ return a.length; }
+  };
+}
+
 function aStar(start, goal, opts={}){
   const hard = new Set(opts.hard||[]);
   _SOFT = new Set(opts.soft||[]);
@@ -371,13 +386,12 @@ function aStar(start, goal, opts={}){
     } catch(_) { hOf = heuristic; }
   }
   _ACTIVE_H = hOf;
-  const open=[{node:start, g:0, f:hOf(start,goal), parent:null}];
+  const open=makeMinHeap(); open.push({node:start, g:0, f:hOf(start,goal), parent:null});
   const closed=new Map();
   const undecided=[];   // ℙ 命题不可判定的边（已知事实不足）—— 诚实归入 𝕌，不猜
   let expanded=0;
-  while(open.length){
-    open.sort((x,y)=>x.f-y.f);
-    const cur=open.shift(); expanded++;
+  while(open.size){
+    const cur=open.pop(); expanded++;
     log.push({expand:cur.node, g:+cur.g.toFixed(3), f:+cur.f.toFixed(3)});
     rsgNodes.add(cur.node);
     if(cur.node===goal){
@@ -558,7 +572,9 @@ function goalDirected(start, goal, opts){
   const reached = path[path.length-1]===goal;
   return { status: reached?'found':'unknown', path: reached?path:null, cost: reached?path.length-1:null,
     reach: reach.size, goalProb: +V[start].toFixed(3),
-    method:'目标导向决策(ima_286 框架 + ima_288 可达性 + ima_291 值迭代 + ima_289 路径规划)：无奖励, 最大化到达概率', imaRef:['ima_286','ima_288','ima_289','ima_291'] };
+    grounding: GROUNDING.KERNEL, deterministic:true,
+    method:'目标导向决策(ima_286 框架 + ima_288 可达性 + ima_291 值迭代 + ima_289 路径规划)：无奖励, 最大化到达概率', imaRef:['ima_286','ima_288','ima_289','ima_291'],
+    note:'确定性值迭代（Bellman 收敛 ⇒ 最优策略；非 MCTS 采样）：作为 A* 搜索之外的确定性备选规划器，结果可复现' };
 }
 
 
@@ -1517,8 +1533,23 @@ function verifyHoarePath(path, world){
 // ③ 分布式 MCTS 调度器（D-MCTS）：并行分支探索 + 回溯 + 选最优（确定性分支收集，文档 3.2）
 // ③ 探索层：真 MCTS 四步（ima_292 选择/扩展/模拟/回溯 + ima_285 蒙特卡洛估计）
 // 原 DFS 改为标准 MCTS：UCB1 选择 → 未展开子扩展 → 随机模拟(蒙特卡洛) → 首次访问 MC 回溯(ima_285)
+// 确定性 PRNG（mulberry32）：dmcts 原名"determinized MCTS"却用 Math.random() —— 对"确定性可审计"产品是硬矛盾
+// （随机采样 ⇒ 同输入不同输出、结果非证明）。改为可设种子的确定性 PRNG：默认固定种子 ⇒ 可复现、可审计、可回归测试。
+function mulberry32(seed){
+  let a = (seed >>> 0) || 1;
+  return function(){
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function dmcts(start, goal, opts){
   opts = opts || {}; const hard = new Set(opts.hard || []); _SOFT = new Set(opts.soft || []);
+  // 确定性化：用可设种子的 PRNG 取代 Math.random()，使探索可复现/可审计（默认固定种子）
+  const rng = mulberry32(opts.seed != null ? opts.seed : 0x1234abcd);
+  const _dmScan = FIREWALL.scanGraph(WORLD.edges);
   if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
   const nodes = {};
   WORLD.nodes.forEach(s => { nodes[s] = { visits:0, value:0, children: WORLD.edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to) }; });
@@ -1531,7 +1562,7 @@ function dmcts(start, goal, opts){
     while(nodes[cur].children.length && nodes[cur].visits>0 && nodes[cur].children.every(c=>nodes[c].visits>0) && !seenSel.has(cur) && path.length < maxD){
       let best=null, bv=-Infinity; for(const c of nodes[cur].children){ const v=ucb(c); if(v>bv){bv=v;best=c;} } if(!best) break; cur=best; path.push(cur); seenSel.add(cur); if(cur===goal) break;
     }
-    if(cur!==goal && nodes[cur].children.length){ const unexp=nodes[cur].children.filter(c=>nodes[c].visits===0); if(unexp.length){ cur=unexp[Math.floor(Math.random()*unexp.length)]; path.push(cur); } } // 扩展
+    if(cur!==goal && nodes[cur].children.length){ const unexp=nodes[cur].children.filter(c=>nodes[c].visits===0); if(unexp.length){ cur=unexp[Math.floor(rng()*unexp.length)]; path.push(cur); } } // 扩展
     const reward = (cur===goal)?1:rollout(cur); // 模拟(ima_285 蒙特卡洛)
     for(const s of path){ nodes[s].visits++; nodes[s].value += (reward - nodes[s].value)/nodes[s].visits; } // 回溯(首次访问 MC)
   }
@@ -1544,9 +1575,16 @@ function dmcts(start, goal, opts){
     if(!nx) break; cur=nx; path.push(cur); if(path.length>maxD) break;
   }
   const reached = path[path.length-1]===goal;
+  const _dmContam = _dmScan.contaminated;
   return { status: reached?'found':'unknown', best: reached?{path,cost:path.length-1}:null, path: reached?path:null,
     rootVisits: nodes[root].visits, goalValue: +(nodes[goal]?nodes[goal].value:0).toFixed(3),
-    note:'真 MCTS 四步(ima_292 选择/扩展/模拟/回溯 + ima_285 蒙特卡洛估计)：UCB1 选择, 随机模拟, 首次访问 MC 回溯' };
+    deterministic: true, seed: (opts.seed != null ? opts.seed : 0x1234abcd),
+    grounding: _dmContam ? GROUNDING.PERCEPTION : { tier:'APPROXIMATION', mayHallucinate:false,
+      desc:'determinized MCTS：确定性多候选探索，非 KERNEL 证明、非最优保证；进决策须过 liftToBelief/D-S 包络' },
+    perceptionContaminated: _dmContam, firewallScan: _dmScan,
+    note:'确定性 D-MCTS（ima_292 选择/扩展 + ima_285 蒙特卡洛估计；默认固定种子 ⇒ 可复现/可审计）：UCB1 选择 + 确定性 rollout + 首次访问 MC 回溯。' +
+      (_dmContam ? '图含 PERCEPTION 感知边 ⇒ 探索结果仅作候选，确定性保证不成立（铁律③）。' :
+        '此工具为近似探索层，非 KERNEL/PROOF；其结果须经 liftToBelief 提升为信念方可进决策，不直接构成证明链。') };
 }
 
 // ④ PAC 学习定理：样本复杂度下界 m ≥ O((d_VC·ln(1/ε)+ln(1/δ))/ε²)（文档 数学原理 三）
