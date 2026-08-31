@@ -108,6 +108,18 @@ ck('P0 守恒律：含阻尼流能量不守恒 ⇒ 非 SAFE', ccDiss.ok && ccDis
 const pi = BT.physicsInvariant({ flow: (x) => [x[1], -x[0], 0], energy: (x) => x[2], x0: [1, 0, 5] });
 ck('P0 physicsInvariant：接守恒律检查且返回 verdict', pi.ok && typeof pi.verdict === 'string', pi);
 
+// —— P2 他心嵌套信念 KD45（心智理论模态逻辑：我信 j 信 k 信 p）——
+const nb = BT.M.assertNested('SELF', ['j', 'k'], 'p');
+ck('P2 嵌套信念：存 B_SELF(B_j(B_k(p))) 且标 BELIEF-LEVEL', nb.ok && /B_SELF\(B_j\(B_k\(p\)\)\)/.test(nb.formula) && nb.grounding === 'BELIEF-LEVEL', nb);
+const nbq = BT.M.nestedBelief('SELF', ['j', 'k'], 'p');
+ck('P2 嵌套信念：查询已知嵌套信念返回 belief=true', nbq.ok && nbq.known === true && nbq.belief === true, nbq);
+const nbUnk = BT.M.nestedBelief('SELF', ['j', 'k'], 'q');
+ck('P2 嵌套信念：未存命题诚实返回 UNKNOWN（不编造他心信念）', nbUnk.ok && nbUnk.known === false && nbUnk.belief === null, nbUnk);
+BT.M.assertNested('SELF', ['j'], 'contra', {});
+BT.M.assertNested('SELF', ['j'], 'contra', { negated: true });
+const kd = BT.M.checkKd45('SELF');
+ck('P2 KD45：checkKd45 机验 D 一致性并捕获 p 与 ¬p 矛盾', kd.ok && kd.dCheck === 'FAIL' && kd.violations.length >= 1, kd);
+
 // —— LCF：八元组定理链闭合 ——
 const kv = L.kernelVerify();
 ck('LCF 内核全链闭合（含八元组定理 AX_TUPLE_FORMAL / THM_*）', kv.ok === true, { theorems: kv.theorems, axioms: kv.axioms, conjectures: kv.conjectures });

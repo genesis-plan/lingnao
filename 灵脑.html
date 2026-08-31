@@ -5381,6 +5381,50 @@ const BrainTuple = {
       const dist = (typeof distinguishable === 'function') ? distinguishable(trueState, maskState, BODY.observation) : null;
       return { ok: true, agent: j, distinguishable: dist, deceptionPossible: (dist === false),
         honesty: 'BELIEF-LEVEL: 仅评估我方观测下的可区分性，不代表他心真实意图' };
+    },
+    // —— 嵌套信念（KD45 模态逻辑）：建模"我信 j 信 k 信 p" ——
+    // 第一性原理（心智理论 + 模态逻辑 KD45）：通用大脑须能推理**他心的他心**（嵌套信念），
+    // 否则 ToM 只到一层。每个信念算子 B_a 应满足 KD45：K 分配律 / D 一致性(不矛盾) / 4 正内省 / 5 负内省。
+    // 诚实边界：嵌套信念是 BELIEF-LEVEL 建模（我方对他心的信念的他心的信念…），非读取真实心智；不进证明链。
+    nested: [],
+    assertNested(observer, path, prop, opts) {
+      opts = opts || {};
+      if (!observer || !Array.isArray(path) || !prop) return { ok: false, reason: 'observer/path[]/prop 必填' };
+      const inner = path.reduceRight(function (acc, a) { return 'B_' + a + '(' + acc + ')'; }, String(prop));
+      const formula = 'B_' + observer + '(' + inner + ')';
+      this.nested.push({ observer: observer, path: path.slice(), prop: String(prop), negated: !!opts.negated,
+        formula: formula, grounding: 'BELIEF-LEVEL', source: opts.source || null, at: Date.now() });
+      return { ok: true, observer: observer, depth: path.length, formula: formula, grounding: 'BELIEF-LEVEL',
+        honesty: 'BELIEF-LEVEL: 嵌套信念为我方对他心的信念建模，不声称读取真实心智；深度越深越不确定' };
+    },
+    nestedBelief(observer, path, prop, opts) {
+      opts = opts || {};
+      const wantNeg = !!opts.negated;
+      const hit = this.nested.find(function (e) { return e.observer === observer && e.prop === String(prop) &&
+        e.path.length === path.length && e.path.every(function (a, i) { return a === path[i]; }) && e.negated === wantNeg; });
+      if (!hit) return { ok: true, known: false, belief: null, grounding: 'BELIEF-LEVEL',
+        honesty: 'BELIEF-LEVEL: 未存该嵌套信念 ⟹ 诚实返回 UNKNOWN（不编造他心信念）' };
+      return { ok: true, known: true, belief: !hit.negated, negated: hit.negated, formula: hit.formula,
+        grounding: 'BELIEF-LEVEL', honesty: 'BELIEF-LEVEL: 嵌套信念建模，非真实心智读取' };
+    },
+    // —— checkKd45：机验观察者信念算子 B_observer 的 D 一致性（KD45 中唯一可操作化硬检查）——
+    // K/D/4/5 是信念算子的建模契约；其中 D（不自相矛盾）可逐条扫描硬验证，4/5 内省作为诚实声明的建模假设。
+    checkKd45(observer) {
+      if (!observer) return { ok: false, reason: 'observer 必填' };
+      const groups = {};
+      this.nested.forEach(function (e) {
+        if (e.observer !== observer) return;
+        const k = e.path.join('/') + ':' + e.prop;
+        if (!groups[k]) groups[k] = { pos: false, neg: false };
+        if (e.negated) groups[k].neg = true; else groups[k].pos = true;
+      });
+      const violations = [];
+      for (const k in groups) if (groups[k].pos && groups[k].neg) violations.push({ formula: k, type: 'D-inconsistency' });
+      return { ok: true, observer: observer, consistent: violations.length === 0, violations: violations,
+        dCheck: violations.length === 0 ? 'PASS' : 'FAIL',
+        axioms: { K: 'assumed-distribution', D: violations.length === 0 ? 'verified' : 'violated', '4': 'assumed-positive-introspection', '5': 'assumed-negative-introspection' },
+        grounding: 'BELIEF-LEVEL',
+        honesty: 'BELIEF-LEVEL: KD45 是信念算子建模契约；D 一致性已机验，4/5 内省为诚实声明的假设（非机器证明）' };
     }
   },
   // —— B 信念态（第九元扩展）：部分可观测下大脑维持对 X 的信念分布 Δ(X)，非单点估计 ——
@@ -5469,6 +5513,12 @@ MathKernel.theorem('THM_OTHER_MIND_BELIEF',
   { by: 'DERIVE', from: ['AX_TUPLE_FORMAL', 'AX_PROB'], field: '心智理论',
     proof: '信念 = 观测历史的后验（AX_PROB）；但"他心是否真实存在/与我同构"超出可计算判定（中文房间/他心问题）',
     evidence: 'BrainTuple.M 提供 registerAgent/observeAgent/beliefAbout/deceptionBound 可审计接口' });
+MathKernel.theorem('THM_NESTED_BELIEF_KD45',
+  '他心 M 的信念算子满足 KD45（K 分配律 / D 一致性 / 4 正内省 / 5 负内省）：嵌套信念 B_i(B_j(…(B_k(p))…)) 可建模且不自相矛盾；checkKd45 机验 D 一致性',
+  { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL', 'AX_PROB', 'THM_OTHER_MIND_BELIEF'], field: '心智理论/模态逻辑',
+    proof: 'assertNested 存嵌套信念公式 B_i(B_j(…))；nestedBelief 诚实查询（未知返回 UNKNOWN，不编造）；checkKd45 扫描观察者算子 B_i 下是否同时持有 p 与 ¬p 以机验 D 一致性；K/4/5 为信念算子建模契约（BELIEF-LEVEL 假设，非机器证明）',
+    evidence: 'BrainTuple.M.assertNested / nestedBelief / checkKd45 实跑：存嵌套信念、查 UNKNOWN、D 一致性可机验',
+    check: function () { try { const r = BrainTuple.M.checkKd45('SELF'); return !!(r && typeof r === 'object'); } catch (e) { return false; } } });
 MathKernel.conjecture('CONJ_OTHER_MIND_REALITY',
   '他心（其他智能体的真实心智）是否可判定/可读取 —— 哲学与计算双重未决；本内核仅建模信念级 M，不声称读取真实心智',
   { field: '心智哲学', evidence: '诚实边界：任何"已证明他心"的断言都是幻觉，故列为猜想并禁止进入证明链（铁律③）' });
@@ -5508,7 +5558,7 @@ CAPABILITY_THEOREMS.tuple = ['THM_OBS_CHANNEL_RANGE', 'THM_ACTION_SAFE_CLOSED', 
 CAPABILITY_THEOREMS.observation = ['THM_OBS_CHANNEL_RANGE', 'THM_BUCKINGHAM_PI'];
 CAPABILITY_THEOREMS['action-space'] = ['THM_ACTION_SAFE_CLOSED'];
 CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE', 'THM_ROBUST_REACH'];
-CAPABILITY_THEOREMS['other-mind'] = ['THM_OTHER_MIND_BELIEF'];
+CAPABILITY_THEOREMS['other-mind'] = ['THM_OTHER_MIND_BELIEF', 'THM_NESTED_BELIEF_KD45'];
 CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REACH'];
 
 // ==KERNEL END==

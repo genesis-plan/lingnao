@@ -159,13 +159,21 @@ L0–L5 格 + 按风险触发 HUMAN-IN-THE-LOOP，正确（有序集/格即恰�
 |----|----------|------|
 | 守恒律/Noether | `conservationCheck` + `BrainTuple.physicsInvariant` | 数值积分检验 `max|dE/dt|`；SAFE(≤1e-3)/UNSAFE(>1)/UNKNOWN；作为 `Inv()` 物理正确性第二层（量纲→守恒律）。UMD 已导出 |
 
-### 5-C 验收
-- `node test-tuple-eight.js` → **31/31 通过**（含 P0 + 守恒律用例）
+### 5-F 已落地（P2 他心嵌套信念 KD45）
+| 项 | 内核位置 | 形态 |
+|----|----------|------|
+| 嵌套信念 | `BrainTuple.M.assertNested(observer, path, prop)` | 存 `B_SELF(B_j(B_k(p)))` 形式嵌套信念（路径数组编码嵌套深度），标 BELIEF-LEVEL |
+| 诚实查询 | `BrainTuple.M.nestedBelief(...)` | 未存命题诚实返回 `UNKNOWN`（不编造他心信念），不进证明链 |
+| KD45 机验 | `BrainTuple.M.checkKd45(observer)` | 扫描观察者信念算子是否同时持 `p` 与 `¬p` 以机验 D 一致性；K/4/5 诚实声明为 BELIEF-LEVEL 建模假设（非机器证明） |
+| 定理 | `THM_NESTED_BELIEF_KD45` | by COMPUTE，钉进 `CAPABILITY_THEOREMS['other-mind']` |
+
+### 5-C 验收（累计）
+- `node test-tuple-eight.js` → **35/35 通过**（P0 + 守恒律 + 嵌套信念 KD45 用例）
 - `node lingnao-mcp.js --selftest` → **51/51 通过**（未回归）
-- `node build-umd.js` → 导出 210，含 `conservationCheck`
+- `node build-umd.js` → 导出 210
 
 ### 5-D 未做（硬约束，待你授权）
-P2（嵌套信念 KD45）、P3（DERIVE 缩小 TCB）未动；npm 发布 / COS 上传 / GitHub Release / Smithery 收录全部**未执行**（需你放行）。
+P3（DERIVE 缩小 TCB）未动；npm 发布 / COS 上传 / GitHub Release / Smithery 收录全部**未执行**（需你放行）。
 
 ### 5-E 期间修正的两个实现瑕疵（已修复）
 1. `f.candidates` 初版误写成 `BrainTuple.candidates` 同级方法，测试按设计意图调 `BT.f.candidates` 报错 → 改为对象闭合后挂别名并 `bind(BrainTuple)`，保证 `this._learned` 解析。
