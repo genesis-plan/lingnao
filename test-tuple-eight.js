@@ -186,5 +186,32 @@ ck('建模③ variableScreening：var0 方差主导 ⇒ 前1主成分解释比>0
 const taMod = L.theoremOf('modeling');
 ck('建模能力可追溯到 THM_MODEL_ASSUMPTION_AUDIT/THM_LOCAL_LINEARIZE/THM_DIMENSIONALITY_SCREEN', taMod.ok === true && taMod.theorems.length === 3, taMod.verdict);
 
+// —— 实践—理论—实践闭环（科学方法思维）：面对任意真实世界的元循环 ——
+// 相1 实际→理论：观测两次匀速位移（实际），归纳出"位置=时间"的暂定理论（溯因）
+// 相2 理论→实际：由理论演绎预测后续位置
+// 相3 实际回验：观测实际与预测比对，一致→CONFIRMED
+const loopOk = L.theoryPracticeLoop({
+  observations: [{ t: 1, x: 1 }, { t: 2, x: 2 }],
+  theory: { source: 'abduction-from-observations' },
+  predict: (th, ctx) => ctx && ctx.t != null ? ctx.t : null,
+  observe: (ctx) => ctx && ctx.t != null ? ctx.t : null,
+  context: { t: 3 }
+}, { maxRounds: 3, tol: 1e-9 });
+ck('闭环：实际→理论(归纳)→实际(演绎预测)→回验一致 ⇒ fit CONFIRMED', loopOk.ok && loopOk.fit === 'CONFIRMED' && loopOk.reliability >= 0.8, loopOk);
+
+// 持续不符实际 ⟹ 诚实 UNKNOWN（拒绝外推破理论）
+const loopFail = L.theoryPracticeLoop({
+  observations: [{ t: 1 }, { t: 2 }],
+  theory: { source: 'wrong-theory', predict: { value: 100 } },
+  predict: () => 100,
+  observe: () => 0,
+  context: {}
+}, { maxRounds: 5, failThreshold: 3 });
+ck('闭环：理论连续预测不符实际 ⟹ 诚实 fit UNKNOWN（不以外推低可靠理论冒充知识）', loopFail.ok && loopFail.fit === 'UNKNOWN' && loopFail.rounds <= 3, loopFail);
+
+// 闭环能力可追溯定理
+const taLoop = L.theoremOf('loop');
+ck('实践理论闭环能力可追溯到 THM_THEORY_PRACTICE_LOOP', taLoop.ok === true && taLoop.theorems.indexOf('THM_THEORY_PRACTICE_LOOP') >= 0, taLoop.verdict);
+
 console.log('\n八元组落地验收：' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail === 0 ? 0 : 1);

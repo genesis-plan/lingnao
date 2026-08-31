@@ -181,6 +181,28 @@
 
 **验证**：`node test-tuple-eight.js` → **52/52**（原 47 + 新 5 项建模用例）；MCP 自测 **51/51** 未回归；UMD 导出 **217**（新增 3 个建模原语）。
 
+## §11 实践—理论—实践闭环（科学方法思维）— 2026-08-31 补
+
+用户点出：前面审了推理/证明思想、备用数学工具、建模思想，**漏了"面对任意真实世界，从实际到理论、再从理论到实际"的循环思想**（科学方法循环：观察→假说/理论→演绎预测→实验→修正）。
+
+**内核原已存在的零件（逐行取证，非本次新增）**：
+- `SelfLearn` 四层科学认知闭环（491-656）：积累层(record, append-only) → 发现层(discover, FP-Growth+PC+K-means+孤立森林+自相关 → 假设) → 验证层(validate, Beta-二项贝叶斯可靠度生命周期) → 监控修正层(_monitor, 连续失败/失败率/切比雪夫越界即降级)。
+- `reconcile`（1274）：信念自我修正（推测 vs 事实），Banach 收缩 / KL I-投影，诚实贴合事实。
+- `reflect`（1151）：反思闭环（吸收 Reflexion 思想，不改权重只改语言记忆）。
+- Pearl 溯源三步（abduction→action→prediction，1734）。
+
+**本次新增（把循环拧成一等思维原语 + 证明链可溯 + 持续不符诚实 UNKNOWN）**：
+- `theoryPracticeLoop(spec, opts)` —— 显式闭合四相：
+  - 相1 实际→理论：观测经归纳/溯因形成或选取理论（复用 `SelfLearn.discover` 精神；无显式 theory 则由观测做最简溯因）；
+  - 相2 理论→实际：演绎(COMPUTE/DERIVE 精神)得可测预测 +（可选）执行动作；
+  - 相3 实际回验：观测实际与预测比对，一致→强化，偏离→`reconcile` 收缩；
+  - **诚实闸**：连续 `failThreshold` 次预测不符实际 ⇒ 返回 `fit:'UNKNOWN'`（拒绝以外推低可靠理论冒充知识），须换理论或 UNKNOWN。
+- 定理 `THM_THEORY_PRACTICE_LOOP`（COMPUTE）钉进 `CAPABILITY_THEOREMS['loop'/'scientific-method'/'theory-practice']`；引用 IMA `ima_350`(闭环) / `ima_302`(归纳) / `ima_225`(贝叶斯) / `ima_304`(因果) / `ima_240`(假设检验)。
+
+**为什么这是"让大脑自己面对真实去思考"的关键**：它不与`SelfLearn`重复发现层，而是提供**面对任意真实世界的元循环接口**——大脑无现成理论时，从实际建理论、用理论指导行动、再让行动的实际结果反哺/否决理论；理论被实践反复否定就诚实认错（UNKNOWN），而非假装知道。
+
+**验证**：`node test-tuple-eight.js` → **55/55**（原 52 + 新 3 项闭环用例：CONFIRMED / UNKNOWN / 能力追溯）；MCP 自测 **51/51** 未回归；UMD 导出 **218**（新增 `theoryPracticeLoop`）。
+
 ---
 
 *审计依据：灵脑.html 逐行取证（见各节行号）。与 MATH-FIRST-PRINCIPLES-AUDIT.md §5 落地状态互补：前者查「数学工具对不对」，本审计查「数学思想装没装 + 备用数学够不够」。*

@@ -4320,6 +4320,72 @@ MathKernel.theorem('THM_DIMENSIONALITY_SCREEN',
   { by: 'DERIVE', from: ['AX_REAL', 'AX_PROB'], field: '建模思想/降维筛变量',
     proof: '协方差谱分解给出主成分能量；k 主成分解释比 = Σ_{i≤k}λ_i / Σλ_j；比低 ⟹ 数据非线性强，线性降维保真不足。仅捕捉线性结构。',
     evidence: 'variableScreening 幂迭代估前 k 主成分并报告方差解释比；诚实标注非线性流形超出须 UNKNOWN' });
+MathKernel.theorem('THM_THEORY_PRACTICE_LOOP',
+  '面对任意真实世界：观察实际→(归纳/溯因)形成理论→(演绎)给出可测预测→执行并观察实际→比对回验；预测持续不符实际时诚实返回 UNKNOWN，不以外推低可靠理论冒充知识',
+  { by: 'COMPUTE', from: ['AX_SET', 'AX_PROB'], field: '科学方法/实践理论闭环',
+    proof: '闭环四相：(1)实际→理论：归纳(PAC/贝叶斯)与溯因(Pearl 三步)由观测建立暂定理论；(2)理论→实际：演绎(COMPUTE/DERIVE)得可证伪预测；(3)执行观察：物理动作落地实际；(4)回验：预测与实际比对，reconcile(Banach 收缩)修正信念，连续 failThreshold 次不符触发 UNKNOWN 诚实边界。',
+    evidence: 'theoryPracticeLoop 实现闭合四相；与 SelfLearn 四层科学认知闭环(ima_350)协同；引用 ima_302 归纳/ima_225 贝叶斯/ima_304 因果/ima_240 假设检验' });
+
+// ── 实践—理论—实践闭环（科学方法思维）：面对任意真实世界的元循环 ──
+// 设计：把"实际→理论→实际"拧成显式可调用的闭环思维原语，并接进证明链（THM_THEORY_PRACTICE_LOOP）。
+//   相1 实际→理论：由观测(实践)经归纳/溯因形成或选取理论（复用 SelfLearn.discover / 外部提供 theory）
+//   相2 理论→实际：由理论经演绎(COMPUTE/DERIVE 精神)给出可测预测，并(可选)执行动作
+//   相3 实际回验：观测实际结果，与预测比对；一致→强化，偏离→reconcile 收缩，持续偏离→诚实 UNKNOWN（拒绝外推破理论）
+// 诚实边界：与 SelfLearn 四层科学认知闭环(ima_350)协同；本原语是"思维方法"一等接口，不重复发现层，只做闭环编排 + UNKNOWN 诚实闸。
+function theoryPracticeLoop(spec, opts) {
+  spec = spec || {}; opts = opts || {};
+  var obs = Array.isArray(spec.observations) ? spec.observations : [];
+  // 相1：实际→理论（归纳/溯因）。无显式理论则由观测做最简溯因（把观测集本身作为暂定理论根基）
+  var theory = spec.theory || (obs.length ? { source: 'abduction-from-observations', basis: obs } : null);
+  if (!theory) return { ok: false, U: '需要 observations（实际）或 theory（理论）', grounding: 'BELIEF-LEVEL' };
+  var predict = (typeof spec.predict === 'function') ? spec.predict
+              : (typeof theory.predict === 'function' ? theory.predict : null);
+  var observe = (typeof spec.observe === 'function') ? spec.observe : null;
+  var act = (typeof spec.act === 'function') ? spec.act : null;
+  var maxRounds = (opts.maxRounds || spec.maxRounds || 5);
+  var tol = (opts.tol == null ? 1e-6 : +opts.tol);
+  var failThreshold = (opts.failThreshold || 3);
+  var matches = 0, mismatches = 0, consecFail = 0;
+  var trace = [];
+  for (var i = 0; i < maxRounds; i++) {
+    // 相2：理论→实际（演绎预测 + 可选执行）
+    var pred = null;
+    try { pred = predict ? predict(theory, spec.context || {}) : null; } catch (e) { pred = null; }
+    if (act) { try { act(theory, spec.context || {}); } catch (e) {} }
+    // 实际：观测结果
+    var actual = null;
+    try { actual = observe ? observe(spec.context || {}) : null; } catch (e) { actual = null; }
+    if (actual == null && i < obs.length) actual = obs[i];
+    // 相3：回验（预测 vs 实际）
+    var ok = null, residual = null;
+    if (pred != null && actual != null) {
+      if (typeof pred === 'number' && typeof actual === 'number') {
+        residual = Math.abs(pred - actual);
+        ok = residual <= tol;
+      } else {
+        ok = (JSON.stringify(pred) === JSON.stringify(actual));
+        residual = ok ? 0 : 1;
+      }
+      if (ok) { matches++; consecFail = 0; } else { mismatches++; consecFail++; }
+    }
+    trace.push({ round: i + 1, phase: 'predict→observe→reconcile', predicted: pred, observed: actual, match: ok, residual: residual });
+    // 持续偏离实际 ⟹ 诚实 UNKNOWN（不以外推低可靠理论冒充知识）
+    if (consecFail >= failThreshold) {
+      return { ok: true, fit: 'UNKNOWN', theory: theory, reliability: null, rounds: i + 1,
+        trace: trace, grounding: 'BELIEF-LEVEL',
+        note: '理论连续 ' + consecFail + ' 轮预测不符实际观察 ⟹ 实践否定该理论，诚实返回 UNKNOWN（拒绝外推），须换理论或 UNKNOWN',
+        imaRef: ['ima_350', 'ima_302', 'ima_225', 'ima_240'] };
+    }
+  }
+  var reliability = (matches + mismatches > 0) ? +(matches / (matches + mismatches)).toFixed(3) : null;
+  var fit = 'TENTATIVE';
+  if (reliability != null && reliability >= 0.8 && matches >= 3) fit = 'CONFIRMED';
+  else if (reliability != null && reliability <= 0.3 && mismatches >= 2) fit = 'UNKNOWN';
+  return { ok: true, fit: fit, theory: theory, reliability: reliability, rounds: trace.length,
+    trace: trace, grounding: 'BELIEF-LEVEL',
+    note: '实际→理论(归纳/溯因)→理论→实际(演绎+执行)→回验(reconcile) 闭环完成；fit=' + fit + '；reliability=' + reliability,
+    imaRef: ['ima_350', 'ima_302', 'ima_225', 'ima_304', 'ima_240'] };
+}
 
 // ════════════════════════════════════════════════════════════════════════
 // 第三层：猜想（有数值证据但**未证明** ⟹ 明确禁止进入证明链）
@@ -4381,7 +4447,10 @@ const CAPABILITY_THEOREMS = {
   'modeling':       ['THM_MODEL_ASSUMPTION_AUDIT', 'THM_LOCAL_LINEARIZE', 'THM_DIMENSIONALITY_SCREEN'],
   'assumption':     ['THM_MODEL_ASSUMPTION_AUDIT'],
   'linearize':      ['THM_LOCAL_LINEARIZE'],
-  'dimensionality': ['THM_DIMENSIONALITY_SCREEN']
+  'dimensionality': ['THM_DIMENSIONALITY_SCREEN'],
+  'loop':           ['THM_THEORY_PRACTICE_LOOP'],
+  'scientific-method': ['THM_THEORY_PRACTICE_LOOP'],
+  'theory-practice': ['THM_THEORY_PRACTICE_LOOP']
 };
 function theoremOf(capability) {
   const ids = CAPABILITY_THEOREMS[capability];

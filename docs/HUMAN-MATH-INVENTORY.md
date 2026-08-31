@@ -30,6 +30,7 @@
 | 建模·假设登记与失效检测 | ✅ **本次新补** | `modelAssumptions` / `THM_MODEL_ASSUMPTION_AUDIT` |
 | 建模·局部线性化（带有效半径） | ✅ **本次新补** | `localLinearize` / `THM_LOCAL_LINEARIZE` |
 | 建模·高维降维/变量筛选 | ✅ **本次新补** | `variableScreening` / `THM_DIMENSIONALITY_SCREEN` |
+| **实践—理论—实践闭环（科学方法）** | ✅ **本次新补** | `theoryPracticeLoop` / `THM_THEORY_PRACTICE_LOOP` | 面对任意真实世界的元循环：实际→理论(归纳/溯因)→理论→实际(演绎+执行)→回验；持续不符即 UNKNOWN |
 
 ---
 
