@@ -77,7 +77,9 @@ const EXPORT_NAMES = [
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象
-  'BrainTuple'
+  'BrainTuple',
+  // 自主能力等级（2026-08-31 完善）：DeepMind ASL 适配的分级人机协同配置
+  'AUTONOMY'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';

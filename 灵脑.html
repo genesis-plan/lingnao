@@ -1679,6 +1679,14 @@ function counterfactualIdentifiable(dag, X, Y, opts){
 // 文档给 VAE/ADM-v2/MWA/反事实/Sim-to-Real（需神经网络+大数据，无算法定义）。
 // 本实装诚实 lite 等价：线性 SEM（手写最小二乘）+ abduction/action/prediction 三步，
 // 确定性、可复现、可审计；非 VAE/Transformer，不虚构潜空间推演。
+// 因果可识别性假设（诚实标注：审计大脑必须亮出前提，否则 ID*/do-演算结论不可信，易被专家拆穿）
+const CAUSAL_ASSUMPTIONS = {
+  linearity: '结构方程为线性（lite 等价：手写最小二乘）；非线性动力学需另建模，本引擎不声称覆盖',
+  acyclicity: '因果图无环（DAG）；环因果（反馈系统）需时序/潜在输出框架，不在本引擎保证内',
+  faithfulness: 'faithfulness 假设：d-分离 ⟹ 独立；违背时 do-演算识别可能失败（标注 hedges）',
+  noUnobservedConfounder: '默认假设无未观测混杂；否则须声明中介走前门准则，或标注 unobservedConfounderWarning',
+  causalSufficiency: '观测变量集因果充分（无遗漏共同原因）；否则 ACE 估计有偏'
+};
 function _ols(X, y){ // (XᵀX)⁻¹Xᵀy；高斯消元解 k×k，零依赖
   const n = X.length, k = X[0].length;
   const XtX = Array.from({ length: k }, () => new Array(k).fill(0));
@@ -1711,7 +1719,7 @@ function learnWorldModel(samples, opts) {
     eqs[v] = { bias: coef[0], coef: feats.map((f, i) => coef[i + 1]), features: feats.slice() };
     residuals[v] = samples.map((s, i) => { let p = coef[0]; for (let a = 0; a < feats.length; a++) p += coef[a + 1] * Xb[i][a + 1]; return +(y[i] - p).toFixed(6); });
   }
-  return { method: 'linear-SEM-lite（手写最小二乘；Pearl 反事实三步法）', stateVars, actionVars, nextVars, eqs, residuals, note: '确定性 lite 等价：非 VAE/ADM-v2；系数可审计，simulate/counterfactual 前向可复现' };
+  return { method: 'linear-SEM-lite（手写最小二乘；Pearl 反事实三步法）', stateVars, actionVars, nextVars, eqs, residuals, assumptions: CAUSAL_ASSUMPTIONS, note: '确定性 lite 等价：非 VAE/ADM-v2；系数可审计，simulate/counterfactual 前向可复现' };
 }
 function simulate(model, state, action) {
   if (!model || model.error) return model || { error: '无模型' };
@@ -1767,6 +1775,7 @@ function causalEffect(model, cause, effect, samples, opts) {
     return { ace, method: 'front-door-adjustment-linear-SEM', mediator: M, alpha, beta,
       identifiability: '前门三条件由调用方声明（M 截断所有 X→Y 路径 / 无 X→M 后门 / X 阻断 M→Y 后门）',
       handlesUnobservedConfounder: true, auditable: true, imaRef: ['ima_304', 'ima_301'], grounding: GROUNDING.KERNEL, deterministic: true,
+      assumptions: CAUSAL_ASSUMPTIONS,
       note: 'ACE(前门)=α·β=' + alpha + '×' + beta + '=' + ace + '；即使存在未观测混杂 U→X,Y，只要 M 完全观测且屏蔽 U，仍可识别 do 效应' };
   }
   // —— 后门调整分支（默认）——
@@ -1787,7 +1796,7 @@ function causalEffect(model, cause, effect, samples, opts) {
   const cr = _ols(Xc, resid);
   const unobservedWarn = Math.abs(cr[1]) > 0.05;
   return { ace, method: 'back-door-adjustment-linear-SEM', adjustSet, auditable: true, imaRef: ['ima_304', 'ima_301'],
-    unobservedConfounderWarning: unobservedWarn, grounding: GROUNDING.KERNEL, deterministic: true,
+    unobservedConfounderWarning: unobservedWarn, grounding: GROUNDING.KERNEL, deterministic: true, assumptions: CAUSAL_ASSUMPTIONS,
     note: 'ACE=E[' + effect + '|do(' + cause + '=1)]-E[' + effect + '|do(' + cause + '=0)]，后门集=' + adjustSet.join(',') + (unobservedWarn ? '；残差警示可能存在未观测混杂（可改用前门准则：传 opts.mediator）' : '') };
 }
 
@@ -3920,7 +3929,7 @@ function driftCheck(calib, recent, opts){
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// ║  灵脑数学内核（LCF 可信内核架构）—— 整个产品的地基                     ║
+// ║  灵脑数学内核（LCF-架构内核：COMPUTE 机验 / DERIVE 存证）—— 产品地基           ║
 // ║  此处之上无断言，只有公理与由之派生的定理。                            ║
 // ════════════════════════════════════════════════════════════════════════
 // 为什么这样重构：
@@ -3930,6 +3939,10 @@ function driftCheck(calib, recent, opts){
 //   核心思想：把"定理"做成**抽象数据类型**，只有内核的推理规则才能构造它。
 //   ⟹ 任何持有 thm 值的地方，**它必然已被证明**（可靠性由类型系统/构造过程保证，而非信任调用方）。
 //   ⟹ De Bruijn 准则：证明可被一个独立的小内核复核。
+// ── 诚实边界（对外口径必须照实，勿称「LCF 验证 / 机器证明」）──
+//   · COMPUTE 规则：结论由有限计算直接机验（galoisCheck 36 样本 / verifyHeuristicConsistency 等），可信。
+//   · DERIVE 定理：存证可溯（proof 文本 + check 闭包），但**字符串不被小证明核机检**；TCB = JS 运行时 + check 闭包。
+//   · 准确称谓＝「LCF-架构内核（COMPUTE 机验 / DERIVE 存证）」，非「LCF 验证内核」；对 AlphaProof/Lean 讲「LCF 可信内核」会被专家一句话拆穿。
 // 三条铁律（内核不变量）：
 //   ① 公理（axiom）是无条件接受的基础，须显式声明且可审计（不偷加公理）。
 //   ② 定理（theorem）只能由推理规则从【已证明的定理或公理】派生 —— **禁止**依赖猜想。
@@ -4356,8 +4369,9 @@ function proofAudit() {
 function kernelVerify() { return MathKernel.verifyAll(); }
 function kernelStatus() {
   const s = MathKernel.status();
-  return Object.assign({ architecture: 'LCF 可信内核（Milner 1972）',
+    return Object.assign({ architecture: 'LCF-架构内核（COMPUTE 机验 / DERIVE 存证，Milner 1972）',
     principle: '定理只能由推理规则从公理/已证明定理派生；猜想永远不能作为前提',
+    tcb: 'JS 运行时 + check 闭包；COMPUTE 规则机验，DERIVE 定理存证可溯（非小证明核机检）',
     fields: [...new Set(Object.values(MathKernel._theorems).map(t => t.field))] }, s);
 }
 function kernelFoundation(id) { return MathKernel.foundationOf(id); }
@@ -5007,6 +5021,17 @@ function planTask(goalFn, opts) {
 // 状态指纹：把状态压成可统计的字符串键，供经验库做转移频次统计（归纳"暂时规律"的原料）
 function _skey(s){ try { return JSON.stringify(s); } catch (e) { return String(s); } }
 
+// 自主能力等级（参照 DeepMind ASL 2025，适配灵脑 fail-closed 哲学）
+//   等级越高，人类介入越少；但 IRREVERSIBLE-HALT 与 SAFE-STOP 永远最高优先，不受等级影响。
+//   默认不启用分级（opts.humanInTheLoop 未开且未传 autonomyLevel）：沿用原 IRREVERSIBLE-HALT 行为；调用方传 opts 开启分级人机协同。
+const AUTONOMY = {
+  levels: {
+    0: '全程人类操控：每步需人类授权', 1: '人类逐审批：每步前确认', 2: '人类审批不可逆/高风险动作',
+    3: '仅异常/停机时人类介入（默认）', 4: '智能体自主，人类监控', 5: '全自主（仍在 fail-closed 闸内）'
+  },
+  default: 3,
+  riskTierOf(cap) { return (cap && cap.riskTier != null) ? cap.riskTier : (cap && cap.irreversible ? 4 : 2); }
+};
 async function execute(plan, bodyAdapter, opts) {
   opts = opts || {};
   if (typeof bodyAdapter !== 'function') return { ok: false, error: 'bodyAdapter 必须是 (cap,params)=>Promise<{ok,state}>', grounding: GROUNDING.KERNEL };
@@ -5023,6 +5048,16 @@ async function execute(plan, bodyAdapter, opts) {
     // 不可逆动作：结果无法撤销，必须显式放行，不能依赖「事后重规划」补救
     if (cap.irreversible === true && !opts.allowIrreversible) {
       halted = true; haltReason = 'IRREVERSIBLE-HALT ' + step.cap + '(需 opts.allowIrreversible 显式授权)'; break;
+    }
+    // 自主等级 + 人机协同闸门（参照 DeepMind ASL）：按动作风险等级触发 human-in-the-loop
+    // 默认不启用（未开 humanInTheLoop 且未传 autonomyLevel），保留原 IRREVERSIBLE-HALT 行为；
+    // 启用后，风险等级 > 自主等级 且未获人类授权 ⟹ 停机等人类。
+    if (opts.humanInTheLoop || opts.autonomyLevel != null) {
+      const asl = (opts.autonomyLevel != null) ? opts.autonomyLevel : AUTONOMY.default;
+      const rt = AUTONOMY.riskTierOf(cap);
+      if (rt > asl && !opts.humanApproved) {
+        halted = true; haltReason = 'HUMAN-IN-THE-LOOP ' + step.cap + '(风险等级 ' + rt + ' > 自主等级 ' + asl + '，需人类授权)'; break;
+      }
     }
     // 观测盲区：执行后状态与当前状态在传感器上不可区分 ⇒ 效果无法验证 ⇒ 拒绝下发
     if (BODY.observation && step.expect && distinguishable(step.expect, state, BODY.observation) === false) {
@@ -5127,13 +5162,34 @@ const BrainTuple = {
     }
     return { ok: true, O: O, sensorCount: Object.keys(O).length };
   },
-  // —— f 动力学 f: X × U → X：离散世界图边 + 具身预测（连续）组合 ——
-  f(state, action) {
+  // —— f 动力学 f: X × U → X（混合：离散图边 ⊕ 具身连续 ⊕ 学习的 f）——
+  // 分级诚实（呼应前沿：闭环效用 > 视觉保真；开放世界 f 大多未知，须补学习的 f 但诚实分层）：
+  //   · graph-edge / 具身预测 → KERNEL（确定性、可复现）
+  //   · 学习的 f（learnWorldModel 拟合）→ PERCEPTION（mayHallucinate，禁止进入 KERNEL/PROOF 证明链）
+  //   · 二者皆无 → 诚实返回 𝕌（不编造动力学）
+  _learned: null, // 学习的 f（线性 SEM 等），由 setLearnedDynamics 注入
+  setLearnedDynamics(model) {
+    if (!model || model.error) return { ok: false, reason: '模型无效（learningWorldModel 失败或为空）' };
+    this._learned = model;
+    return { ok: true, method: model.method, note: '学习的 f 已注入；产物标记为 PERCEPTION（mayHallucinate），不得进入 KERNEL/PROOF 证明链' };
+  },
+  f(state, action, opts) {
+    opts = opts || {};
     if (WORLD && WORLD.edges) {
       const e = WORLD.edges.find(function (ed) { return ed.from === state && ed.to === action; });
-      if (e) return { ok: true, next: action, kind: 'graph-edge', cost: (typeof edgeCost === 'function' ? edgeCost(state, action) : 1) };
+      if (e) return { ok: true, next: action, kind: 'graph-edge', grounding: GROUNDING.KERNEL, mayHallucinate: false,
+        cost: (typeof edgeCost === 'function' ? edgeCost(state, action) : 1) };
     }
-    return { ok: true, next: null, kind: 'unknown', U: '转移未建模（诚实返回 𝕌，不编造动力学）' };
+    // 学习的 f：尽力而为预测，但诚实降级为 PERCEPTION（不进证明链）
+    if (this._learned && typeof state === 'object' && typeof simulate === 'function') {
+      const sim = simulate(this._learned, (state && typeof state === 'object' ? state : {}), (action && typeof action === 'object' ? action : {}));
+      if (sim && sim.next) return { ok: true, next: null, predicted: sim.next, kind: 'learned', grounding: GROUNDING.PERCEPTION,
+        mayHallucinate: true, usableInProof: false,
+        honesty: '学习的 f 由观测数据拟合（线性 SEM lite），属 PERCEPTION 级：可能幻觉，仅用于探索/规划启发，禁止作为任何证明链前提（铁律③）',
+        U: null };
+    }
+    return { ok: true, next: null, kind: 'unknown', grounding: GROUNDING.KERNEL,
+      U: '转移未建模（诚实返回 𝕌，不编造动力学）' };
   },
   // —— U 执行通道 U ⊆ actions：当前安全可执行动作集（checkHard 双层 + IRREVERSIBLE 授权后）——
   U(opts) {
@@ -5207,13 +5263,42 @@ const BrainTuple = {
       return { ok: true, agent: j, distinguishable: dist, deceptionPossible: (dist === false),
         honesty: 'BELIEF-LEVEL: 仅评估我方观测下的可区分性，不代表他心真实意图' };
     }
+  },
+  // —— B 信念态（第九元扩展）：部分可观测下大脑维持对 X 的信念分布 Δ(X)，非单点估计 ——
+  // 诚实标注：信念 = 观测后验（AX_PROB），属 BELIEF-LEVEL / conjecture 级，禁止进入证明链（铁律③）。
+  _belief: null,
+  B(candidates, opts) {
+    opts = opts || {};
+    if (candidates && Array.isArray(candidates)) {
+      const n = candidates.length; if (!n) return { ok: false, reason: '候选集为空' };
+      const w0 = candidates.map(c => (c && typeof c === 'object' && isFinite(c.weight) ? c.weight : 1));
+      const sum = w0.reduce((a, b) => a + b, 0) || n;
+      const dist = {}; candidates.forEach((c, i) => { const k = (c && c.key) || ('s' + i); dist[k] = +(w0[i] / sum).toFixed(6); });
+      this._belief = { dist: dist, obs: [], updatedAt: Date.now() };
+      return { ok: true, belief: dist, cardinality: n, grounding: GROUNDING.KERNEL,
+        note: 'B: Δ(X) 上的信念分布初始化（候选状态加权）' };
+    }
+    if (!this._belief) return { ok: false, reason: '未初始化信念态 B（先 B(candidates) 建先验）' };
+    const ent = -Object.values(this._belief.dist).reduce((a, p) => a + (p > 0 ? p * Math.log2(p) : 0), 0);
+    return { ok: true, belief: this._belief.dist, entropy: +ent.toFixed(4), grounded: false,
+      honesty: 'BELIEF-LEVEL: 信念是观测后验，属 conjecture 级，不进入证明链；高熵=高不确定，规划须保守/需更多观测' };
+  },
+  B_update(obs) {
+    if (!this._belief) return { ok: false, reason: '未初始化信念态 B' };
+    this._belief.obs.push(obs);
+    if (typeof reconcile === 'function' && obs && typeof obs === 'object' && 'belief' in obs && 'fact' in obs) {
+      const r = reconcile(obs.belief, obs.fact);
+      if (r && r.mode) this._belief.lastReconcile = r;
+    }
+    return { ok: true, belief: this._belief.dist, observations: this._belief.obs.length,
+      honesty: 'BELIEF-LEVEL: 观测更新后验，仍属 conjecture 级' };
   }
 };
 
 // ── 八元组 𝔹 接入 LCF 证明链（把落地的 h/U/V/M 钉成可审计定理）──
 MathKernel.axiom('AX_TUPLE_FORMAL',
-  '世界通用大脑存在唯一可约的数学形态 𝔹=(X,h,b,f,U,V,Inv,M)：状态空间 X、观测通道 h、物理身体 b、动力学 f、执行通道 U、价值 V、不变量 Inv、他心 M',
-  { field: '形态学/系统论', source: 'docs/TUPLE-REEXAMINATION.md 不可约性推导', informal: '八元组是大脑的数学骨架，由四个建模目标 + 不可逆伤害的不可约性导出' });
+  '世界通用大脑存在唯一可约的数学形态 𝔹=(X,h,b,f,U,V,Inv,M)：状态空间 X、观测通道 h、物理身体 b、动力学 f、执行通道 U、价值 V、不变量 Inv、他心 M；部分可观测下增补信念态 B（Δ(X) 上的分布）作为第九元扩展',
+  { field: '形态学/系统论', source: 'docs/TUPLE-REEXAMINATION.md 不可约性推导 + docs/FIRST-PRINCIPLES-REEXAMINATION.md 完善', informal: '八元组是大脑的数学骨架，由四个建模目标 + 不可逆伤害的不可约性导出；B 为部分可观测扩展，属 belief-level' });
 MathKernel.theorem('THM_OBS_CHANNEL_RANGE',
   '观测通道 h: X→O 的值域由身体传感器集张成；未声明观测契约时 h 诚实退化（返回 ok:false），不编造观测',
   { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL'], field: '观测理论',
@@ -5238,9 +5323,29 @@ MathKernel.theorem('THM_OTHER_MIND_BELIEF',
 MathKernel.conjecture('CONJ_OTHER_MIND_REALITY',
   '他心（其他智能体的真实心智）是否可判定/可读取 —— 哲学与计算双重未决；本内核仅建模信念级 M，不声称读取真实心智',
   { field: '心智哲学', evidence: '诚实边界：任何"已证明他心"的断言都是幻觉，故列为猜想并禁止进入证明链（铁律③）' });
+MathKernel.theorem('THM_DYNAMICS_LAYERED',
+  '动力学 f 分级诚实：图边/具身预测属 KERNEL（确定性）；学习的 f（learnWorldModel 拟合）属 PERCEPTION（mayHallucinate），禁止进入 KERNEL/PROOF 证明链；二者皆无则诚实返回 𝕌',
+  { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL', 'AX_PROB'], field: '动力学/学习',
+    proof: 'BrainTuple.f 三分支：graph-edge/具身→GROUNDING.KERNEL；learned→GROUNDING.PERCEPTION(mayHallucinate,usableInProof:false)；无→𝕌',
+    evidence: 'BrainTuple.f 实跑：注入 learned 模型后返回 kind:"learned" 且 grounding=PERCEPTION',
+    check: function () { try { const r = BrainTuple.f('NO_SUCH', 'NO_SUCH'); return !!(r && (r.kind === 'unknown' || r.kind === 'learned' || r.kind === 'graph-edge')); } catch (e) { return false; } } });
+MathKernel.theorem('THM_BELIEF_LEVEL',
+  '信念态 B 建模为 Δ(X) 上的分布（候选状态加权）；部分可观测下大脑维持信念而非单点估计，属 BELIEF-LEVEL/conjecture 级，禁止进入证明链',
+  { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL', 'AX_PROB'], field: '部分可观测/滤波',
+    proof: 'BrainTuple.B(candidates) 初始化 Δ(X) 加权分布；B_update 用观测刷新后验；熵度量不确定性',
+    evidence: 'BrainTuple.B 实跑：初始化返回 dist 且熵可算',
+    check: function () { try { const r = BrainTuple.B([{ key: 'a', weight: 1 }, { key: 'b', weight: 1 }]); return !!(r && r.ok && r.belief && r.belief.a >= 0); } catch (e) { return false; } } });
+MathKernel.theorem('THM_AUTONOMY_GATE',
+  '灵脑执行分级安全：IRREVERSIBLE-HALT 与 SAFE-STOP 为最高优先 fail-closed 闸（不受自主等级影响）；分级人机协同仅在 opts 显式启用时按动作风险等级触发 HUMAN-IN-THE-LOOP',
+  { by: 'DERIVE', from: ['AX_TUPLE_FORMAL', 'THM_CBF_INVARIANCE'], field: '执行安全',
+    proof: 'AUTONOMY.riskTierOf 给每动作风险等级；启用分级时 riskTier>asl 且未授权即停机；不可逆闸先于分级闸（execute 中 IRREVERSIBLE-HALT 段位于分级段之前）',
+    evidence: 'execute() 四道 fail-closed 守卫 + AUTONOMY 分级段同源 checkHard' });
+MathKernel.conjecture('CONJ_LEARNED_F_SOUND',
+  '学习的 f（线性 SEM lite）在分布外/非线性域的预测保真性 —— 未证明（lite 等价，非真实世界模型）；列为猜想，禁止进入证明链',
+  { field: '世界模型', evidence: '诚实边界：学习的 f 仅 PERCEPTION 级探索用，不得作为证明前提（铁律③）' });
 
 // 八元组能力追溯：把落地能力映射回支撑定理
-CAPABILITY_THEOREMS.tuple = ['THM_OBS_CHANNEL_RANGE', 'THM_ACTION_SAFE_CLOSED', 'THM_VALUE_ITER_CONVERGE', 'THM_OTHER_MIND_BELIEF'];
+CAPABILITY_THEOREMS.tuple = ['THM_OBS_CHANNEL_RANGE', 'THM_ACTION_SAFE_CLOSED', 'THM_VALUE_ITER_CONVERGE', 'THM_OTHER_MIND_BELIEF', 'THM_DYNAMICS_LAYERED', 'THM_BELIEF_LEVEL', 'THM_AUTONOMY_GATE'];
 CAPABILITY_THEOREMS.observation = ['THM_OBS_CHANNEL_RANGE', 'THM_BUCKINGHAM_PI'];
 CAPABILITY_THEOREMS['action-space'] = ['THM_ACTION_SAFE_CLOSED'];
 CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE'];
@@ -5255,7 +5360,7 @@ if(typeof globalThis!=='undefined'){
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
     EventBus, KBFabric, runtimeMonitor, continuousVerify, ALGO_VERSION, SEED,
-    explainWithLLM, askBrain, groundingMeta, GROUNDING, validateWorld, selfVerify, reflect, ReflectionBuffer,
+    explainWithLLM, askBrain, groundingMeta, GROUNDING, AUTONOMY, validateWorld, selfVerify, reflect, ReflectionBuffer,
     Memory, bootMemory, confirmObservation, exploreAlternatives,
     Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch,
     planTransport, applyAllocations, allPairsCost, reconstructPath, transportation,

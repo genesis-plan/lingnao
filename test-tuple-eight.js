@@ -66,6 +66,27 @@ ck('M 他心：可被伪装性可评估（观测不可分时 deceptionPossible=t
 const db2 = BT.M.deceptionBound('robot2', { x: 5 }, { x: 50 });
 ck('M 他心：观测可区分时 deceptionPossible=false', db2.ok && db2.deceptionPossible === false, db2);
 
+// —— B 信念态（第九元扩展）：部分可观测下维持 Δ(X) 分布 ——
+const b0 = BT.B([{ key: 's1', weight: 2 }, { key: 's2', weight: 1 }]);
+ck('B 信念态：初始化 Δ(X) 加权分布且归一', b0.ok && b0.belief && Math.abs(b0.belief.s1 + b0.belief.s2 - 1) < 1e-6, b0);
+const b1 = BT.B();
+ck('B 信念态：熵可算且诚实标注 BELIEF-LEVEL（conjecture 级，不进证明链）', b1.ok && typeof b1.entropy === 'number' && b1.honesty.indexOf('BELIEF-LEVEL') >= 0, b1);
+const bUpd = BT.B_update({ belief: 0.5, fact: 0.8 });
+ck('B 信念态：B_update 刷新后验不抛', bUpd.ok === true, bUpd);
+
+// —— f 学习的 f + 诚实分层（A 项）——
+const setL = BT.setLearnedDynamics({ method: 'linear-SEM-lite', error: null, nextVars: ['x'], eqs: { x: { bias: 0, coef: [1], features: ['x'] } } });
+ck('f 学习的 f：可注入 learned 模型', setL.ok === true, setL);
+const fL = BT.f({ x: 1 }, { x: 1 });
+ck('f 学习的 f：返回 kind:"learned" 且 grounding=PERCEPTION（mayHallucinate，不进证明链）', fL.kind === 'learned' && fL.grounding && fL.grounding.tier === 'UNVERIFIED_LLM' && fL.usableInProof === false, fL);
+BT._learned = null; // 复位，避免影响其余测试
+const fU = BT.f('NOWHERE', 'NOSTEP');
+ck('f 动力学：无模型时诚实返回 𝕌（不编造）', fU.kind === 'unknown', fU);
+
+// —— D 自主等级 + 人机协同（分级闸门，默认不启用，保留 IRREVERSIBLE-HALT）——
+const au = L.AUTONOMY;
+ck('D 自主等级：AUTONOMY 配置导出且含 6 级（L0–L5）', au && au.levels && Object.keys(au.levels).length === 6 && typeof au.riskTierOf === 'function', au && au.levels);
+
 // —— LCF：八元组定理链闭合 ——
 const kv = L.kernelVerify();
 ck('LCF 内核全链闭合（含八元组定理 AX_TUPLE_FORMAL / THM_*）', kv.ok === true, { theorems: kv.theorems, axioms: kv.axioms, conjectures: kv.conjectures });
