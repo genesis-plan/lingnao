@@ -163,5 +163,28 @@ ck('G1 对抗能力可追溯到 THM_MINIMAX_ADVERSARIAL', taAdv.ok === true, taA
 const taMeta = L.theoremOf('metareason');
 ck('元推理能力可追溯到 THM_DECIDABILITY_AWARE', taMeta.ok === true, taMeta.verdict);
 
+// —— 建模思想备用原语：把真实世界抽象成数学结构时的诚实工具 ——
+// ① 假设登记与失效检测（假设破 ⇒ 诚实 UNKNOWN）
+const ma = L.modelAssumptions({ id: 'charge-linear', assumes: [
+  { name: 'linear', kind: 'structure', test: (s) => s && s.nonlinear !== true },
+  { name: 'bounded', kind: 'domain', test: (s) => s && Math.abs(s.x) <= 10 }
+] });
+const maBad = ma.check({ nonlinear: true, x: 3 });
+ck('建模① modelAssumptions：假设被违反 ⇒ directive UNKNOWN 且列出违规假设', maBad.ok && maBad.directive === 'UNKNOWN' && maBad.violations.some(v => v.name === 'linear'), maBad);
+const maOk = ma.check({ nonlinear: false, x: 5 });
+ck('建模① modelAssumptions：假设全成立 ⇒ MODEL_VALID', maOk.ok && maOk.directive === 'MODEL_VALID' && maOk.intact === true, maOk);
+
+// ② 局部线性化（带有效半径）
+const lin = L.localLinearize((x) => [-x[0], -2 * x[1]], [1, 1], 0.1);
+ck('建模② localLinearize：线性流残差≈0 ⇒ linearValid 且线性预测贴近真值', lin.ok && lin.linearValid === true && (function () { const p = lin.model([2, 2]); return Math.abs(p[0] + 2) < 1e-6 && Math.abs(p[1] + 4) < 1e-6; })(), lin);
+
+// ③ 高维降维/变量筛选（对抗维数灾难）
+const scr = L.variableScreening([[0,1],[2,1.05],[4,0.95],[6,1.02],[8,0.98]], 1);
+ck('建模③ variableScreening：var0 方差主导 ⇒ 前1主成分解释比>0.99 且首要变量为 0', scr.ok && scr.varianceExplainedByK > 0.99 && scr.topVarsByVariance[0].var === 0, scr);
+
+// 建模能力可追溯定理
+const taMod = L.theoremOf('modeling');
+ck('建模能力可追溯到 THM_MODEL_ASSUMPTION_AUDIT/THM_LOCAL_LINEARIZE/THM_DIMENSIONALITY_SCREEN', taMod.ok === true && taMod.theorems.length === 3, taMod.verdict);
+
 console.log('\n八元组落地验收：' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail === 0 ? 0 : 1);

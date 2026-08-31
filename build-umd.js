@@ -80,6 +80,9 @@ const EXPORT_NAMES = [
   'roughSetApprox',    // 粗糙集上下近似：部分信息/unknown-unknown 结构化
   'decidabilityCheck', // 可计算性/不可判定登记：超出可判定范围须诚实 UNKNOWN
   'lyapunovExponent',  // 最大 Lyapunov 指数：混沌/敏感 ⇒ 长视野预测失效判定
+  'modelAssumptions',  // 建模思想①：假设登记与失效检测（假设破 ⇒ 诚实 UNKNOWN，不续用破假设模型）
+  'localLinearize',    // 建模思想②：非线性系统局部线性化（雅可比）+ 近似有效半径
+  'variableScreening', // 建模思想③：高维降维/变量筛选（对抗维数灾难，前 k 主成分方差解释比）
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象

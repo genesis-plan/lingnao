@@ -154,4 +154,33 @@
 
 ---
 
+## 10. 建模思想审计（用户指出"少了建模思想"）
+
+> 前面的 §1–§9 审了「推理/证明思想」（归纳反证反例穷举极限）与「备用数学工具」（minimax/混沌/粗糙集/f散度），**漏把"建模思想"单独列为一类**。通用大脑面对真实世界，第一件事是把现象**抽象成数学结构**（建模），这一步之前没系统审。本节能补上。
+
+**已就位的建模思想（逐行取证）**：
+| 建模思想 | 内核落点 |
+|---|---|
+| 抽象（abstraction） | Kleene 不动点 + Galois 连接抽象解释（4534–4745），双向 may/must |
+| 状态空间建模 | 八元组 X = 抽象世界节点 ⊕ 物理身体连续状态（5324–5329） |
+| 混合/连续–离散建模 | 混合自动机（3128–3193） |
+| 结构分解 | c-component 分解（因果 ID* 1557–1654）/ 分离原理（4239）/ SayCan 概率分解（3359） |
+| 量纲/尺度建模 | Buckingham π（已就位） |
+| 因果建模 | do-calculus + PC-lite（强） |
+| 不精确/集合值建模 | D-S（`beliefPlausibility`）/ 粗糙集（`roughSetApprox`） |
+
+**本次新补（应对"不可预测真实世界"的建模基本功，作备用原语）**：
+1. **假设登记与失效检测** `modelAssumptions(spec)` —— 建模必带假设（线性/平稳/独立）；假设被违反 ⇒ 诚实 UNKNOWN，不续用破假设模型。定理 `THM_MODEL_ASSUMPTION_AUDIT`，能力 `assumption/modeling`。
+2. **局部线性化（带有效半径）** `localLinearize(f,x0,eps)` —— 中心差分数值雅可比给局部线性模型 + 近似有效半径；超出即 UNKNOWN。定理 `THM_LOCAL_LINEARIZE`，能力 `linearize/modeling`。
+3. **高维降维/变量筛选** `variableScreening(data,k)` —— 协方差主成分估前 k 主成分方差解释比（降维保真度）+ 各变量方差贡献（先筛重要变量，对抗维数灾难）。定理 `THM_DIMENSIONALITY_SCREEN`，能力 `dimensionality/modeling`。
+
+**诚实缺口（建模层仍留）**：
+- **多模型/候选模型集合（set-valued models）**：`f.candidates` 已建模转移层非确定，但**建模层**尚无"多个候选模型并存 + 模型不确定性"原语（如贝叶斯模型平均）；目前由 D-S/粗糙集间接覆盖。
+- **理想化假设的自动探测**：假设目前靠调用方显式登记（`modelAssumptions`），内核无"自动探测某假设是否被数据违反"的学习层（超出当前范畴，可暂缓）。
+- **非线性流形学习（manifold learning）**：`variableScreening` 仅捕捉线性协方差结构；非线性流形需 ISOMAP/LLE 等，超出线性降维，超出须 UNKNOWN（已诚实标注）。
+
+**验证**：`node test-tuple-eight.js` → **52/52**（原 47 + 新 5 项建模用例）；MCP 自测 **51/51** 未回归；UMD 导出 **217**（新增 3 个建模原语）。
+
+---
+
 *审计依据：灵脑.html 逐行取证（见各节行号）。与 MATH-FIRST-PRINCIPLES-AUDIT.md §5 落地状态互补：前者查「数学工具对不对」，本审计查「数学思想装没装 + 备用数学够不够」。*

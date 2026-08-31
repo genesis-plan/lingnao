@@ -27,6 +27,9 @@
 | 混沌/敏感性 | ✅ **本次新补** | `lyapunovExponent` / `THM_LYAPUNOV_EXP_SENSITIVITY` |
 | 部分信息（粗糙集） | ✅ **本次新补** | `roughSetApprox` / `THM_ROUGHSET_BOUNDARY` |
 | 分布偏差（f-散度族） | ✅ **本次新补** | `fDivergence` / `THM_FDIVERGENCE_FAMILY` |
+| 建模·假设登记与失效检测 | ✅ **本次新补** | `modelAssumptions` / `THM_MODEL_ASSUMPTION_AUDIT` |
+| 建模·局部线性化（带有效半径） | ✅ **本次新补** | `localLinearize` / `THM_LOCAL_LINEARIZE` |
+| 建模·高维降维/变量筛选 | ✅ **本次新补** | `variableScreening` / `THM_DIMENSIONALITY_SCREEN` |
 
 ---
 

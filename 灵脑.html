@@ -4304,7 +4304,22 @@ MathKernel.theorem('THM_ROUGHSET_BOUNDARY',
   '粗糙集：下近似（必属于 S 的等价类并集）与上近似（可能属于 S 的等价类并集）之差为边界区；边界非空 ⇒ 部分可知、诚实保留不可知',
   { by: 'DERIVE', from: ['AX_SET'], field: '粗糙集/部分信息',
     proof: '等价关系划分论域；下近似=全含于 S 的类，上近似=与 S 交非空的类；边界=上\下。certainty=|下|/|上|∈[0,1]。',
-    evidence: 'roughSetApprox 实现；给"unknown unknown"以结构化上下近似而非点估计' });
+    evidence: 'roughSetApprox 实现；给 unknown unknown 以结构化上下近似而非点估计' });
+MathKernel.theorem('THM_MODEL_ASSUMPTION_AUDIT',
+  '任何数学模型都是带假设的近似；假设被违反 ⟹ 模型不再可信，大脑须降级为 UNKNOWN 而非续用破假设模型',
+  { by: 'DERIVE', from: ['AX_SET'], field: '建模思想/假设审计',
+    proof: '模型 M 的有效域 = {state : 全部假设 a_i 成立}；state ∉ 有效域 ⟹ M(state) 无定义/不可信。诚实边界要求：推理前对 state 做假设失效检测，越界即 UNKNOWN。',
+    evidence: 'modelAssumptions 把假设显式登记并做运行时越界检测；越界 directive=UNKNOWN' });
+MathKernel.theorem('THM_LOCAL_LINEARIZE',
+  '非线性系统在平衡点/工作点 x0 可局部线性化为 ẋ≈J(x-x0)+f(x0)（雅可比 J）；近似仅在有效半径内成立，超出须 UNKNOWN',
+  { by: 'DERIVE', from: ['AX_CONTINUITY', 'THM_ODE_EXISTENCE'], field: '建模思想/局部线性化',
+    proof: '由 Taylor 展开，非线性残差 = O(‖x-x0‖²)；在半径 eps 内线性项主导 ⟹ 局部模型可信；超出 eps 残差主导 ⟹ 放弃外推。',
+    evidence: 'localLinearize 复用 jacobian 并数值估非线性残差，给出 validRadius 与 linearValid 判定' });
+MathKernel.theorem('THM_DIMENSIONALITY_SCREEN',
+  '高维真实世界盲目建模陷入维数灾难；由协方差主成分筛变量/降维，前 k 主成分解释方差比量化保真度，不足须 UNKNOWN',
+  { by: 'DERIVE', from: ['AX_REAL', 'AX_PROB'], field: '建模思想/降维筛变量',
+    proof: '协方差谱分解给出主成分能量；k 主成分解释比 = Σ_{i≤k}λ_i / Σλ_j；比低 ⟹ 数据非线性强，线性降维保真不足。仅捕捉线性结构。',
+    evidence: 'variableScreening 幂迭代估前 k 主成分并报告方差解释比；诚实标注非线性流形超出须 UNKNOWN' });
 
 // ════════════════════════════════════════════════════════════════════════
 // 第三层：猜想（有数值证据但**未证明** ⟹ 明确禁止进入证明链）
@@ -4362,7 +4377,11 @@ const CAPABILITY_THEOREMS = {
   'fdistance':      ['THM_FDIVERGENCE_FAMILY'],
   'roughset':       ['THM_ROUGHSET_BOUNDARY'],
   'chaos':          ['THM_LYAPUNOV_EXP_SENSITIVITY'],
-  'sensitivity':    ['THM_LYAPUNOV_EXP_SENSITIVITY']
+  'sensitivity':    ['THM_LYAPUNOV_EXP_SENSITIVITY'],
+  'modeling':       ['THM_MODEL_ASSUMPTION_AUDIT', 'THM_LOCAL_LINEARIZE', 'THM_DIMENSIONALITY_SCREEN'],
+  'assumption':     ['THM_MODEL_ASSUMPTION_AUDIT'],
+  'linearize':      ['THM_LOCAL_LINEARIZE'],
+  'dimensionality': ['THM_DIMENSIONALITY_SCREEN']
 };
 function theoremOf(capability) {
   const ids = CAPABILITY_THEOREMS[capability];
@@ -4917,6 +4936,136 @@ function lyapunovExponent(flow, x0, dt, steps, eps) {
     verdict: lambda > 0 ? 'CHAOTIC：对初值敏感，长视野预测失效（应降级为 UNKNOWN）'
       : (lambda < 0 ? 'CONTRACTIVE：收敛，预测可信' : 'NEUTRAL：需结合其他判据'),
     note: '最大 Lyapunov 指数 λ；λ>0 ⇒ 混沌/敏感，超出可信视野即诚实放弃长预测（THM_LYAPUNOV_EXP_SENSITIVITY）' };
+}
+
+// ── 建模思想备用原语：把真实世界现象抽象成数学结构时的诚实工具 ──
+// 设计原则同其他备用数学：平时不主动调，遇到未知/高维/非线性时按需取用，且都带诚实边界（算不出 UNKNOWN）。
+
+// ① 建模假设登记与失效检测：建模必带假设（线性/平稳/独立/闭合…），假设破则模型废。
+//    大脑把当前模型依赖的假设显式登记，推理前做越界检测，越界即诚实 UNKNOWN（不幻觉续用破假设模型）。
+function modelAssumptions(spec) {
+  spec = spec || {};
+  var assumes = Array.isArray(spec.assumes) ? spec.assumes : [];
+  function check(state) {
+    var violations = [];
+    for (var i = 0; i < assumes.length; i++) {
+      var a = assumes[i];
+      if (!a || typeof a.test !== 'function') continue;
+      var ok = true;
+      try { ok = !!a.test(state); } catch (e) { ok = false; }
+      if (!ok) violations.push({ name: a.name, kind: a.kind || 'assumption', note: a.note || '' });
+    }
+    var intact = violations.length === 0;
+    return {
+      ok: true, model: spec.id || 'anonymous', intact: intact, violations: violations,
+      directive: intact ? 'MODEL_VALID' : 'UNKNOWN',
+      reason: intact ? '全部建模假设成立，模型适用'
+        : '建模假设被违反：' + violations.map(function (v) { return v.name; }).join(', ') + ' ⟹ 模型不再可信，须降级 UNKNOWN（不幻觉续用破假设模型）',
+      basis: '建模思想：任何模型都是带假设的近似；假设越界即失效（THM_MODEL_ASSUMPTION_AUDIT）',
+      note: '检测是运行时校验，不进入证明链；假设清单由调用方声明，内核只做诚实越界判定'
+    };
+  }
+  return { ok: true, model: spec.id || 'anonymous', assumptionCount: assumes.length, check: check,
+    honesty: 'BELIEF-LEVEL：未登记假设不代表不存在；登记本身是元信息，越界判定依赖调用方给出的检测器' };
+}
+
+// ② 局部线性化建模：在 x0 用雅可比给局部线性模型，附"近似有效半径"；超出即 UNKNOWN。
+//    雅可比用中心差分数值估计（不强制 f 支持对偶数 AD；对普通 f 鲁棒，标注 numerical 近似）。
+function numJacobian(f, x0, h) {
+  h = (h == null) ? 1e-6 : +h;
+  var f0 = f(x0), n = x0.length, m = (f0 && f0.length) || 0, J = [], k, i;
+  if (!m) return null;
+  for (i = 0; i < m; i++) J.push(new Array(n).fill(0));
+  for (k = 0; k < n; k++) {
+    var xp = x0.slice(); xp[k] += h;
+    var xm = x0.slice(); xm[k] -= h;
+    var fp = f(xp), fm = f(xm);
+    for (i = 0; i < m; i++) J[i][k] = (fp[i] - fm[i]) / (2 * h);
+  }
+  return J;
+}
+function localLinearize(f, x0, eps) {
+  if (typeof f !== 'function' || !Array.isArray(x0)) return { ok: false, U: '需要 f 与 x0' };
+  eps = (eps == null) ? 1e-2 : +eps;
+  var J = numJacobian(f, x0);
+  if (!J) return { ok: false, U: 'f 须返回数值数组' };
+  var f0 = f(x0);
+  var n = x0.length, maxRel = 0;
+  for (var d = 0; d < n; d++) {
+    var xp = x0.slice(); xp[d] += eps;
+    var xm = x0.slice(); xm[d] -= eps;
+    var fp = f(xp), fm = f(xm);
+    for (var i = 0; i < f0.length; i++) {
+      var linP = f0[i] + J[i][d] * eps, linM = f0[i] - J[i][d] * eps;
+      var errP = Math.abs(fp[i] - linP), errM = Math.abs(fm[i] - linM);
+      var scP = Math.max(1e-12, Math.abs(f0[i]), Math.abs(fp[i]));
+      var scM = Math.max(1e-12, Math.abs(f0[i]), Math.abs(fm[i]));
+      maxRel = Math.max(maxRel, errP / scP, errM / scM);
+    }
+  }
+  var linearOk = maxRel < 0.1;
+  return {
+    ok: true, jacobian: J, affineTerm: f0, x0: x0.slice(), validRadius: eps,
+    nonlinearityResidual: +maxRel.toFixed(6), linearValid: linearOk,
+    verdict: linearOk ? 'LOCAL_LINEAR_OK：x0 邻域(半径 ' + eps + ') 内线性近似可信'
+      : 'NONLINEAR_DOMINANT：邻域内非线性项显著，局部线性仅粗近似，超出半径须 UNKNOWN',
+    model: function (x) {
+      if (!Array.isArray(x)) return null;
+      return f0.map(function (v, ii) { return v + J[ii].reduce(function (s, a, k) { return s + a * (x[k] - x0[k]); }, 0); });
+    },
+    basis: '建模思想：非线性系统在平衡点/工作点局部线性化（雅可比，中心差分数值估计）；近似仅在有效半径内成立（THM_LOCAL_LINEARIZE）',
+    note: 'validRadius 是诚实边界：超出即放弃线性模型，不幻觉外推'
+  };
+}
+
+// ③ 高维降维/变量筛选建模：维数灾难下盲建模是大忌。给定样本矩阵 data（行=样本、列=变量），
+//    幂迭代估前 k 主成分，报告方差解释比（降维保真度）与各变量方差贡献（先筛重要变量）。
+//    诚实：仅捕捉线性协方差结构；非线性流形需 manifold learning（超出须 UNKNOWN）。
+function variableScreening(data, k) {
+  if (!Array.isArray(data) || data.length < 2 || !Array.isArray(data[0])) return { ok: false, U: '需要样本矩阵 data（行=样本、列=变量）' };
+  var n = data.length, p = data[0].length;
+  k = (k == null) ? Math.min(p, 2) : Math.max(1, Math.min(p, k));
+  var mean = new Array(p).fill(0), r, c, a, b;
+  for (r = 0; r < n; r++) for (c = 0; c < p; c++) mean[c] += data[r][c];
+  for (c = 0; c < p; c++) mean[c] /= n;
+  var cov = []; for (a = 0; a < p; a++) cov.push(new Array(p).fill(0));
+  for (r = 0; r < n; r++) {
+    var z = data[r].map(function (v, cc) { return v - mean[cc]; });
+    for (a = 0; a < p; a++) for (b = a; b < p; b++) cov[a][b] += z[a] * z[b] / (n - 1);
+  }
+  for (a = 0; a < p; a++) for (b = a + 1; b < p; b++) cov[b][a] = cov[a][b];
+  var M = cov.map(function (row) { return row.slice(); }), eig = [];
+  for (var t = 0; t < k; t++) {
+    var v = new Array(p); for (var ii = 0; ii < p; ii++) v[ii] = Math.sin(ii * 1.7 + t);
+    var norm = Math.sqrt(v.reduce(function (s, x) { return s + x * x; }, 0)) || 1; v = v.map(function (x) { return x / norm; });
+    var lambda = 0;
+    for (var it = 0; it < 60; it++) {
+      var w = new Array(p).fill(0);
+      for (a = 0; a < p; a++) for (b = 0; b < p; b++) w[a] += M[a][b] * v[b];
+      lambda = Math.sqrt(w.reduce(function (s, x) { return s + x * x; }, 0)) || 1e-12;
+      v = w.map(function (x) { return x / lambda; });
+      for (var e = 0; e < eig.length; e++) {
+        var proj = v.reduce(function (s, x, idx) { return s + x * eig[e].vec[idx]; }, 0);
+        for (var j = 0; j < p; j++) v[j] -= proj * eig[e].vec[j];
+      }
+      var nn = Math.sqrt(v.reduce(function (s, x) { return s + x * x; }, 0)) || 1e-12; v = v.map(function (x) { return x / nn; });
+    }
+    eig.push({ lambda: lambda, vec: v.slice() });
+    for (a = 0; a < p; a++) for (b = 0; b < p; b++) M[a][b] -= lambda * v[a] * v[b];
+  }
+  var totalVar = 0; for (a = 0; a < p; a++) totalVar += cov[a][a]; totalVar = totalVar || 1e-12;
+  var explained = eig.reduce(function (s, e) { return s + e.lambda; }, 0);
+  var varContrib = []; for (c = 0; c < p; c++) varContrib.push({ var: c, variance: +cov[c][c].toFixed(6) });
+  varContrib.sort(function (x, y) { return y.variance - x.variance; });
+  return {
+    ok: true, nVars: p, nSamples: n, keptComponents: k,
+    varianceExplainedByK: +(explained / totalVar).toFixed(4),
+    perComponent: eig.map(function (e) { return +e.lambda.toFixed(6); }),
+    topVarsByVariance: varContrib,
+    honesty: '仅捕捉线性协方差结构；非线性流形/交互需 manifold learning（本内核未做，超出须 UNKNOWN）',
+    basis: '建模思想：降维筛变量是对抗维数灾难的基本功（THM_DIMENSIONALITY_SCREEN）',
+    note: 'varianceExplainedByK 低 ⟹ 数据非线性强，降维保真不足，须谨慎或 UNKNOWN'
+  };
 }
 
 const BODY = { name: null, caps: [], state: {}, hard: [], observation: null, dimensions: null };
