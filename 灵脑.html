@@ -4762,6 +4762,30 @@ function decideImprecise(bp, threshold, opts) {
     semantics:'𝕌 不是"不知道"，而是"**差这么多证据才能知道**"——可量化、可指导补证据' };
 }
 
+// ═══════════════════════════O 物理正确性第二层：守恒律/Noether 不变量 ════════════════════════════
+// 量纲分析（Buckingham π）只挡"单位"错误，不挡"物理定律"错误（如错误受力模型仍可能量纲正确）。
+// 第一性原理（Noether）：连续对称 ⇔ 守恒量。给定流 ẋ=flow(x) 与守恒量 E(x)（如总能量），
+// 沿数值积分检验 dE/dt≈0 ⇒ 该对称未被破坏 ⇒ 物理正确。无能量函数时诚实 UNKNOWN（不编造守恒）。
+function conservationCheck(flow, energyFn, x0, dt, steps) {
+  if (typeof flow !== 'function' || typeof energyFn !== 'function') return { ok: false, U: '需要 flow 与 energyFn' };
+  dt = dt || 0.01; steps = steps || 100;
+  let x = (x0 && x0.slice) ? x0.slice() : [x0];
+  let prevE = null, maxDrift = 0, driftSum = 0;
+  for (let k = 0; k < steps; k++) {
+    const dx = flow(x);
+    const E = energyFn(x);
+    if (prevE != null) { const dE = (E - prevE) / dt; driftSum += Math.abs(dE); maxDrift = Math.max(maxDrift, Math.abs(dE)); }
+    prevE = E;
+    for (let j = 0; j < x.length; j++) x[j] = x[j] + dt * (dx[j] || 0);
+  }
+  const avgDrift = driftSum / Math.max(1, steps - 1);
+  const tol = 1e-3;
+  const verdict = (maxDrift <= tol) ? 'SAFE' : (maxDrift > 1 ? 'UNSAFE' : 'UNKNOWN');
+  return { ok: true, verdict: verdict, maxDriftRate: +maxDrift.toFixed(6), avgDriftRate: +avgDrift.toFixed(6), dt: dt, steps: steps,
+    basis: 'Noether：连续对称 ⇔ 守恒量；沿流数值积分检验 dE/dt≈0（守恒律不变量，强化"物理正确性"超越量纲）',
+    note: '无能量函数时调用方应直接返回 UNKNOWN（不编造守恒）；UNKNOWN 非断言，仅表示未给足前提' };
+}
+
 const BODY = { name: null, caps: [], state: {}, hard: [], observation: null, dimensions: null };
 const CAPS = Object.create(null);
 var LAST_EXECUTION = null; // 供 generateAudit ⑪ 执行段引用（var 避免 TDZ：generateAudit 在更靠前位置定义）
@@ -5059,6 +5083,26 @@ async function execute(plan, bodyAdapter, opts) {
         halted = true; haltReason = 'HUMAN-IN-THE-LOOP ' + step.cap + '(风险等级 ' + rt + ' > 自主等级 ' + asl + '，需人类授权)'; break;
       }
     }
+    // 端到端不确定性决策（P0）：对不可逆/高风险步骤，若稳健可达包络落风险带且阈值未达 ⟹ decideImprecise 判 UNKNOWN → SAFE-STOP
+    // 默认不启用（opts.useImprecise 未开且未传 goalFn）：沿用原 IRREVERSIBLE-HALT 行为；调用方传 opts 开启端到端不确定性闸门。
+    if (opts.useImprecise && (cap.irreversible === true || AUTONOMY.riskTierOf(cap) >= 3)) {
+      const gFn = opts.goalFn;
+      if (gFn && typeof BrainTuple !== 'undefined' && typeof BrainTuple.V_robust === 'function') {
+        const vr = BrainTuple.V_robust(gFn);
+        if (vr.ok) {
+          const sk = (typeof _skey === 'function' && getState()) ? _skey(getState()) : null;
+          const e = sk ? vr.envelope[sk] : null;
+          if (e && e.low < 1 && e.high >= 1) { // 风险可达：仅赖不确定转移
+            const th = (opts.impreciseThreshold == null ? 0.9 : opts.impreciseThreshold);
+            const bp = beliefPlausibility(e.low, e.high);
+            const dec = decideImprecise(bp, th);
+            if (dec.ok && dec.decision !== 'ACCEPT') {
+              halted = true; haltReason = 'IMPRECISE-UNCERTAINTY-HALT ' + step.cap + '(' + dec.decision + '：可达性包络 [' + e.low + ',' + e.high + '] 落风险带，阈值 ' + th + ' 未达)'; break;
+            }
+          }
+        }
+      }
+    }
     // 观测盲区：执行后状态与当前状态在传感器上不可区分 ⇒ 效果无法验证 ⇒ 拒绝下发
     if (BODY.observation && step.expect && distinguishable(step.expect, state, BODY.observation) === false) {
       halted = true; haltReason = 'OBSERVATION-BLIND-SPOT ' + step.cap + '(执行结果无法被观测验证)'; break;
@@ -5191,6 +5235,27 @@ const BrainTuple = {
     return { ok: true, next: null, kind: 'unknown', grounding: GROUNDING.KERNEL,
       U: '转移未建模（诚实返回 𝕌，不编造动力学）' };
   },
+  // —— f.candidates：非确定转移关系 f ⊆ X×U×X（开放世界核心）——
+  // 第一性原理：世界模型是**非确定**的——同态同动作可有多个结局（扰动/他者/未知）。
+  // 把 f 从"单点函数"升级为"候选集"：KERNEL 候选确定，PERCEPTION 候选明确标 nondeterministic，
+  // 供 V_robust（区间 MDP 稳健可达）与 execute(useImprecise) 端到端消费不确定性。
+  candidates(state, action, opts) {
+    opts = opts || {};
+    const items = [];
+    if (WORLD && WORLD.edges) {
+      const e = WORLD.edges.find(function (ed) { return ed.from === state && ed.to === action; });
+      if (e) items.push({ next: action, kind: 'graph-edge', grounding: GROUNDING.KERNEL, mayHallucinate: false, weight: 1 });
+    }
+    if (this._learned && typeof state === 'object' && typeof simulate === 'function') {
+      const sim = simulate(this._learned, (state && typeof state === 'object' ? state : {}), (action && typeof action === 'object' ? action : {}));
+      if (sim && sim.next != null) items.push({ next: sim.next, kind: 'learned', grounding: GROUNDING.PERCEPTION, mayHallucinate: true, usableInProof: false, weight: 1,
+        honesty: '学习的 f 由观测拟合（线性 SEM lite），属 PERCEPTION：可能幻觉，仅探索/规划启发，不进证明链' });
+    }
+    const nondeterministic = items.length === 0 || items.some(function (it) { return it.grounding !== GROUNDING.KERNEL; });
+    return { ok: true, from: state, via: action, items: items, nondeterministic: nondeterministic,
+      note: items.length ? '非确定转移关系：返回候选集；KERNEL 候选确定参与悲观可达，PERCEPTION 候选仅乐观侧、须保守'
+                          : '无候选（诚实返回空集，转移未建模 𝕌）' };
+  },
   // —— U 执行通道 U ⊆ actions：当前安全可执行动作集（checkHard 双层 + IRREVERSIBLE 授权后）——
   U(opts) {
     opts = opts || {};
@@ -5228,12 +5293,66 @@ const BrainTuple = {
     return { ok: true, V: V, startValue: (V[startKey] !== undefined ? V[startKey] : 0), goal: goal,
       note: 'V: X→[0,1] 到达价值（值迭代固定点，≤|X| 步收敛）' };
   },
-  // —— Inv 不变量：硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性 ——
+  // —— V_robust：区间 MDP 稳健可达性（悲观/乐观包络）[P0 端到端主线] ——
+  // 第一性原理（稳健/分布鲁棒 MDP）：安全关键大脑不应给"脆"的必达性。同一态在**最坏不确定**下可达 vs
+  // **最好不确定**下可达，构成 [V_low, V_high] 包络：
+  //   (1,1) 稳健可达 ⇒ 即使最坏不确定也达目标； (0,1) 风险可达 ⇒ 仅赖可能幻觉的 PERCEPTION 转移，须保守/人机协同； (0,0) 不可达。
+  // 悲观=仅 KERNEL 图边推进；乐观=图边+学习的f预测（PERCEPTION 仅乐观侧）。两次值迭代皆压缩映射（THM_BANACH_FP）。
+  V_robust(goal, opts) {
+    if (!WORLD || !WORLD.nodes || !WORLD.nodes.length) return { ok: false, reason: '无世界图，价值未定义' };
+    const goalNode = (typeof goal === 'string') ? goal : null;
+    const goalFn = (typeof goal === 'function') ? goal : null;
+    const isGoal = function (s) { return (goalNode && s === goalNode) || (goalFn && goalFn(s)); };
+    const nodes = WORLD.nodes;
+    const adjOpt = {}, adjPes = {};
+    nodes.forEach(function (s) { adjOpt[s] = []; adjPes[s] = []; });
+    (WORLD.edges || []).forEach(function (e) { if (adjOpt[e.from]) { adjOpt[e.from].push(e.to); adjPes[e.from].push(e.to); } });
+    // 学习的 f 预测作为乐观可达边（仅乐观侧；PERCEPTION 不进悲观侧）
+    if (this._learned) {
+      for (const s of nodes) for (const a of nodes) {
+        const cand = this.f.candidates(s, a);
+        if (cand && cand.items) for (const it of cand.items) if (it.kind === 'learned' && it.next != null) adjOpt[s].push(it.next);
+      }
+    }
+    const reach = function (adj) {
+      const Vr = {}; nodes.forEach(function (s) { Vr[s] = isGoal(s) ? 1 : 0; });
+      for (let it = 0; it < nodes.length + 2; it++)
+        for (const s of nodes) { if (isGoal(s)) continue; const ch = adj[s]; if (!ch.length) continue; let best = 0; for (const nx of ch) best = Math.max(best, Vr[nx]); Vr[s] = best; }
+      return Vr;
+    };
+    const Vopt = reach(adjOpt), Vpes = reach(adjPes);
+    const env = {}; nodes.forEach(function (s) { env[s] = { low: Vpes[s], high: Vopt[s] }; });
+    const classify = function (s) { if (Vpes[s] >= 1 && Vopt[s] >= 1) return 'robust'; if (Vopt[s] >= 1) return 'risky'; return 'unreachable'; };
+    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : nodes[0];
+    // 当前物理态不在世界图节点内（仅身体态，未对齐到图节点）时，不返回 null（裸 null 不诚实），
+    // 改为对整图做稳健可达态势聚合：任一节点 robust ⇒ 全局 robust；有可达但无 robust ⇒ risky；全不可达 ⇒ unreachable。
+    let aggregate = null;
+    if (!env[startKey]) {
+      let hasRobust = false, hasReach = false;
+      for (const s of nodes) { const c = classify(s); if (c === 'robust') hasRobust = true; if (c !== 'unreachable') hasReach = true; }
+      aggregate = hasReach ? (hasRobust ? 'robust' : 'risky') : 'unreachable';
+    }
+    return { ok: true, V_low: Vpes, V_high: Vopt, envelope: env,
+      classification: env[startKey] ? classify(startKey) : aggregate,
+      startKey: env[startKey] ? startKey : null,
+      method: '区间 MDP 稳健可达性（悲观仅 KERNEL 图边 / 乐观含 PERCEPTION 学习f 预测）',
+      note: '稳健可达(1,1) ⇒ 最坏不确定也达目标；风险可达(0,1) ⇒ 仅赖可能幻觉的转移，须保守/人机协同；不可达(0,0)' };
+  },
+  // —— physicsInvariant：物理正确性第二层（守恒律/Noether）[P0 另补的"别的数学思想"] ——
+  // 量纲只挡单位错；守恒律挡物理定律错。给定 flow/energy 则数值检验 dE/dt≈0；否则诚实 UNKNOWN。
+  physicsInvariant(spec, opts) {
+    opts = opts || {};
+    if (!spec || !spec.flow || !spec.energy) return { ok: false, reason: '未提供 flow/energy，物理守恒不可判定', verdict: 'UNKNOWN' };
+    const r = conservationCheck(spec.flow, spec.energy, spec.x0, spec.dt, spec.steps);
+    return { ok: true, verdict: r.verdict, maxDriftRate: r.maxDriftRate, U: r.verdict === 'UNKNOWN',
+      note: '物理守恒不变量（Noether）：接 Inv() 作为物理正确性第二层（量纲 → 守恒律）' };
+  },
+  // —— Inv 不变量：硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性 ∪ 守恒律（可选）——
   Inv() {
     const hard = ((BODY && BODY.hard) || []).concat((WORLD && WORLD.hard) || []);
     const dimOk = (BODY && BODY.dimensions && typeof checkDimensions === 'function') ? checkDimensions((typeof CAPS !== 'undefined' ? CAPS : {}), BODY.dimensions).ok : null;
     return { ok: true, hardConstraints: hard.length, dimensionSound: dimOk,
-      note: 'Inv = 硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性' };
+      note: 'Inv = 硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性（物理正确性第1层）；守恒律见 physicsInvariant（第2层）' };
   },
   // —— M 他心：对其他 agent 的**信念状态**（信念级，非证明级/非读心器）——
   M: {
@@ -5274,7 +5393,7 @@ const BrainTuple = {
       const w0 = candidates.map(c => (c && typeof c === 'object' && isFinite(c.weight) ? c.weight : 1));
       const sum = w0.reduce((a, b) => a + b, 0) || n;
       const dist = {}; candidates.forEach((c, i) => { const k = (c && c.key) || ('s' + i); dist[k] = +(w0[i] / sum).toFixed(6); });
-      this._belief = { dist: dist, obs: [], updatedAt: Date.now() };
+      this._belief = { dist: dist, obs: [], updatedAt: Date.now(), evidence: 0 };
       return { ok: true, belief: dist, cardinality: n, grounding: GROUNDING.KERNEL,
         note: 'B: Δ(X) 上的信念分布初始化（候选状态加权）' };
     }
@@ -5286,14 +5405,44 @@ const BrainTuple = {
   B_update(obs) {
     if (!this._belief) return { ok: false, reason: '未初始化信念态 B' };
     this._belief.obs.push(obs);
+    this._belief.evidence = (this._belief.evidence || 0) + 1; // 观测证据量 +1，供 B_envelope 计算置信度
     if (typeof reconcile === 'function' && obs && typeof obs === 'object' && 'belief' in obs && 'fact' in obs) {
       const r = reconcile(obs.belief, obs.fact);
       if (r && r.mode) this._belief.lastReconcile = r;
     }
     return { ok: true, belief: this._belief.dist, observations: this._belief.obs.length,
       honesty: 'BELIEF-LEVEL: 观测更新后验，仍属 conjecture 级' };
+  },
+  // —— B_envelope：把加权后验膨胀为 D-S 不精确概率包络 [belief, plausibility]（P0 端到端主线）——
+  // 第一性原理（Walley linear-vacuous 混合 / imprecise Dirichlet）：仅"声明"的分布若无观测证据支撑，
+  // 应是**完全无知**（c=0 ⟹ belief=0, plausibility=1）；证据越多越收窄到精确后验。
+  // 置信度 c = E/(E+K)，E=观测证据量，K=先验强度（默认=候选数，即 Laplace 伪计数）。
+  // 复用 beliefPlausibility 保证包络 [belief,plausibility] 合法；结果直接喂 decideImprecise 做端到端决策。
+  B_envelope(opts) {
+    opts = opts || {};
+    if (!this._belief) return { ok: false, reason: '未初始化信念态 B（先 B(candidates) 建先验）' };
+    const dist = this._belief.dist, keys = Object.keys(dist), n = keys.length;
+    const E = (this._belief.evidence || 0);
+    const K = (opts.priorStrength == null ? n : +opts.priorStrength);
+    const c = E > 0 ? E / (E + K) : 0; // 证据=0 ⟹ 完全无知
+    const env = {};
+    for (const k of keys) {
+      const p = dist[k];
+      const bp = beliefPlausibility(c * p, c * p + (1 - c));
+      env[k] = { belief: bp.belief, plausibility: bp.plausibility, width: bp.width };
+    }
+    const widths = keys.map(function (k) { return env[k].width; });
+    const maxW = widths.length ? Math.max.apply(null, widths) : 0;
+    return { ok: true, envelope: env, confidence: +c.toFixed(4), evidence: E,
+      method: 'linear-vacuous 混合（Walley 不精确概率）：c=' + c.toFixed(3) + ' 膨胀后验为 D-S 包络 [belief=c·p, plausibility=c·p+(1−c)]',
+      globalIgnoranceWidth: +maxW.toFixed(4), grounding: 'BELIEF-LEVEL',
+      honesty: 'BELIEF-LEVEL：包络宽度=不确定性本身；宽度大 ⟹ 决策须保守/需更多观测；decideImprecise 据此判 ACCEPT/REJECT/UNKNOWN' };
   }
 };
+
+// 把 nondeterministic 转移关系 candidates 同时挂到 f 上：API 形态 f 单点函数 ↔ f.candidates 非确定关系
+// （V_robust 内部 this.f.candidates、测试 BT.f.candidates 均依赖此）。bind(BrainTuple) 保证 this._learned 正确解析。
+BrainTuple.f.candidates = BrainTuple.candidates.bind(BrainTuple);
 
 // ── 八元组 𝔹 接入 LCF 证明链（把落地的 h/U/V/M 钉成可审计定理）──
 MathKernel.axiom('AX_TUPLE_FORMAL',
@@ -5343,13 +5492,24 @@ MathKernel.theorem('THM_AUTONOMY_GATE',
 MathKernel.conjecture('CONJ_LEARNED_F_SOUND',
   '学习的 f（线性 SEM lite）在分布外/非线性域的预测保真性 —— 未证明（lite 等价，非真实世界模型）；列为猜想，禁止进入证明链',
   { field: '世界模型', evidence: '诚实边界：学习的 f 仅 PERCEPTION 级探索用，不得作为证明前提（铁律③）' });
+MathKernel.theorem('THM_UNCERTAINTY_PROPAGATED',
+  '不确定性作为一等公民端到端传播：f 非确定候选(f.candidates) → B 不精确包络(B_envelope，linear-vacuous 混合) → V 稳健可达包络(V_robust，区间MDP) → execute 据包络决策(decideImprecise)；确定性内核不被概率分量污染（铁律③+grounding 分层）',
+  { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL', 'AX_PROB', 'THM_DYNAMICS_LAYERED', 'THM_BELIEF_LEVEL'], field: '不确定性传播',
+    proof: 'f.candidates 返回候选集并标 nondeterministic；B_envelope 用 beliefPlausibility 膨胀为 D-S 包络；V_robust 悲观/乐观值迭代给 [low,high]；execute(useImprecise) 调 decideImprecise 在风险带停机',
+    evidence: 'f.candidates / B_envelope / V_robust / execute(useImprecise) 实跑可验证' });
+MathKernel.theorem('THM_ROBUST_REACH',
+  'V_robust 给出区间 MDP 稳健可达包络 [V_low,V_high]：分类 (1,1) 稳健可达 / (0,1) 风险可达（仅赖 PERCEPTION 转移）/ (0,0) 不可达；规划据分类保守决策',
+  { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL', 'THM_BANACH_FP'], field: '稳健可达性',
+    proof: 'V_robust 悲观仅 KERNEL 图边推进、乐观含 PERCEPTION 学习f 预测，两次值迭代（压缩映射，THM_BANACH_FP）给包络',
+    evidence: 'V_robust 实跑返回 envelope + classification' });
 
 // 八元组能力追溯：把落地能力映射回支撑定理
-CAPABILITY_THEOREMS.tuple = ['THM_OBS_CHANNEL_RANGE', 'THM_ACTION_SAFE_CLOSED', 'THM_VALUE_ITER_CONVERGE', 'THM_OTHER_MIND_BELIEF', 'THM_DYNAMICS_LAYERED', 'THM_BELIEF_LEVEL', 'THM_AUTONOMY_GATE'];
+CAPABILITY_THEOREMS.tuple = ['THM_OBS_CHANNEL_RANGE', 'THM_ACTION_SAFE_CLOSED', 'THM_VALUE_ITER_CONVERGE', 'THM_OTHER_MIND_BELIEF', 'THM_DYNAMICS_LAYERED', 'THM_BELIEF_LEVEL', 'THM_AUTONOMY_GATE', 'THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REACH'];
 CAPABILITY_THEOREMS.observation = ['THM_OBS_CHANNEL_RANGE', 'THM_BUCKINGHAM_PI'];
 CAPABILITY_THEOREMS['action-space'] = ['THM_ACTION_SAFE_CLOSED'];
-CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE'];
+CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE', 'THM_ROBUST_REACH'];
 CAPABILITY_THEOREMS['other-mind'] = ['THM_OTHER_MIND_BELIEF'];
+CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REACH'];
 
 // ==KERNEL END==
 

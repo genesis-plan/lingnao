@@ -87,6 +87,27 @@ ck('f 动力学：无模型时诚实返回 𝕌（不编造）', fU.kind === 'un
 const au = L.AUTONOMY;
 ck('D 自主等级：AUTONOMY 配置导出且含 6 级（L0–L5）', au && au.levels && Object.keys(au.levels).length === 6 && typeof au.riskTierOf === 'function', au && au.levels);
 
+// —— P0 不确定性端到端传播（f 候选 → B 包络 → V 稳健可达 → 守恒律）——
+const fc = BT.f.candidates('CHARGE', 'C');
+ck('P0 f.candidates：返回候选集且含 nondeterministic 标志', fc.ok && Array.isArray(fc.items) && typeof fc.nondeterministic === 'boolean', fc);
+const be = BT.B_envelope();
+const beOk = be.ok && be.envelope && Object.keys(be.envelope).every(k => be.envelope[k].belief <= be.envelope[k].plausibility + 1e-9);
+ck('P0 B_envelope：膨胀为 D-S 包络且 belief≤plausibility', beOk, be && be.envelope);
+BT.B_update({ belief: 0.5, fact: 0.8 });
+const be2 = BT.B_envelope();
+ck('P0 B_envelope：观测后 evidence>0 且置信度∈[0,1]', be2.ok && be2.evidence >= 1 && be2.confidence >= 0 && be2.confidence <= 1, be2);
+const vr = BT.V_robust('C');
+ck('P0 V_robust：返回 [low,high] 包络且分类∈{robust,risky,unreachable}', vr.ok && vr.envelope && ['robust','risky','unreachable'].indexOf(vr.classification) >= 0, vr && (vr.classification));
+const lrOk = vr.ok && Object.keys(vr.envelope).every(k => vr.envelope[k].low <= vr.envelope[k].high + 1e-9);
+ck('P0 V_robust：每态 V_low≤V_high', lrOk, vr && vr.envelope);
+// 守恒律/Noether：旋转流守恒线性量 → SAFE；加阻尼 → 非 SAFE
+const ccSafe = L.conservationCheck((x) => [x[1], -x[0], 0], (x) => x[2], [1, 0, 5], 0.01, 200);
+ck('P0 守恒律：旋转流守恒线性量 ⇒ SAFE', ccSafe.ok && ccSafe.verdict === 'SAFE', ccSafe);
+const ccDiss = L.conservationCheck((x) => [x[1], -x[0] - 0.3 * x[1], 0], (x) => x[0] * x[0] + x[1] * x[1], [1, 0, 0], 0.01, 200);
+ck('P0 守恒律：含阻尼流能量不守恒 ⇒ 非 SAFE', ccDiss.ok && ccDiss.verdict !== 'SAFE', ccDiss);
+const pi = BT.physicsInvariant({ flow: (x) => [x[1], -x[0], 0], energy: (x) => x[2], x0: [1, 0, 5] });
+ck('P0 physicsInvariant：接守恒律检查且返回 verdict', pi.ok && typeof pi.verdict === 'string', pi);
+
 // —— LCF：八元组定理链闭合 ——
 const kv = L.kernelVerify();
 ck('LCF 内核全链闭合（含八元组定理 AX_TUPLE_FORMAL / THM_*）', kv.ok === true, { theorems: kv.theorems, axioms: kv.axioms, conjectures: kv.conjectures });

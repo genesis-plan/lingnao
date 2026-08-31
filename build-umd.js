@@ -74,6 +74,7 @@ const EXPORT_NAMES = [
   'absVerdict', // 审视①补抽象解释的另一半：用同一过近似得"确定安全/确定不安全/真𝕌"三值严格结论
   'galoisAlphaSet', 'galoisGammaContains', 'galoisCheck', // 审视②把 sound:true 从断言升级为 Galois 连接可验证性质
   'beliefPlausibility', 'decideImprecise', // 审视③𝕌 从布尔位升级为不精确概率区间 [belief, plausibility]
+  'conservationCheck', // 物理正确性第二层：守恒律/Noether 不变量（沿流数值检验 dE/dt≈0）
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象
