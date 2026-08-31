@@ -1152,6 +1152,16 @@ function selftest() {
       const c0 = K.FIREWALL.scanGraph([{ from: 'A', to: 'B', w: 1 }]).contaminated === false;
       return c1 && c0;
     })());
+    T('goal_directed_firewall', (function () {
+      setWorldLogic({ nodes: ['G1', 'G2', 'G3'], edges: [{ from: 'G1', to: 'G2', w: 1, perceived: true }, { from: 'G2', to: 'G3', w: 1 }], coord: { G1: [0, 0], G2: [1, 0], G3: [2, 0] } });
+      const g = K.goalDirected('G1', 'G3', {});
+      const clean = g && g.perceptionContaminated === true && g.grounding && g.grounding.tier === 'UNVERIFIED_LLM';
+      setWorldLogic({ nodes: ['G1', 'G2', 'G3'], edges: [{ from: 'G1', to: 'G2', w: 1 }, { from: 'G2', to: 'G3', w: 1 }], coord: { G1: [0, 0], G2: [1, 0], G3: [2, 0] } });
+      const g2 = K.goalDirected('G1', 'G3', {});
+      // 自清理：还原默认 CHARGE 世界，避免污染后续 reason-optimal 等断言
+      K.setWorld({ nodes: ['CHARGE', 'A', 'B', 'C'], edges: K.__defaultEdges || [] });
+      return clean && g2.grounding && g2.grounding.tier === 'DETERMINISTIC' && g2.perceptionContaminated === false;
+    })());
     const r1 = reasonLogic('CHARGE', 'C', [], []);
     T('reason-optimal', r1.status === 'optimal' && r1.path[0] === 'CHARGE' && r1.path[r1.path.length - 1] === 'C' && Math.abs(r1.cost - 7.242641) < 1e-3, 'cost=' + r1.cost);
     T('reason-system2-rsg', r1.usedSystem === '2' && r1.rsg && r1.rsg.branchCount > 0, 'rsg=' + JSON.stringify(r1.rsg));

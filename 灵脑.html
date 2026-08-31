@@ -551,6 +551,7 @@ function reason(start, goal, opts={}){
 // 把 WORLD 视为 (S=节点, A=边, P=均匀转移, G={goal}, C=hard 约束)：BFS 可达性 → 值迭代求到达概率 → 贪心策略
 function goalDirected(start, goal, opts){
   opts = opts || {}; const hard = new Set(opts.hard || []);
+  const _gdScan = FIREWALL.scanGraph(WORLD.edges); const _gdContam = _gdScan.contaminated; // 防火墙：确定性规划入口扫 PERCEPTION 感知边
   if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
   const adj = {}; WORLD.nodes.forEach(s => adj[s] = WORLD.edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to));
   // 可达性（ima_288）：BFS 求从 start 在约束 C 内可达状态集
@@ -572,9 +573,10 @@ function goalDirected(start, goal, opts){
   const reached = path[path.length-1]===goal;
   return { status: reached?'found':'unknown', path: reached?path:null, cost: reached?path.length-1:null,
     reach: reach.size, goalProb: +V[start].toFixed(3),
-    grounding: GROUNDING.KERNEL, deterministic:true,
+    grounding: _gdContam ? GROUNDING.PERCEPTION : GROUNDING.KERNEL, deterministic:true,
+    perceptionContaminated: _gdContam, firewallScan: _gdScan,
     method:'目标导向决策(ima_286 框架 + ima_288 可达性 + ima_291 值迭代 + ima_289 路径规划)：无奖励, 最大化到达概率', imaRef:['ima_286','ima_288','ima_289','ima_291'],
-    note:'确定性值迭代（Bellman 收敛 ⇒ 最优策略；非 MCTS 采样）：作为 A* 搜索之外的确定性备选规划器，结果可复现' };
+    note:'确定性值迭代（Bellman 收敛 ⇒ 最优策略；非 MCTS 采样）：作为 A* 搜索之外的确定性备选规划器，结果可复现' + (_gdContam ? '【含 PERCEPTION 感知边 ⇒ grounding 诚实降级为 PERCEPTION，非 KERNEL 事实】' : '') };
 }
 
 
