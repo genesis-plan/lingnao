@@ -53,7 +53,7 @@
 
 **它不做什么（诚实边界）**
 - 不生成文本、不编造事实；推理结果可复现、可审计、不幻觉
-- **v1.0 内核已全部确定性实装**（UMD 导出 207 个函数；Node 自测 51 项 + 传输层 9 项；其中 `algebraic_solve` 委派**独立产品「灵数求解器」**，装了 `lingshu-solver` 后该项才可用）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）** / **安全栈（CBF-QP 安全滤子 + 组合 CBF + STL 定量语义 + Zonotope 可达集 + 混合自动机×自动微分）** / **最优分配（匈牙利算法 + LP 对偶证书）** / **抽象解释（区间格 + widening/narrowing 不动点）**
+- **v1.0 内核已全部确定性实装**（UMD 导出 224 个函数；Node 自测 58 项 + 传输层 9 项；其中 `algebraic_solve` 委派**独立产品「灵数求解器」**，装了 `lingshu-solver` 后该项才可用）：感知(免费LLM + Banach 信念收敛) / 世界图(边概率P + LSH检索 + 规则蒸馏 + 认知图谱 + 元知识路由) / 系统1-2 + RSG / 符号Z3-lite 约束求解 / **代数方程系统求解（委派真引擎灵数求解器，区间收缩 + Krawczyk 认证，非 lite）** / 霍尔机器验证证明 / D-MCTS 分支探索 / 七段审计 / 正·负·边界样本 / 单步学习 + PAC 样本界 + do演算·PC因果 / 元认知层 / EDA 事件总线 + Data Fabric 版本化 + PrSTL 运行时安全停车 + 持续验证 / 物理载体接入 / **具身层（A\* 状态空间规划 + checkHard SAFE-STOP + maxReplans 护栏 + 任意物理身体能力契约）** / **安全栈（CBF-QP 安全滤子 + 组合 CBF + STL 定量语义 + Zonotope 可达集 + 混合自动机×自动微分）** / **最优分配（匈牙利算法 + LP 对偶证书）** / **抽象解释（区间格 + widening/narrowing 不动点）**
 - **轻量替代标注（手写 lite 版、非工业级外部求解器，均可运行、均确定性、均不虚构）**：符号验证=自写约束求解器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq 机器证明）；因果发现=PC-lite 离散近似（非真实 PC/FCI）；LSH=SimHash 投影（非 Milvus）；**世界模型/反事实已 lite 实装**（SEM 线性结构方程 + Pearl 反事实三步法，确定性可审计；文档原仅给 VAE/ADM-v2 等名词无定义，本实装为诚实 lite 等价，非 VAE）
 
 ---
@@ -146,7 +146,7 @@ node lingnao-body-sim-server.js          # 终端1：起仿真真身体（默认
 ## 架构（摘要）
 
 形式化七元组 $\mathbb{B}=(\mathbb{W},K,\Phi,\Psi,\Theta,\Lambda,\Xi)$，八层：感知 $\Phi$ / 学习 $\Psi$ / 知识库 $K$ / 推理 $\Theta$ / 因果 $\Lambda$ / 演化 / 审计 $\Xi$ / 统一。
-八元组数学形态 $\mathbb{B}=(X,h,b,f,U,V,Inv,M)$ 已落地为内核可审计对象 `BrainTuple`（2026-08-31；h/U/V/M 原缺位项已建模，M 诚实标注为信念级），见 [docs/TUPLE-REEXAMINATION.md](./docs/TUPLE-REEXAMINATION.md) §8。
+八元组数学形态 $\mathbb{B}=(X,h,b,f,U,V,Inv,M)$ 已落地为内核可审计对象 `BrainTuple`（2026-08-31；h/U/V/M 原缺位项已建模，M 诚实标注为信念级），见 [docs/MATHEMATICS.md](./docs/MATHEMATICS.md) §8。
 详见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
 核心定理（可证）：有限世界图 + 可采纳欧氏启发式下，A\* **完备且最优**——要么返回最优路径，要么诚实标 $\mathbb{U}$。
@@ -322,15 +322,15 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | `test/test-body-physics.js` | **身体桥物理现实性验证（24 项）**：心跳判死、不误杀回 pong 的身体、陈旧状态拒绝、progress 证明慢≠死、maxActionTime 封顶、量程/变化率/卡死校验、动作幂等查询 |
 | `smithery.yaml` | Smithery MCP 市场清单（stdio 启动 + 可选 OPENROUTER_API_KEY） |
 | `mcp.json` | 标准 MCP 客户端一键配置（`npx -y lingnao-mcp`，可选 OPENROUTER_API_KEY） |
-| `LingNao_Brain_Review_Brief_EN.md` | 英文外部评审简报（Embodied Brain 契约最小实装说明） |
-| `VERIFIABLE-PHYSICAL-AI.md` | **可验证物理 AI 定位**：与产业界「三道门槛」（泛化性/可靠性/持续学习）的对齐，量纲分析的作用，以及 4 条诚实边界 |
+| `AGENT-SETUP.md` | MCP 客户端接入指南（Claude Desktop / Cursor / 各类 MCP 客户端的一键配置） |
+| `docs/VERIFIABLE-PHYSICAL-AI.md` | **可验证物理 AI 定位**：与产业界「三道门槛」（泛化性/可靠性/持续学习）的对齐，量纲分析的作用，以及 4 条诚实边界 |
 | `test/test-contract-layer.js` | 连接契约层验证（32 项）：声明式契约求值、硬约束 fail-closed、观测可区分性、不可逆动作拦截 |
 | `test/test-dimension-layer.js` | 量纲分析层验证（34 项）：量纲代数、齐次性、Buckingham π、物理荒谬动作不进入规划 |
 | `test/test-mcp-stdio-transport.js` | **MCP stdio 传输层验证（9 项）**：NDJSON（现代 MCP 客户端）与 Content-Length（旧客户端）双帧格式握手 + `tools/list` + 端到端 `tools/call`。**必须独立存在**——`--selftest` 直接调内核函数、绕开传输层，传输坏了自测照样全绿 |
 | `examples/gen-agent-manifests.js` | 生成「给前沿大模型用」的接入清单：真起 MCP 服务走 `tools/list` **实时抓取**（与客户端所见一致、永不过期），产出 `llms.txt` / `openai-tools.json` / `anthropic-tools.json` |
 | `llms.txt` | LLM 发现文档（中英双语，[llmstxt.org](https://llmstxt.org) 标准）：给大模型/爬虫读的项目说明、接入方式、推荐调用顺序、诚实边界 |
 | `openai-tools.json` / `anthropic-tools.json` | 46 个工具的 function-calling / tool-use 清单，供 OpenAI Agents SDK、各家 function calling 框架直接加载 |
-| `docs/` `docs/archive/` | 文档导览见上文；架构/数学审计与专家评审过程稿归档 |
+| `docs/` | `MATHEMATICS.md`（数学形式化与八元组）、`VERIFIABLE-PHYSICAL-AI.md`（可验证物理 AI 定位） |
 
 > 部署时 `lingnao-mcp.js` 与 `灵脑.html` 需同目录（或设 `LINGNAO_HTML` 环境变量，旧名 `LINGJING_HTML` 仍兼容）。
 
@@ -344,7 +344,7 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | **MCP 市场：Smithery** | 已备 `smithery.yaml`（stdio + 可选 Key）；登录 smithery.ai → Import from npm: `lingnao-mcp`，或给我 Smithery Key 我来跑 | 仓库已备 `smithery.yaml` |
 | **MCP 市场：mcp.so / Glama / PulseMCP** | 已随 npm 包 `lingnao-mcp` 自动收录（关键词 mcp）；也可在站点粘贴仓库 URL 或根目录 `mcp.json` | 搜索 `lingnao-mcp` 或访问仓库 |
 | **在线试用（免安装）** | 双击 `lingnao-console.html`（同目录需 `lingnao.umd.js`）；或静态托管后给链接 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html> |
-| **npm** | ⏳ 待发布 `lingnao-mcp@1.0.0`（tarball 已打包并在干净目录验证通过，待 npm 凭据）：`npm i -g lingnao-mcp` 或 `npx lingnao-mcp`（自测 51 项 + 传输层 9 项）。注：此前**从未以 `lingnao-mcp` 名发布过**（registry 404），存在的是另一个产品线的旧名 `lingjing-mcp@3.1.0`；灵脑作为独立产品自 **1.0.0** 起算 | `npx -y lingnao-mcp` |
+| **npm** | ✅ 已发布 `lingnao-mcp@1.0.0`（UNLICENSED 非开源）：`npm i -y lingnao-mcp` 或 `npx -y lingnao-mcp`（自测 58 项 + 传输层 9 项）。灵脑作为独立产品自 **1.0.0** 起算，旧产品线名 `lingjing-mcp@3.1.0` 已弃用 | `npx -y lingnao-mcp` |
 
 > 让别人用的三种方式（任选其一）：① 双击 `lingnao-console.html`（人）② `node lingnao-mcp.js`（AI 客户端 stdio，46 工具）③ 把「身体配置」换成你的机器人上报的能力/状态/硬约束（真机器人）。
 
@@ -363,23 +363,21 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 
 ## 论文消费与学术对齐
 
-本产品持续吸收外部前沿思想并诚实标注实装状态，详见 [docs/archive/灵脑_论文消费对照.md](./docs/archive/灵脑_论文消费对照.md)（do-calculus 前门准则、CoVe 自验证、Reflexion 反思、Tree-of-Thoughts、神经符号边界的逐篇对照与自测证据）。
+本产品持续吸收外部前沿思想并诚实标注实装状态，详见 [docs/MATHEMATICS.md](./docs/MATHEMATICS.md)（do-calculus 前门准则、CoVe 自验证、Reflexion 反思、Tree-of-Thoughts、神经符号边界的逐篇对照与自测证据）。
 
 ## 文档导览
 
 | 位置 | 内容 |
 |---|---|
-| 顶层 7 个 md | 面向使用者与贡献者：`README` / `ARCHITECTURE` / `CONTRIBUTING` / `CODE_OF_CONDUCT` / `SECURITY` / `VERIFIABLE-PHYSICAL-AI` / `LingNao_Brain_Review_Brief_EN` |
-| `docs/` | 仍具参考价值但不放顶层：`ima-map.md`（**外部**第三方知识库 IMA 的条目索引，未经本产品验证，仅作命名参考，不构成正确性依据）、`community-post.md`（对外发帖草稿） |
-| `docs/archive/` | **过程稿归档**（16 篇）：产品蓝图、专家审查报告、论文消费对照、超级大脑构想、各类 v3 骨架对照等调研与评审记录。保留用于追溯设计演进，**不代表当前状态** |
-| `legacy/worldbrain-mcp/` | 「世界大脑 WorldBrain」历史归档（2026-08-26 的早期命名，5 个工具已全部并入灵脑） |
+| 根目录 | 使用者/贡献者入口：`README` / `ARCHITECTURE` / `AGENT-SETUP` / `CONTRIBUTING` / `CODE_OF_CONDUCT` / `SECURITY` / `LICENSE` |
+| `docs/` | 深度技术：`MATHEMATICS.md`（数学形式化与八元组）、`VERIFIABLE-PHYSICAL-AI.md`（可验证物理 AI 定位） |
 
-> 判断当前行为请以**代码与测试**为准，过程稿仅反映决策当时的想法。
+> 判断当前行为请以**代码与测试**为准。
 
 ## 反馈、测试与贡献（欢迎外部打磨）
 
 - **提 Bug / 测试报告 / 功能建议**：用仓库 Issue 模板（`bug` / `test-report` / `feature` 三类）。
 - **讨论与用法分享**：GitHub Discussions（仓库 Discussions 标签）。
-- **跑通自测（你也能验证不幻觉）**：`node lingnao-mcp.js --selftest` → 应看到 `SELFTEST OK — 全部 51 项`。
+- **跑通自测（你也能验证不幻觉）**：`node lingnao-mcp.js --selftest` → 应看到 `SELFTEST OK — 全部 58 项`。
 - **贡献代码**：见 [CONTRIBUTING.md](./CONTRIBUTING.md)（含最小复现步骤与测试要求）。
 - **安全/漏洞报告**：见 [SECURITY.md](./SECURITY.md)（请先私信，勿公开 Issue）。

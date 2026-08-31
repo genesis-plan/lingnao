@@ -6,7 +6,7 @@
 ```bash
 git clone https://github.com/genesis-plan/lingnao && cd lingnao
 node lingnao-mcp.js --selftest
-# 期望输出：SELFTEST OK — 全部 45 项工具验证通过
+# 期望输出：SELFTEST OK — 全部 58 项工具验证通过
 ```
 任何改动**必须**保证上述自测全绿，并新增对应断言。
 
@@ -40,3 +40,11 @@ node lingnao-mcp.js --selftest
 ## 六、环境
 - Node ≥ 18（不依赖第三方包，零 `npm install` 即可跑 MCP）。
 - 免费 LLM 感知需 OpenRouter Key（参数或 env `OPENROUTER_API_KEY`），无 key 自动降级为手动。
+
+## 七、文档规范（仓库整洁标准）
+
+公共产品仓库的文档只服务两类人：**使用者**（装、配、调）与**贡献者**（fork、架构、提 PR）。**不记录内部过程**。
+
+- 根目录只放：`README.md`（唯一使用者入口）、`LICENSE`、`CHANGELOG.md`（按版本、只写对用户重要的变更）、`CONTRIBUTING.md` / `CODE_OF_CONDUCT.md` / `SECURITY.md` / `.github/PULL_REQUEST_TEMPLATE.md`（OSS 惯例）。
+- 深度技术（`ARCHITECTURE.md`、`AGENT-SETUP.md`、以及 `docs/` 下的 `MATHEMATICS.md`、`VERIFIABLE-PHYSICAL-AI.md`）给贡献者/高阶使用者，但**不写过程日记**。
+- 内部思考、评审、调研过程稿**不进公共仓库**（留本地或私有权限）；`CHANGELOG` 不列逐小时提交日志、不附 commit hash。
