@@ -1093,7 +1093,8 @@ async function perceiveLLM(text, opts){
 
 // ③ 解释层（免费 LLM）：把可审计推理结果 + IMA 资料用大白话讲给非技术用户——这是"资料文档利用"的落地
 const _llmCache = new Map();           // 防重复烧额度（免费档 50 次/天）
-function _llmKey(prefix, obj){ try{ return prefix+':'+JSON.stringify(obj); }catch(e){ return prefix+':'+String(Math.random()); } }
+// 确定性兜底：JSON.stringify 失败（循环引用等）时用带循环处理的 replacer 生成稳定键，绝不引入 Math.random（避免非确定性污染）
+function _llmKey(prefix, obj){ try{ return prefix+':'+JSON.stringify(obj); }catch(e){ const seen=new WeakSet(); try{ return prefix+':'+JSON.stringify(obj, function(k,v){ if(typeof v==='object'&&v!==null){ if(seen.has(v)) return '[circular]'; seen.add(v); } return v; }); }catch(e2){ return prefix+':unserializable'; } } }
 // 解释层复用同一 LLM 适配器（输入理解与解释共用一个可插拔 LLM）
 async function _orChat(sys, user, apiKey, opts){
   opts = opts || {};
@@ -1556,7 +1557,7 @@ function dmcts(start, goal, opts){
   if(start!==goal && !nodes[start].children.length) return { status:'unknown', reason:'起点无可达边' };
   const budget = opts.iterations || 120, C = opts.c || 1.4, root = start, maxD = WORLD.nodes.length + 2;
   const ucb = s => nodes[s].visits===0 ? Infinity : nodes[s].value + C*Math.sqrt(Math.log(nodes[root].visits+1)/nodes[s].visits);
-  const rollout = s => { let cur=s, d=0; while(cur!==goal && d<maxD){ const ch=nodes[cur].children; if(!ch.length) break; cur=ch[Math.floor(Math.random()*ch.length)]; d++; } return cur===goal?1:0; };
+  const rollout = s => { let cur=s, d=0; while(cur!==goal && d<maxD){ const ch=nodes[cur].children; if(!ch.length) break; cur=ch[Math.floor(rng()*ch.length)]; d++; } return cur===goal?1:0; };
   for(let it=0; it<budget; it++){
     let path=[root], cur=root, seenSel=new Set([root]); // 选择(ima_292 Selection)
     while(nodes[cur].children.length && nodes[cur].visits>0 && nodes[cur].children.every(c=>nodes[c].visits>0) && !seenSel.has(cur) && path.length < maxD){
