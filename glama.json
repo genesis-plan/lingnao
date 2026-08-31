@@ -1,0 +1,19 @@
+{
+  "$schema": "https://glama.ai/mcp/schema/manifest.json",
+  "name": "LingNao",
+  "description": "灵脑 LingNao — 可审计、确定性的通用大脑推理引擎（非概率生成式 LLM、不幻觉）。本地 A* 可审计推理 + 世界图 + 七段审计/霍尔证明 + 代数方程求解（委派灵数求解器）+ 因果 do 演算 + 元认知 + 具身层（规划-执行-安全停车-重规划闭环）。以 MCP stdio 暴露 46 个工具，免费面向 AI Agent 分发。零依赖、不幻觉。",
+  "homepage": "https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/genesis-plan/lingnao"
+  },
+  "license": "UNLICENSED",
+  "version": "1.0.0",
+  "mcpServers": {
+    "lingnao": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "lingnao-mcp"]
+    }
+  }
+}
