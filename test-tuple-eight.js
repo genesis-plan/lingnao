@@ -126,5 +126,42 @@ ck('LCF 内核全链闭合（含八元组定理 AX_TUPLE_FORMAL / THM_*）', kv.
 const ta = L.theoremOf('tuple');
 ck('八元组能力可追溯到定理支撑', ta.ok === true, ta.verdict);
 
+// —— G1 多智能体对抗 minimax 层 ——
+const adv = BT.adversarialValue('C', { horizon: 2 });
+ck('G1 adversarialValue：复用 V_robust 终值给出对手最坏情形到达度', adv.ok && adv.value >= 0 && adv.value <= 1 && ['robust','risky','unreachable'].includes(adv.classification), adv);
+const adv2 = BT.adversarialValue('C', { horizon: 1 });
+ck('G1 adversarialValue：视野=1 仍返回合法分类', adv2.ok && typeof adv2.classification === 'string', adv2);
+
+// —— 备用数学思想：应对真实世界不可预测的工具箱 ——
+// f-散度族（KL/TV/JS/Hellinger）
+const kl = L.fDivergence([0.5,0.5],[0.5,0.5],'KL');
+ck('备用 fDivergence KL：相同分布 ⇒ 0', kl.ok && kl.value === 0, kl);
+const tv = L.fDivergence([1,0],[0,1],'TV');
+ck('备用 fDivergence TV：互斥分布 ⇒ 1', tv.ok && Math.abs(tv.value - 1) < 1e-9, tv);
+const js = L.fDivergence([0.5,0.5],[0.9,0.1],'JS');
+ck('备用 fDivergence JS：不同分布 ⇒ >0', js.ok && js.value > 0, js);
+
+// 粗糙集上下近似（部分信息）
+const rs = L.roughSetApprox([['a','b'],['c'],['d','e']], ['a','c']);
+ck('备用 roughSet：部分覆盖触发边界（下近似仅 c / 上近似含 a,b / certainty≈1/3）', rs.ok && rs.lower.length === 1 && rs.upper.length === 2 && rs.boundary.length === 1 && Math.abs(rs.certainty - 1/3) < 1e-3, rs);
+
+// 可计算性/不可判定登记（诚实 UNKNOWN）
+const decHalt = L.decidabilityCheck('halting');
+ck('备用 decidability：停机问题不可判定 ⇒ 须诚实 UNKNOWN', decHalt.ok && decHalt.decidable === false && /UNKNOWN/.test(decHalt.directive), decHalt);
+const decUnk = L.decidabilityCheck('some-unregistered-class');
+ck('备用 decidability：未登记类也诚实 UNKNOWN（不猜）', decUnk.ok === false && decUnk.U === true, decUnk);
+
+// Lyapunov 最大指数（混沌/敏感）
+const lyap = L.lyapunovExponent((x) => [-0.5 * x[0], -0.5 * x[1]], [1, 1], 0.01, 300);
+ck('备用 lyapunovExponent：收缩流 λ<0 ⇒ CONTRACTIVE 可信', lyap.ok && lyap.lambda < 0 && lyap.sensitive === false, lyap);
+const lyapC = L.lyapunovExponent((x) => [x[0] * 0.1, x[1] * 2.0], [1, 1], 0.005, 300);
+ck('备用 lyapunovExponent：扩张流 λ>0 ⇒ CHAOTIC 敏感', lyapC.ok && lyapC.lambda > 0 && lyapC.sensitive === true, lyapC);
+
+// —— 能力证明链：新增备用数学能力可追溯 ——
+const taAdv = L.theoremOf('adversarial');
+ck('G1 对抗能力可追溯到 THM_MINIMAX_ADVERSARIAL', taAdv.ok === true, taAdv.verdict);
+const taMeta = L.theoremOf('metareason');
+ck('元推理能力可追溯到 THM_DECIDABILITY_AWARE', taMeta.ok === true, taMeta.verdict);
+
 console.log('\n八元组落地验收：' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail === 0 ? 0 : 1);

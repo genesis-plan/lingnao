@@ -137,4 +137,21 @@
 
 ---
 
+## 9. 本次落地（用户指令"落地 G1 + 把人类其他数学思想都补进去，作备用"）
+
+> 详见 `docs/HUMAN-MATH-INVENTORY.md`（人类数学总目录：已就位/已补/暂缓诚实清单）。
+
+**实装进 `灵脑.html`（均带定理钉进证明链 + 测试）**：
+1. **G1 多智能体对抗 minimax**：`BrainTuple.adversarialValue(goal, {horizon})` —— 零和双人可达性，智能体最大化最坏情形 / 对手最小化可达性，有界视野复用 `V_robust` 悲观终值；定理 `THM_MINIMAX_ADVERSARIAL`，能力 `adversarial/minimax`。
+2. **可计算性/不可判定（元推理）**：`decidabilityCheck(problemType)` —— 停机/FOL 等不可判定类登记，大脑遇之诚实 UNKNOWN；定理 `THM_DECIDABILITY_AWARE`，能力 `metareason/decidability`。
+3. **混沌/敏感性**：`lyapunovExponent(flow,x0,...)` —— 最大 Lyapunov 指数 λ>0 ⇒ 长视野预测失效；定理 `THM_LYAPUNOV_EXP_SENSITIVITY`，能力 `chaos/sensitivity`。
+4. **部分信息（粗糙集）**：`roughSetApprox(partition,set)` —— 下/上近似 + 边界区，部分可知诚实保留不可知；定理 `THM_ROUGHSET_BOUNDARY`，能力 `roughset`。
+5. **分布偏差（f-散度族）**：`fDivergence(P,Q,kind)` —— KL/TV/JS/Hellinger，Wasserstein 之外的宽分布变化检测；定理 `THM_FDIVERGENCE_FAMILY`，能力 `divergence/fdistance`。
+
+**验证全绿**：`node test-tuple-eight.js` → **47/47**（原 35 + 新 12 项）；`node lingnao-mcp.js --selftest` → **51/51** 未回归；`node build-umd.js` → 导出 **214**（新增 4 个备用原语 + BrainTuple 自带 adversarialValue）。
+
+**诚实边界（对"把人类所有数学补进去"的如实回应）**：字面嵌入全部数学不可能也不诚实。本内核做的是——(a) 把对"面对未知真实世界"真有用的思想/分支实装或接线；(b) 暂缓分支逐支标注理由（见总目录）；(c) 用 `decidabilityCheck` + 全局 UNKNOWN 反射保证大脑**超出自身工具箱时诚实报 UNKNOWN 并指向该数学分支**，绝不幻觉。这正是不幻觉地"让大脑自己面对真实去思考"。
+
+---
+
 *审计依据：灵脑.html 逐行取证（见各节行号）。与 MATH-FIRST-PRINCIPLES-AUDIT.md §5 落地状态互补：前者查「数学工具对不对」，本审计查「数学思想装没装 + 备用数学够不够」。*

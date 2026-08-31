@@ -75,6 +75,11 @@ const EXPORT_NAMES = [
   'galoisAlphaSet', 'galoisGammaContains', 'galoisCheck', // 审视②把 sound:true 从断言升级为 Galois 连接可验证性质
   'beliefPlausibility', 'decideImprecise', // 审视③𝕌 从布尔位升级为不精确概率区间 [belief, plausibility]
   'conservationCheck', // 物理正确性第二层：守恒律/Noether 不变量（沿流数值检验 dE/dt≈0）
+  // 备用数学思想（2026-08-31 落地）：应对真实世界不可预测的工具箱，带诚实 UNKNOWN 边界
+  'fDivergence',       // f-散度族（KL/TV/JS/Hellinger）：分布变化检测宽备用
+  'roughSetApprox',    // 粗糙集上下近似：部分信息/unknown-unknown 结构化
+  'decidabilityCheck', // 可计算性/不可判定登记：超出可判定范围须诚实 UNKNOWN
+  'lyapunovExponent',  // 最大 Lyapunov 指数：混沌/敏感 ⇒ 长视野预测失效判定
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象

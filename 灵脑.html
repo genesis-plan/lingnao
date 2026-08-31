@@ -4279,6 +4279,33 @@ MathKernel.theorem('THM_BUCKINGHAM_PI',
     proof: '量纲矩阵的零空间给出 π 群；齐次性 ⟹ 非法量纲运算可被拦截。',
     evidence: 'dimAdd 对不同量纲相加返回 null' });
 
+// —— 备用数学思想（应对真实世界不可预测：让大脑遇到未知领域诚实报 UNKNOWN 并指向对应数学分支）——
+MathKernel.theorem('THM_MINIMAX_ADVERSARIAL',
+  '零和双人可达性：智能体取 max_a min_d ρ(目标 | a,d)，有界视野下该递归是良定义的极小极大值；复用 V_robust 终值保证悲观侧仅 KERNEL 图边',
+  { by: 'DERIVE', from: ['THM_ASTAR_OPTIMAL', 'THM_BANACH_FP'], field: '博弈论/极小极大',
+    proof: '双人零和可达性是 min-max 定理在图上的特例；有界视野使递归在 |X|·horizon 步内终止（无环无限展开）；终值取 V_robust 的悲观 low 保证对手不借 PERCEPTION 幻觉转移得利。',
+    evidence: 'adversarialValue 复用 V_robust；对手最坏情形即 min 过候选后继，无额外未证假设' });
+MathKernel.theorem('THM_LYAPUNOV_EXP_SENSITIVITY',
+  '沿流两邻近轨迹分离率 λ = lim (1/T)·⟨ln d(t)/d₀⟩；λ>0 ⇒ 对初值敏感（混沌），长视野预测在 d 指数放大后失效',
+  { by: 'DERIVE', from: ['AX_CONTINUITY', 'THM_ODE_EXISTENCE'], field: '动力系统/混沌',
+    proof: '由流 φ_t 的微分（变分方程）得分离率等于最大 Lyapunov 指数；λ>0 时误差界指数增长，超出可信视野即应降级为 UNKNOWN。',
+    evidence: 'lyapunovExponent 数值估计；λ 符号直接驱动"是否还敢长视野预测"的诚实判定' });
+MathKernel.theorem('THM_DECIDABILITY_AWARE',
+  '对不可判定/半可判定问题类，大脑须显式返回 UNKNOWN 而非猜测（停机、FOL 蕴含等）；可判定但难解类（POMDP）须标注 intractable',
+  { by: 'DERIVE', from: ['AX_SET'], field: '可计算性/元推理',
+    proof: 'Church–Turing 停机不可判定、FOL 蕴含半可判定是元数学事实；诚实边界要求：凡超出自身可判定范围的查询，返回 UNKNOWN + 指向该数学分支，而非编造结论。',
+    evidence: 'decidabilityCheck 注册标准结果；execute/推理在遇到此类查询时据此降级' });
+MathKernel.theorem('THM_FDIVERGENCE_FAMILY',
+  'f-散度 D_f(P‖Q)=Σ f(P_i/Q_i)Q_i 统一 KL/Total-Variation/Jensen–Shannon/Hellinger；度量分布偏差，是 Wasserstein 漂移检测之外更宽的分布变化备用数学',
+  { by: 'DERIVE', from: ['AX_PROB', 'AX_REAL'], field: '信息论/统计',
+    proof: '取 f(t)=t log t 得 KL，f(t)=|t-1|/2 得 TV，f(t)=(√t-1)²/2 得 Hellinger 平方；均非负且在 P=Q 时为 0。',
+    evidence: 'fDivergence 实现四族；与 wasserstein1/driftCheck 互补构成分布变化检测矩阵' });
+MathKernel.theorem('THM_ROUGHSET_BOUNDARY',
+  '粗糙集：下近似（必属于 S 的等价类并集）与上近似（可能属于 S 的等价类并集）之差为边界区；边界非空 ⇒ 部分可知、诚实保留不可知',
+  { by: 'DERIVE', from: ['AX_SET'], field: '粗糙集/部分信息',
+    proof: '等价关系划分论域；下近似=全含于 S 的类，上近似=与 S 交非空的类；边界=上\下。certainty=|下|/|上|∈[0,1]。',
+    evidence: 'roughSetApprox 实现；给"unknown unknown"以结构化上下近似而非点估计' });
+
 // ════════════════════════════════════════════════════════════════════════
 // 第三层：猜想（有数值证据但**未证明** ⟹ 明确禁止进入证明链）
 // ════════════════════════════════════════════════════════════════════════
@@ -4326,7 +4353,16 @@ const CAPABILITY_THEOREMS = {
   'causal':         ['THM_DO_CALCULUS'],
   'ace':            ['THM_DO_CALCULUS'],
   'dimension':      ['THM_BUCKINGHAM_PI'],
-  'units':          ['THM_BUCKINGHAM_PI']
+  'units':          ['THM_BUCKINGHAM_PI'],
+  'adversarial':    ['THM_MINIMAX_ADVERSARIAL', 'THM_ASTAR_OPTIMAL'],
+  'minimax':        ['THM_MINIMAX_ADVERSARIAL'],
+  'metareason':     ['THM_DECIDABILITY_AWARE'],
+  'decidability':   ['THM_DECIDABILITY_AWARE'],
+  'divergence':     ['THM_FDIVERGENCE_FAMILY'],
+  'fdistance':      ['THM_FDIVERGENCE_FAMILY'],
+  'roughset':       ['THM_ROUGHSET_BOUNDARY'],
+  'chaos':          ['THM_LYAPUNOV_EXP_SENSITIVITY'],
+  'sensitivity':    ['THM_LYAPUNOV_EXP_SENSITIVITY']
 };
 function theoremOf(capability) {
   const ids = CAPABILITY_THEOREMS[capability];
@@ -4784,6 +4820,103 @@ function conservationCheck(flow, energyFn, x0, dt, steps) {
   return { ok: true, verdict: verdict, maxDriftRate: +maxDrift.toFixed(6), avgDriftRate: +avgDrift.toFixed(6), dt: dt, steps: steps,
     basis: 'Noether：连续对称 ⇔ 守恒量；沿流数值积分检验 dE/dt≈0（守恒律不变量，强化"物理正确性"超越量纲）',
     note: '无能量函数时调用方应直接返回 UNKNOWN（不编造守恒）；UNKNOWN 非断言，仅表示未给足前提' };
+}
+
+// ── 备用数学思想：应对真实世界不可预测的"工具箱"（诚实降级为 UNKNOWN，不幻觉编造）──
+// 设计原则：这些都是"备用"——平时不主动调用，但当大脑遇到未知/对抗/混沌/部分信息时按需取用，
+// 且每一件都带诚实边界（算不出就 UNKNOWN + 指向对应数学分支）。复用 THM_* 已登记定理。
+
+// f-散度族（KL / Total-Variation / Jensen–Shannon / Hellinger）——分布变化检测的宽备用（Wasserstein 之外）
+function fDivergence(P, Q, kind, opts) {
+  kind = kind || 'KL';
+  if (!Array.isArray(P) || !Array.isArray(Q) || P.length !== Q.length) return { ok: false, U: 'P/Q 须等长数组' };
+  const n = P.length;
+  let s = 0;
+  for (let i = 0; i < n; i++) {
+    const p = P[i], q = Q[i];
+    if (kind === 'KL') {
+      if (p > 0 && q <= 0) return { ok: true, kind: 'KL', value: Infinity, U: true, note: 'KL 在 q=0 且 p>0 时发散（分布支撑集不同）' };
+      if (p > 0 && q > 0) s += p * Math.log(p / q);
+    } else if (kind === 'TV') {
+      s += Math.abs(p - q);
+    } else if (kind === 'JS') {
+      const m = (p + q) / 2;
+      if (p > 0 && m > 0) s += 0.5 * p * Math.log(p / m);
+      if (q > 0 && m > 0) s += 0.5 * q * Math.log(q / m);
+    } else if (kind === 'Hellinger') {
+      s += (Math.sqrt(p) - Math.sqrt(q)) * (Math.sqrt(p) - Math.sqrt(q));
+    } else {
+      return { ok: false, U: '未知 f-散度类型：' + kind };
+    }
+  }
+  if (kind === 'TV') s = 0.5 * s;
+  if (kind === 'Hellinger') s = Math.sqrt(0.5 * s);
+  return { ok: true, kind: kind, value: +s.toFixed(6), U: false,
+    note: kind + ' 散度：分布偏差度量；与 wasserstein1/driftCheck 互补构成分布变化检测矩阵（THM_FDIVERGENCE_FAMILY）' };
+}
+
+// 粗糙集上下近似（部分信息/unknown-unknown 的结构化备用）
+function roughSetApprox(partition, set) {
+  if (!Array.isArray(partition) || !Array.isArray(set)) return { ok: false, U: '需 partition(等价类数组) 与 set(成员数组)' };
+  const inSet = new Set(set);
+  const lower = [], upper = [], boundary = [];
+  partition.forEach(function (cls) {
+    if (!Array.isArray(cls)) return;
+    const allIn = cls.every(function (x) { return inSet.has(x); });
+    const someIn = cls.some(function (x) { return inSet.has(x); });
+    if (allIn) lower.push(cls);
+    if (someIn) { upper.push(cls); if (!allIn) boundary.push(cls); }
+  });
+  const lowerCount = lower.reduce(function (a, c) { return a + c.length; }, 0);
+  const upperCount = upper.reduce(function (a, c) { return a + c.length; }, 0);
+  const certainty = upperCount > 0 ? +(lowerCount / upperCount).toFixed(4) : 1;
+  return { ok: true, lower: lower, upper: upper, boundary: boundary,
+    certainty: certainty, partial: boundary.length > 0,
+    note: '粗糙集下/上近似；边界非空 ⇒ 部分可知，诚实保留不可知区间（THM_ROUGHSET_BOUNDARY）' };
+}
+
+// 可计算性/不可判定登记（元推理备用：超出自身可判定范围须诚实 UNKNOWN）
+const DECIDABILITY = {
+  'halting':            { decidable: false, semi: false, note: '图灵停机问题不可判定（Church–Turing）' },
+  'fol-entailment':     { decidable: false, semi: true,  note: '一阶逻辑蕴含半可判定（正向可证则停，反例不保证停）' },
+  'presburger':         { decidable: true,  note: 'Presburger 算术（无乘法）可判定' },
+  'linear-arithmetic':  { decidable: true,  note: '线性实算术可判定' },
+  'graph-reachability': { decidable: true,  note: '图可达性可判定（BFS/DFS）' },
+  'pomdp-value':        { decidable: true, intractable: true, note: 'POMDP 值可判定但是 PSPACE-complete（指数难）' },
+  'context-free':       { decidable: true,  note: '上下文无关文法成员可判定' },
+  'first-order-unification': { decidable: true, note: '一阶合一可判定' },
+  'wang-tile':          { decidable: false, note: 'Wang 拼贴问题不可判定' },
+  'real-closed-geometry':   { decidable: true, note: 'Tarski 实闭域几何定理可判定' },
+  'metric-theorem':     { decidable: false, note: '一般一阶几何定理不可判定（仅特定簇可判定）' }
+};
+function decidabilityCheck(problemType, opts) {
+  const r = DECIDABILITY[problemType];
+  if (!r) return { ok: false, U: true, unknownType: problemType,
+    note: '未登记该问题的可判定性 ⟹ 大脑应诚实返回 UNKNOWN 并指向对应数学分支，而非猜测' };
+  return { ok: true, problemType: problemType, decidable: r.decidable, semiDecidable: !!r.semi,
+    intractable: !!r.intractable, directive: r.decidable ? (r.intractable ? '可计算但难解 ⇒ 标注 intractable 并尽力而为' : '可计算，尽量精确求解')
+      : '不可判定 ⇒ 必须诚实返回 UNKNOWN（不猜、不编造证明）',
+    note: r.note + '（THM_DECIDABILITY_AWARE）' };
+}
+
+// Lyapunov 最大指数估计（混沌/对初值敏感 ⇒ 长视野预测失效的备用判定）
+function lyapunovExponent(flow, x0, dt, steps, eps) {
+  if (typeof flow !== 'function' || !Array.isArray(x0)) return { ok: false, U: '需要 flow 与初始状态数组' };
+  dt = dt || 0.01; steps = steps || 200; eps = eps || 1e-6;
+  let x = x0.slice(), y = x0.slice(); y[0] += eps;
+  let d0 = eps, sumLog = 0, valid = 0;
+  for (let k = 0; k < steps; k++) {
+    const dx = flow(x), dy = flow(y);
+    for (let j = 0; j < x.length; j++) { x[j] += dt * (dx[j] || 0); y[j] += dt * (dy[j] || 0); }
+    let d = 0; for (let j = 0; j < x.length; j++) d += (x[j] - y[j]) * (x[j] - y[j]); d = Math.sqrt(d);
+    if (d > 0 && d0 > 0) { sumLog += Math.log(d / d0); valid++; }
+    d0 = d;
+  }
+  const lambda = valid > 0 ? sumLog / (valid * dt) : 0;
+  return { ok: true, lambda: +lambda.toFixed(6), sensitive: lambda > 0,
+    verdict: lambda > 0 ? 'CHAOTIC：对初值敏感，长视野预测失效（应降级为 UNKNOWN）'
+      : (lambda < 0 ? 'CONTRACTIVE：收敛，预测可信' : 'NEUTRAL：需结合其他判据'),
+    note: '最大 Lyapunov 指数 λ；λ>0 ⇒ 混沌/敏感，超出可信视野即诚实放弃长预测（THM_LYAPUNOV_EXP_SENSITIVITY）' };
 }
 
 const BODY = { name: null, caps: [], state: {}, hard: [], observation: null, dimensions: null };
@@ -5337,6 +5470,39 @@ const BrainTuple = {
       startKey: env[startKey] ? startKey : null,
       method: '区间 MDP 稳健可达性（悲观仅 KERNEL 图边 / 乐观含 PERCEPTION 学习f 预测）',
       note: '稳健可达(1,1) ⇒ 最坏不确定也达目标；风险可达(0,1) ⇒ 仅赖可能幻觉的转移，须保守/人机协同；不可达(0,0)' };
+  },
+  // —— adversarialValue：零和极小极大对抗可达性 [G1 多智能体对抗层] ——
+  // 第一性原理（minimax / 博弈论）：真实世界有其他会"使坏"的智能体。大脑不应只算自己最优，
+  // 而应算"对手最优破坏下我仍能保证的到达度"。有界视野双人递归：智能体最大化、对手最小化，终值取 V_robust 悲观 low
+  // （对手不借 PERCEPTION 幻觉转移得利）。复用 THM_MINIMAX_ADVERSARIAL。
+  adversarialValue(goal, opts) {
+    opts = opts || {};
+    if (!WORLD || !WORLD.nodes || !WORLD.nodes.length) return { ok: false, reason: '无世界图，对抗价值未定义' };
+    const horizon = Math.max(1, Math.min(opts.horizon || 1, 3));
+    const self = this;
+    const goalNode = (typeof goal === 'string') ? goal : null;
+    const goalFn = (typeof goal === 'function') ? goal : null;
+    const isGoal = function (s) { return (goalNode && s === goalNode) || (goalFn && goalFn(s)); };
+    const outs = {}; (WORLD.edges || []).forEach(function (e) { if (!outs[e.from]) outs[e.from] = []; outs[e.from].push(e.to); });
+    const term = function (s) { const r = self.V_robust(goal, { startKey: s }); const v = (r.ok && r.envelope[s]) ? r.envelope[s].low : 0; return v; };
+    const memo = {};
+    function rec(s, h, agentTurn) {
+      if (isGoal(s)) return 1;
+      if (h <= 0) return term(s);
+      const key = s + '#' + h + '#' + (agentTurn ? 1 : 0); if (memo[key] != null) return memo[key];
+      const next = outs[s] || [];
+      if (!next.length) return memo[key] = term(s);
+      let val;
+      if (agentTurn) { let best = 0; for (const nx of next) best = Math.max(best, rec(nx, h - 1, false)); val = best; }
+      else { let worst = 1; for (const nx of next) worst = Math.min(worst, rec(nx, h - 1, true)); val = worst; }
+      return memo[key] = val;
+    }
+    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : WORLD.nodes[0];
+    const value = rec(startKey, horizon, true);
+    const classify = function (v) { return v >= 1 ? 'robust' : (v > 0 ? 'risky' : 'unreachable'); };
+    return { ok: true, value: +value.toFixed(4), classification: classify(value), horizon: horizon,
+      method: '零和极小极大可达性（智能体最大化最坏情形 / 对手最小化可达性，有界视野复用 V_robust 终值）',
+      note: '价值=对手最优破坏下仍能保证的到达度；robust(1)抗最坏对手仍达，risky(0,1)须保守/人机协同，unreachable(0)' };
   },
   // —— physicsInvariant：物理正确性第二层（守恒律/Noether）[P0 另补的"别的数学思想"] ——
   // 量纲只挡单位错；守恒律挡物理定律错。给定 flow/energy 则数值检验 dE/dt≈0；否则诚实 UNKNOWN。
