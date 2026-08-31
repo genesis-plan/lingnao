@@ -238,8 +238,12 @@ theoremOf('lqg') → THM_LQG_SEPARATION + THM_KALMAN_MINVAR + THM_LQR_OPTIMAL
 - 脚本归整：所有 `test-*.js`/`selftest-umd.js` → `test/`；`demo-*/`/`brain-*/`/`gen-*/`/`*-demo.js`/`virtual-world.js`/`knowledge-distillery.js`/`audit-math-coverage.js`/`ima_lingnao_map.js` → `examples/`；同步修正 package.json `files`/`scripts` 与 README/AGENT-SETUP 引用路径（修复挪动后的相对引用，双测试复跑全绿）
 - 内核：无 debugger、无重复定义；深度死代码删除因紧邻发布风险高、扫描误报多，保留靠测试兜底
 
-### 发布（进行中，见下方各平台）
-- GitHub Release v1.0.0（tag 见仓库）
-- npm `lingnao-mcp@1.0.0`（UNLICENSED，非开源；免费面向 AI Agent 分发）
-- COS 在线试用页 `/lingnao/`（playground.html / lingnao-console.html）
-- 注册市场：mcp.so / Glama / PulseMCP 提交（mcp.json 已备）；Smithery 待 Key（用户未提供，暂未收录）
+### 发布（已落地）
+- **GitHub Release v1.0.0**：`api.github.com` 创建/更新，notes = RELEASE-NOTES-v1.0.0.md；tag `v1.0.0` 由旧 `b7d74e8` 迁移至当前 `e38caa4`（annotated，force-push 已上 remote），Release 现指向最新正式提交。URL：https://github.com/genesis-plan/lingnao/releases/tag/v1.0.0
+- **npm `lingnao-mcp@1.0.0`**：已 `npm publish`（UNLICENSED，非开源；免费面向 AI Agent 分发；18 文件、454 kB）。安装：`npx -y lingnao-mcp` / `npm i lingnao-mcp`
+- **COS 在线试用页 `/lingnao/`**（HTTP 200 实测）：
+  - https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html
+  - https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html
+  - 依赖 `lingnao.umd.js` / `lingnao-body-bridge.js` 已一并上传
+- **注册市场（MCP 目录）**：mcp.so / Glama / PulseMCP 需用户在本机登录其账号网页提交（无 API 自动收录通道，AI 无法代登）；`mcp.json` 已备，提交时填仓库 `genesis-plan/lingnao` 或包 `lingnao-mcp`。**Smithery 待 Key**——credentials.md 仍缺 Smithery API Key，未收录（用户补 Key 后可 `import from npm: lingnao-mcp` 或网页提交）
+- **诚实边界已随发布口径固化**：非开源（UNLICENSED）/ 不幻觉三档置信 / 8 类数学未实装 / 灵数为可选依赖，README·RELEASE·COS 页一致呈现
