@@ -84,7 +84,8 @@ const EXPORT_NAMES = [
   'localLinearize',    // 建模思想②：非线性系统局部线性化（雅可比）+ 近似有效半径
   'variableScreening', // 建模思想③：高维降维/变量筛选（对抗维数灾难，前 k 主成分方差解释比）
   'theoryPracticeLoop',// 科学方法思维：实际→理论→实际闭环（归纳/溯因→演绎预测→执行→回验；持续不符即 UNKNOWN）
-  'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
+  'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', 'verifyLedger', // 数学内核（LCF）：公理→定理→能力追溯→账本机检
+  'FIREWALL', 'liftToBelief', 'firewallCheck', 'firewallIsPerception', 'LingNaoThinking', // 架构脊柱②防火墙 + 次轴④思想索引
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象
   'BrainTuple',

@@ -187,6 +187,61 @@ function groundingMeta(){ return {
 }; }
 
 // ══════════════════════════════════════════════════════════════════════
+// 架构脊柱②：信任防火墙（CAPABILITY FIREWALL）
+// 第一性原理 P1：计算只有两类——可能错的(PERCEPTION) 与保证对的(KERNEL/PROOF)。
+// 二者必须物理隔离：PERCEPTION 值不得直连 KERNEL/PROOF，除非经 liftToBelief 提升为"信念"(D-S 包络)。
+// 这不是字符串标注 mayHallucinate:true 的君子协定，而是类型级拒绝：守卫在运行时抛错。
+const FIREWALL = {
+  REJECTED: 'FIREWALL_VIOLATION',
+  // PERCEPTION 判定：LLM 理解 / learned-f / 未确认感知写入 / 任何标 mayHallucinate 的值
+  isPerception(x) {
+    if (!x || typeof x !== 'object') return false;
+    if (x.mayHallucinate === true) return true;
+    if (x.grounding === GROUNDING.PERCEPTION || (x.grounding && x.grounding.tier === 'UNVERIFIED_LLM')) return true;
+    if (x._perception === true || x.kind === 'learned' || x.kind === 'perceived') return true;
+    return false;
+  },
+  // 类型级拒绝：在 KERNEL/PROOF 应使用确定值的位置，若混入 PERCEPTION 值则抛错
+  assert(x, where) {
+    if (this.isPerception(x)) {
+      throw new Error(this.REJECTED + ': PERCEPTION 值不得直连 KERNEL/PROOF @ ' + (where || '?') +
+        ' —— 须经 liftToBelief 提升为带 D-S 包络的信念');
+    }
+    return true;
+  },
+  // 决策证书守卫：扫描对外信任输出，禁止任何 PERCEPTION 值嵌入（防幻觉污染证明链）
+  assertDecision(decision, where) {
+    if (!decision || typeof decision !== 'object') return true;
+    for (const k of Object.keys(decision)) {
+      const v = decision[k];
+      if (this.isPerception(v)) {
+        throw new Error(this.REJECTED + ': 对外决策含 PERCEPTION 值 @ ' + (where || '?') + '.' + k +
+          ' —— 须经 liftToBelief 提升为信念，或降级为 UNKNOWN');
+      }
+    }
+    return true;
+  }
+};
+// 唯一合法通道：PERCEPTION → 信念（D-S 证据理论包络，记录不确定性，永不成公理）
+// confidence ∈ [0,1]：对"值成立"的信任质量；余量归入 UNKNOWN（无知管理，不猜）
+function liftToBelief(perception, opts) {
+  opts = opts || {};
+  // 已是 KERNEL/PROOF 确定值：不需提升，原样返回（已安全）
+  if (perception && perception.grounding && perception.grounding !== GROUNDING.PERCEPTION && !FIREWALL.isPerception(perception)) return perception;
+  const value = (perception && perception.value !== undefined) ? perception.value : perception;
+  const conf = (typeof opts.confidence === 'number' && !isNaN(opts.confidence))
+    ? Math.max(0, Math.min(1, opts.confidence)) : 0.5;
+  return {
+    kind: 'belief', _liftedFrom: 'PERCEPTION', mayHallucinate: true,
+    value: value, source: opts.source || (perception && perception.source) || 'perception',
+    // D-S 基本信任指派：m({value})=conf，m(UNKNOWN)=1-conf（绝不把无知当知识）
+    envelope: { mass_true: conf, mass_false: 0, mass_unknown: 1 - conf },
+    liftedAt: Date.now(),
+    note: 'PERCEPTION 经防火墙提升为信念：仅可作提议/候选，进决策须过 D-S 包络，永不成公理(铁律⑤)'
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
 function setWorld(json){
   validateWorld(json);
   // 仅当用户显式提供 coord 时才启用欧氏启发式；否则启发式恒为 0（退化为 Dijkstra），
@@ -4087,6 +4142,37 @@ const MathKernel = {
         : invalid.length + ' 条定理无效，证明链断裂' };
   },
 
+  // ── 证明账本（架构脊柱的机检：能力映射闭合 + 推导链闭合）──
+  // 这是 P3 的真义：CAPABILITY_THEOREMS 此前是手写字符串映射、加载期无校验，
+  // 证明链可静默漂移。本方法让「可审计」从注释君子协定变结构事实：
+  //   ① 推导链闭合：复用 verifyAll（含 COMPUTE 真跑 check）
+  //   ② 能力映射闭合：每个能力引用的定理 id 必须存在且非猜想（铁律③）
+  verifyLedger() {
+    const va = this.verifyAll();
+    const capBroken = [];
+    for (const cap of Object.keys(CAPABILITY_THEOREMS)) {
+      for (const tid of (CAPABILITY_THEOREMS[cap] || [])) {
+        if (this._conjectures[tid]) capBroken.push({ capability: cap, theorem: tid, error: '引用猜想（铁律③禁止进入证明链）' });
+        else if (!this._theorems[tid]) capBroken.push({ capability: cap, theorem: tid, error: '定理不存在或拼写错误' });
+      }
+    }
+    const ok = va.ok && capBroken.length === 0;
+    return {
+      ok: ok,
+      theorems: va.theorems, theoremsInvalid: va.invalid,
+      axioms: va.axioms, conjectures: va.conjectures, maxDepth: va.maxDepth,
+      capabilities: Object.keys(CAPABILITY_THEOREMS).length,
+      capabilityBroken: capBroken,
+      verdict: ok
+        ? '证明账本闭合：' + va.theorems + ' 条定理推导链闭合（最深 ' + va.maxDepth + '）+ ' + Object.keys(CAPABILITY_THEOREMS).length + ' 项能力映射闭合，均可审计'
+        : '证明账本断裂：' + (va.invalid.length ? va.invalid.length + ' 条定理无效；' : '') + capBroken.length + ' 项能力映射悬空'
+    };
+  },
+
+  // ── 信任防火墙（架构脊柱②）：PERCEPTION 不得直连 KERNEL/PROOF ──
+  firewall: FIREWALL,
+  liftToBelief(perception, opts) { return liftToBelief(perception, opts); },
+
   // ── 某条定理的数学根基（它到底建立在哪些公理上）──
   foundationOf(id) {
     const c = this.proofChain(id);
@@ -4488,6 +4574,33 @@ function proofAudit() {
       + ' 能力覆盖：' + withProof.length + '/' + caps.length
       + (withoutProof.length ? '（未覆盖：' + withoutProof.join(', ') + '）' : '') };
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// 架构次轴④：数学思想归组索引（LingNaoThinking）
+// 把"大脑会哪些思维方式"做成可发现索引：每种思想 → 内核原语 + grounding 档 + 背书定理。
+// 这是可发现性层（非脊柱），让真实世界遇到某类问题能快速定位该用的数学思想/原语。
+const LingNaoThinking = {
+  _meta: { desc: '灵脑数学思想索引：每种思维对应内核可审计原语与背书定理；超出 toolbox ⇒ UNKNOWN（诚实边界）', count: 0 },
+  induction:     { zh:'归纳',   primitives:['learn','SelfLearn'], tier:'PERCEPTION→KERNEL', theorems:['THM_BAYES_CONJUGACY'], note:'由经验反推规律；learned-f 仅进候选池，经 D-S 包络，永不成公理' },
+  contradiction: { zh:'反证',   primitives:['verify','proofChain'], tier:'PROOF', theorems:[], note:'假设结论假→推导矛盾→证原结论；由定理验证链机检' },
+  counterexample: { zh:'反例',  primitives:['conjecture','verify'], tier:'PROOF', theorems:[], note:'举反例 refute 猜想；猜想永不成定理(铁律③)' },
+  exhaustion:    { zh:'穷举',   primitives:['absint','reach','astar'], tier:'KERNEL', theorems:['THM_ABSINT_SOUND','THM_KLEENE','THM_ASTAR_OPTIMAL'], note:'抽象解释/可达性/搜索的完备枚举，fail-closed 不漏' },
+  limit:         { zh:'极限',   primitives:['value','chaos'], tier:'KERNEL', theorems:['THM_VALUE_ITER_CONVERGE','THM_LYAPUNOV_EXP_SENSITIVITY'], note:'值迭代收敛 + Lyapunov 敏感/混沌 ⇒ 长视野失效诚实判' },
+  modeling:      { zh:'建模',   primitives:['modeling','modelAssumptions','localLinearize','variableScreening'], tier:'KERNEL', theorems:['THM_MODEL_ASSUMPTION_AUDIT','THM_LOCAL_LINEARIZE','THM_DIMENSIONALITY_SCREEN'], note:'假设审计/局部线性化/降维；假设破 ⇒ UNKNOWN' },
+  loop:          { zh:'实践—理论—实践闭环', primitives:['loop','theoryPracticeLoop'], tier:'KERNEL', theorems:['THM_THEORY_PRACTICE_LOOP'], note:'实际→理论→实际，持续不符即 UNKNOWN' },
+  otherMind:     { zh:'他心',   primitives:['other-mind','registerAgent'], tier:'KERNEL', theorems:['THM_OTHER_MIND_BELIEF','THM_NESTED_BELIEF_KD45'], note:'KD45 嵌套信念 + 欺骗上界，可审计' },
+  adversarial:   { zh:'对抗鲁棒', primitives:['adversarial','minimax','cbf','safety'], tier:'KERNEL', theorems:['THM_MINIMAX_ADVERSARIAL','THM_CBF_INVARIANCE','THM_ZONOTOPE_SOUND'], note:'minimax/CBF/zonotope 不变集，安全 fail-closed' },
+  ignorance:     { zh:'无知管理', primitives:['conformal','cvar','roughset','divergence','metareason','chaos'], tier:'KERNEL', theorems:['THM_CONFORMAL_COVERAGE','THM_CVAR_COHERENT','THM_ROUGHSET_BOUNDARY','THM_FDIVERGENCE_FAMILY','THM_DECIDABILITY_AWARE','THM_LYAPUNOV_EXP_SENSITIVITY'], note:'知道自己不知道：保形/CoVaR/粗糙集/f散度/可判定/混沌，统一 UNKNOWN 降级' },
+  physics:       { zh:'物理',   primitives:['dimension','units','value'], tier:'KERNEL', theorems:['THM_BUCKINGHAM_PI','THM_ROBUST_REACH'], note:'量纲分析(Buckingham π)/不变集守恒' }
+};
+LingNaoThinking._meta.count = Object.keys(LingNaoThinking).filter(function (k) { return k !== '_meta'; }).length;
+
+// 证明账本便捷入口（架构脊柱机检；能力映射闭合 + 推导链闭合；断裂即内核不应启动）
+function verifyLedger() { return MathKernel.verifyLedger(); }
+
+// 信任防火墙便捷入口（架构脊柱②；PERCEPTION → 信念的唯一合法通道 + 类型级拒绝守卫）
+function firewallCheck(x, where) { return FIREWALL.assert(x, where); }
+function firewallIsPerception(x) { return FIREWALL.isPerception(x); }
 
 // 内核便捷入口（供 MCP / 控制台 / 第三方复核调用）
 function kernelVerify() { return MathKernel.verifyAll(); }
@@ -5945,6 +6058,36 @@ CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE', 'THM_ROBUST_REACH'];
 CAPABILITY_THEOREMS['other-mind'] = ['THM_OTHER_MIND_BELIEF', 'THM_NESTED_BELIEF_KD45'];
 CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REACH'];
 
+// ══ 架构不变量·证明账本机检（启动自检，断裂则内核拒绝启动）══
+// 使「可审计」从注释君子协定变物理铁律：能力映射闭合 + 推导链闭合，否则 kernel 不应跑。
+(function bootVerifyLedger() {
+  var _led = MathKernel.verifyLedger();
+  MathKernel.ledger = _led;
+  if (!_led.ok) {
+    throw new Error('PROOF_LEDGER_BROKEN: ' + JSON.stringify({ theoremsInvalid: _led.theoremsInvalid, capBroken: _led.capabilityBroken }));
+  }
+})();
+
+// ══ 架构不变量·信任防火墙机检（启动自检，守卫须真能拦截 PERCEPTION）══
+(function bootFirewall() {
+  var threw = false;
+  try { FIREWALL.assert({ mayHallucinate: true }, 'boot-perception-test'); } catch (e) { threw = true; }
+  if (!threw) throw new Error('FIREWALL_BROKEN: 守卫未能拦截 PERCEPTION 值（脊柱失效）');
+  FIREWALL.assert({ kind: 'graph-edge' }, 'boot-kernel-test'); // KERNEL 值须放行（不抛）
+  MathKernel.firewall = { ok: true, verdict: '信任防火墙激活：PERCEPTION 值类型级拒绝直连 KERNEL/PROOF；唯一合法通道 = liftToBelief(D-S 包络)' };
+})();
+
+// ══ 架构不变量·八元组 typed state（决策只读、学习只写候选池；BrainTuple 为形态学载体）══
+(function bootEightTuple() {
+  if (typeof BrainTuple !== 'undefined') {
+    MathKernel.state = BrainTuple;
+    MathKernel.eightTuple = function () { return BrainTuple; };
+  }
+})();
+
+// ══ 架构不变量·数学思想索引（可发现性；LingNaoThinking）══
+MathKernel.thinking = LingNaoThinking;
+
 // ==KERNEL END==
 
 // 导出供 MCP / Node 校验复用
@@ -5983,6 +6126,7 @@ if(typeof globalThis!=='undefined'){
     absVerdict, galoisAlphaSet, galoisGammaContains, galoisCheck,
     beliefPlausibility, decideImprecise,
     MathKernel, CAPABILITY_THEOREMS, theoremOf, proofAudit, kernelVerify, kernelStatus,
+    FIREWALL, liftToBelief, firewallCheck, firewallIsPerception, LingNaoThinking,
     kernelFoundation, kernelProve, kernelConjectures,
     // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）
     BrainTuple};

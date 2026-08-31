@@ -168,7 +168,8 @@ var _SAFETY_STACK = ['STL', 'stlHorizon', 'stlRobustness', 'stlMonitor',
   'shapleyValues', 'wasserstein1', 'driftCheck',
   'absVerdict', 'galoisAlphaSet', 'galoisGammaContains', 'galoisCheck',
   'beliefPlausibility', 'decideImprecise',
-  'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit',
+  'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', 'verifyLedger',
+  'FIREWALL', 'liftToBelief', 'firewallCheck', 'firewallIsPerception', 'LingNaoThinking',
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures'];
 vm.runInContext(
   _SAFETY_STACK.map(function (n) { return 'globalThis.__exp.' + n + ' = ' + n + ';'; }).join(''),
@@ -1137,6 +1138,14 @@ function selftest() {
   const T = (name, cond, extra) => (cond ? ok : bad).push(name + (extra ? ' :: ' + extra : ''));
   try {
     T('world_info', worldInfo().nodes.length === 4);
+    const led = K.MathKernel.verifyLedger();
+    T('proof_ledger', led.ok === true, led.verdict);
+    // 架构脊柱②：信任防火墙——PERCEPTION 被拦、KERNEL 放行；liftToBelief 产出信念
+    T('firewall_reject', (function () { try { K.firewallCheck({ mayHallucinate: true }, 'st'); return false; } catch (e) { return /FIREWALL/.test(e.message); } })());
+    T('firewall_allow', K.firewallCheck({ kind: 'graph-edge' }, 'st') === true);
+    T('lift_belief', !!(K.liftToBelief && K.liftToBelief({ value: 1, source: 'x' }, {}).kind === 'belief'));
+    // 架构次轴④：数学思想索引可发现
+    T('thinking_index', !!(K.LingNaoThinking && K.LingNaoThinking.ignorance && K.LingNaoThinking.ignorance.theorems.length > 0));
     const r1 = reasonLogic('CHARGE', 'C', [], []);
     T('reason-optimal', r1.status === 'optimal' && r1.path[0] === 'CHARGE' && r1.path[r1.path.length - 1] === 'C' && Math.abs(r1.cost - 7.242641) < 1e-3, 'cost=' + r1.cost);
     T('reason-system2-rsg', r1.usedSystem === '2' && r1.rsg && r1.rsg.branchCount > 0, 'rsg=' + JSON.stringify(r1.rsg));

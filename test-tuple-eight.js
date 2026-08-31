@@ -213,5 +213,9 @@ ck('闭环：理论连续预测不符实际 ⟹ 诚实 fit UNKNOWN（不以外�
 const taLoop = L.theoremOf('loop');
 ck('实践理论闭环能力可追溯到 THM_THEORY_PRACTICE_LOOP', taLoop.ok === true && taLoop.theorems.indexOf('THM_THEORY_PRACTICE_LOOP') >= 0, taLoop.verdict);
 
+// —— 架构脊柱·证明账本机检（P3 真义：能力映射闭合 + 推导链闭合，否则内核不应启动）——
+const led = L.MathKernel.verifyLedger();
+ck('架构脊柱：证明账本闭合（推导链 + 能力映射均可审计，断裂则内核拒绝启动）', led.ok === true, led.verdict);
+
 console.log('\n八元组落地验收：' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail === 0 ? 0 : 1);
