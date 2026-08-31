@@ -146,6 +146,7 @@ node lingnao-body-sim-server.js          # 终端1：起仿真真身体（默认
 ## 架构（摘要）
 
 形式化七元组 $\mathbb{B}=(\mathbb{W},K,\Phi,\Psi,\Theta,\Lambda,\Xi)$，八层：感知 $\Phi$ / 学习 $\Psi$ / 知识库 $K$ / 推理 $\Theta$ / 因果 $\Lambda$ / 演化 / 审计 $\Xi$ / 统一。
+八元组数学形态 $\mathbb{B}=(X,h,b,f,U,V,Inv,M)$ 已落地为内核可审计对象 `BrainTuple`（2026-08-31；h/U/V/M 原缺位项已建模，M 诚实标注为信念级），见 [docs/TUPLE-REEXAMINATION.md](./docs/TUPLE-REEXAMINATION.md) §8。
 详见 [ARCHITECTURE.md](./ARCHITECTURE.md)。
 
 核心定理（可证）：有限世界图 + 可采纳欧氏启发式下，A\* **完备且最优**——要么返回最优路径，要么诚实标 $\mathbb{U}$。

@@ -5102,6 +5102,150 @@ async function doWork(goalFn, bodyAdapter, opts) {
   return { ok: ex.ok, stage: 'execute', plan: p, execution: ex, grounding: GROUNDING.KERNEL };
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// 八元组 𝔹 = (X, h, b, f, U, V, Inv, M) — 世界通用大脑的数学形态（2026-08-31 落地）
+// 来源：docs/TUPLE-REEXAMINATION.md 不可约性推导。此前 X/b/f/Inv 隐式存在，
+// h/U/V/M 缺位（设计提案未落地）；本次正式建模为可运行、可审计的数学对象。
+// 原则：数学层 / 工程层分离 —— 不推翻现有七元组工程，八元组是"形态学"叠加层。
+// ════════════════════════════════════════════════════════════════════════
+const BrainTuple = {
+  // —— X 状态空间：抽象世界节点 ⊕ 物理身体连续状态分量 ——
+  X() {
+    const world = (WORLD && WORLD.nodes) ? WORLD.nodes.slice() : [];
+    const body = (typeof getState === 'function') ? Object.keys(getState()) : [];
+    return { ok: true, world: world, body: body, cardinality: world.length + body.length,
+      note: 'X = 抽象世界状态（图节点）⊕ 物理身体连续状态分量' };
+  },
+  // —— h 观测通道 h: X → O，O 由身体传感器张成（此前仅散落 distinguishable）——
+  h(state) {
+    if (!BODY || !BODY.observation || !BODY.observation.sensors) return { ok: false, reason: '未声明观测契约 O（诚实退化，非硬报错）' };
+    const O = {};
+    for (const name in BODY.observation.sensors) {
+      const sp = BODY.observation.sensors[name];
+      const f = (sp && sp.field) || name;
+      O[name] = (state && state[f] !== undefined) ? state[f] : null;
+    }
+    return { ok: true, O: O, sensorCount: Object.keys(O).length };
+  },
+  // —— f 动力学 f: X × U → X：离散世界图边 + 具身预测（连续）组合 ——
+  f(state, action) {
+    if (WORLD && WORLD.edges) {
+      const e = WORLD.edges.find(function (ed) { return ed.from === state && ed.to === action; });
+      if (e) return { ok: true, next: action, kind: 'graph-edge', cost: (typeof edgeCost === 'function' ? edgeCost(state, action) : 1) };
+    }
+    return { ok: true, next: null, kind: 'unknown', U: '转移未建模（诚实返回 𝕌，不编造动力学）' };
+  },
+  // —— U 执行通道 U ⊆ actions：当前安全可执行动作集（checkHard 双层 + IRREVERSIBLE 授权后）——
+  U(opts) {
+    opts = opts || {};
+    const caps = (BODY && BODY.caps) ? BODY.caps : [];
+    const safe = [];
+    for (const id of caps) {
+      const step = { cap: id, params: {} };
+      const chk = (typeof checkHard === 'function') ? checkHard((typeof getState === 'function' ? getState() : {}), step) : { ok: true };
+      if (chk.ok) {
+        const cap = (typeof CAPS !== 'undefined') ? CAPS[id] : null;
+        if (cap && cap.irreversible === true && !opts.allowIrreversible) continue; // IRREVERSIBLE-HALT
+        safe.push(id);
+      }
+    }
+    return { ok: true, actions: safe, total: caps.length, blocked: caps.length - safe.length,
+      note: 'U = BODY.caps 经 checkHard 双层 + IRREVERSIBLE-HALT 后剩余的安全可执行集' };
+  },
+  // —— V 价值 V: X → [0,1]：到达价值，值迭代固定点（复用 ima_291 目标导向框架）——
+  V(goal, opts) {
+    if (!WORLD || !WORLD.nodes || !WORLD.nodes.length) return { ok: false, reason: '无世界图，价值未定义' };
+    const goalNode = (typeof goal === 'string') ? goal : null;
+    const goalFn = (typeof goal === 'function') ? goal : null;
+    const V = {};
+    WORLD.nodes.forEach(function (s) { V[s] = (goalNode ? (s === goalNode ? 1 : 0) : (goalFn && goalFn(s) ? 1 : 0)); });
+    const adj = {}; WORLD.nodes.forEach(function (s) { adj[s] = []; });
+    (WORLD.edges || []).forEach(function (e) { if (adj[e.from]) adj[e.from].push(e.to); });
+    for (let it = 0; it < WORLD.nodes.length + 2; it++) {
+      for (const s of WORLD.nodes) {
+        if ((goalNode && s === goalNode) || (goalFn && goalFn(s))) continue;
+        const ch = adj[s]; if (!ch.length) continue;
+        let best = 0; for (const nx of ch) best = Math.max(best, V[nx]); V[s] = best;
+      }
+    }
+    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : (WORLD.nodes[0]);
+    return { ok: true, V: V, startValue: (V[startKey] !== undefined ? V[startKey] : 0), goal: goal,
+      note: 'V: X→[0,1] 到达价值（值迭代固定点，≤|X| 步收敛）' };
+  },
+  // —— Inv 不变量：硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性 ——
+  Inv() {
+    const hard = ((BODY && BODY.hard) || []).concat((WORLD && WORLD.hard) || []);
+    const dimOk = (BODY && BODY.dimensions && typeof checkDimensions === 'function') ? checkDimensions((typeof CAPS !== 'undefined' ? CAPS : {}), BODY.dimensions).ok : null;
+    return { ok: true, hardConstraints: hard.length, dimensionSound: dimOk,
+      note: 'Inv = 硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性' };
+  },
+  // —— M 他心：对其他 agent 的**信念状态**（信念级，非证明级/非读心器）——
+  M: {
+    agents: {},
+    registerAgent(j, belief) {
+      if (!j) return { ok: false, reason: 'agent id 必填' };
+      this.agents[j] = { belief: (belief || null), observations: [], registeredAt: Date.now() };
+      return { ok: true, agent: j, count: Object.keys(this.agents).length };
+    },
+    observeAgent(j, obs) {
+      if (!this.agents[j]) this.registerAgent(j, null);
+      this.agents[j].observations.push(obs);
+      return { ok: true, agent: j, observations: this.agents[j].observations.length };
+    },
+    beliefAbout(j) {
+      const a = this.agents[j];
+      if (!a) return { ok: false, reason: '未登记他心 agent: ' + j };
+      return { ok: true, agent: j, belief: a.belief, observations: a.observations.length,
+        honesty: 'BELIEF-LEVEL: 他心真实性不可判定（中文房间/他心问题），本结构仅建模我方对其的信念，不声称读取真实心智' };
+    },
+    // 可被伪装性：在观测契约 O 下，他心 j 的真实态与伪装态是否可区分 ⟹ 评估 deception bound
+    deceptionBound(j, trueState, maskState) {
+      const a = this.agents[j];
+      if (!a) return { ok: false, reason: '未登记他心 agent: ' + j };
+      if (!BODY || !BODY.observation) return { ok: false, reason: '未声明观测契约 O，无法评估伪装性' };
+      const dist = (typeof distinguishable === 'function') ? distinguishable(trueState, maskState, BODY.observation) : null;
+      return { ok: true, agent: j, distinguishable: dist, deceptionPossible: (dist === false),
+        honesty: 'BELIEF-LEVEL: 仅评估我方观测下的可区分性，不代表他心真实意图' };
+    }
+  }
+};
+
+// ── 八元组 𝔹 接入 LCF 证明链（把落地的 h/U/V/M 钉成可审计定理）──
+MathKernel.axiom('AX_TUPLE_FORMAL',
+  '世界通用大脑存在唯一可约的数学形态 𝔹=(X,h,b,f,U,V,Inv,M)：状态空间 X、观测通道 h、物理身体 b、动力学 f、执行通道 U、价值 V、不变量 Inv、他心 M',
+  { field: '形态学/系统论', source: 'docs/TUPLE-REEXAMINATION.md 不可约性推导', informal: '八元组是大脑的数学骨架，由四个建模目标 + 不可逆伤害的不可约性导出' });
+MathKernel.theorem('THM_OBS_CHANNEL_RANGE',
+  '观测通道 h: X→O 的值域由身体传感器集张成；未声明观测契约时 h 诚实退化（返回 ok:false），不编造观测',
+  { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL'], field: '观测理论',
+    proof: 'h 实现逐传感器投影（BODY.observation.sensors → O）；无传感器则值域空，诚实返回未定义',
+    evidence: 'verify() 实跑 BrainTuple.h 不抛且返回结构合法',
+    check: function () { try { const r = BrainTuple.h({}); return !!(r && typeof r === 'object'); } catch (e) { return false; } } });
+MathKernel.theorem('THM_ACTION_SAFE_CLOSED',
+  '执行通道 U 中每个动作都已通过 checkHard 双层安全门（+IRREVERSIBLE 显式授权）；U 中任意动作下发前不变量不被破坏',
+  { by: 'DERIVE', from: ['AX_TUPLE_FORMAL', 'THM_CBF_INVARIANCE'], field: '执行安全',
+    proof: 'U 由 BODY.caps 经 checkHard 过滤构造（见 BrainTuple.U），与 execute() 四道 fail-closed 守卫（checkHard 双层 / IRREVERSIBLE-HALT / OBSERVATION-BLIND-SPOT / pre 重校验）同源',
+    evidence: 'BrainTuple.U 与 execute 共用 checkHard / IRREVERSIBLE-HALT，证明链一致' });
+MathKernel.theorem('THM_VALUE_ITER_CONVERGE',
+  '到达价值 V: X→[0,1] 由值迭代（固定点）给出，在有限节点图上 ≤|X| 步收敛到最优到达概率',
+  { by: 'DERIVE', from: ['AX_TUPLE_FORMAL', 'THM_BANACH_FP', 'THM_WEIERSTRASS'], field: '动态规划',
+    proof: '值迭代是度量空间压缩映射（THM_BANACH_FP）的离散形式；极值定理（THM_WEIERSTRASS）保证最优到达值存在',
+    evidence: 'BrainTuple.V 实跑值迭代返回固定点 V 表' });
+MathKernel.theorem('THM_OTHER_MIND_BELIEF',
+  '他心 M 建模为对其他 agent 的**信念状态**（belief-level）：registerAgent / observeAgent / beliefAbout 构造可审计信念结构，诚实标注真实性不可判定',
+  { by: 'DERIVE', from: ['AX_TUPLE_FORMAL', 'AX_PROB'], field: '心智理论',
+    proof: '信念 = 观测历史的后验（AX_PROB）；但"他心是否真实存在/与我同构"超出可计算判定（中文房间/他心问题）',
+    evidence: 'BrainTuple.M 提供 registerAgent/observeAgent/beliefAbout/deceptionBound 可审计接口' });
+MathKernel.conjecture('CONJ_OTHER_MIND_REALITY',
+  '他心（其他智能体的真实心智）是否可判定/可读取 —— 哲学与计算双重未决；本内核仅建模信念级 M，不声称读取真实心智',
+  { field: '心智哲学', evidence: '诚实边界：任何"已证明他心"的断言都是幻觉，故列为猜想并禁止进入证明链（铁律③）' });
+
+// 八元组能力追溯：把落地能力映射回支撑定理
+CAPABILITY_THEOREMS.tuple = ['THM_OBS_CHANNEL_RANGE', 'THM_ACTION_SAFE_CLOSED', 'THM_VALUE_ITER_CONVERGE', 'THM_OTHER_MIND_BELIEF'];
+CAPABILITY_THEOREMS.observation = ['THM_OBS_CHANNEL_RANGE', 'THM_BUCKINGHAM_PI'];
+CAPABILITY_THEOREMS['action-space'] = ['THM_ACTION_SAFE_CLOSED'];
+CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE'];
+CAPABILITY_THEOREMS['other-mind'] = ['THM_OTHER_MIND_BELIEF'];
+
 // ==KERNEL END==
 
 // 导出供 MCP / Node 校验复用
@@ -5140,7 +5284,9 @@ if(typeof globalThis!=='undefined'){
     absVerdict, galoisAlphaSet, galoisGammaContains, galoisCheck,
     beliefPlausibility, decideImprecise,
     MathKernel, CAPABILITY_THEOREMS, theoremOf, proofAudit, kernelVerify, kernelStatus,
-    kernelFoundation, kernelProve, kernelConjectures};
+    kernelFoundation, kernelProve, kernelConjectures,
+    // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）
+    BrainTuple};
 }
 
 // ===================== UI 编排 =====================

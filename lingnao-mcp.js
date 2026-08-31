@@ -176,6 +176,11 @@ vm.runInContext(
 );
 _SAFETY_STACK.forEach(function (n) { K[n] = sandbox.__exp[n]; });
 
+// 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：
+// 与 build-umd.js 的 EXPORT_NAMES、灵脑.html 的 globalThis.__WB 对齐，内核新增 BrainTuple 在此追加导出
+vm.runInContext('globalThis.__exp.BrainTuple = BrainTuple;', ctx);
+K.BrainTuple = sandbox.__exp.BrainTuple;
+
 // ---------- 2. 编排工具（纯函数，复用内核，不依赖 DOM） ----------
 function worldInfo() {
   return { nodes: K.WORLD.nodes, edgeCount: K.WORLD.edges.length, edges: K.WORLD.edges, coord: K.WORLD.coord };

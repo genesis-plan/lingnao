@@ -75,7 +75,9 @@ const EXPORT_NAMES = [
   'galoisAlphaSet', 'galoisGammaContains', 'galoisCheck', // 审视②把 sound:true 从断言升级为 Galois 连接可验证性质
   'beliefPlausibility', 'decideImprecise', // 审视③𝕌 从布尔位升级为不精确概率区间 [belief, plausibility]
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', // 数学内核（LCF）：公理→定理→能力追溯
-  'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures'
+  'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
+  // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象
+  'BrainTuple'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';
