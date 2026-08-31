@@ -141,19 +141,29 @@ const imaKnowledge = {
 function loadIMAKB(arr, opts){ return imaKnowledge.load(arr, opts); }
 
 // 默认世界图（智能灭蚊器场景）——文档 MVP 演示场景；边带 p=转移概率（默认1，确定性）
-let WORLD = {
-  nodes:['CHARGE','A','B','C'],
-  edges:[
-    {from:'CHARGE',to:'A',w:Math.hypot(3,0),p:1}, {from:'A',to:'CHARGE',w:Math.hypot(3,0),p:1},
-    {from:'A',to:'B',w:Math.hypot(3,3),p:1}, {from:'B',to:'A',w:Math.hypot(3,3),p:1},
-    {from:'B',to:'C',w:Math.hypot(3,0),p:1}, {from:'C',to:'B',w:Math.hypot(3,0),p:1},
-    {from:'CHARGE',to:'B',w:Math.hypot(3,3),p:1}, {from:'B',to:'CHARGE',w:Math.hypot(3,3),p:1},
-    {from:'A',to:'C',w:Math.hypot(3,3),p:1}, {from:'C',to:'A',w:Math.hypot(3,3),p:1}
-  ],
-  coord:{CHARGE:[0,0], A:[3,0], B:[3,3], C:[6,0]},
-  // 来源存证（神经②）：只记录"大脑自己感知进来"的节点/边，其中未经验证的部分绝不混入证明链
-  _prov:{node:{}, edge:{}}
+// ══ 去全局化：单一状态真相源（八元组 𝔹 承载世界图 𝕎 与具身态 B）══
+// 所有状态访问须经 getWorld()/getBody() 访问器；写入口收敛到 setWorldState()/setBodyState()。
+// 禁止裸全局变量 WORLD/BODY——消除隐式全局可变状态依赖，状态集中、可审计、可注入（测试可 setWorldState(mock)）。
+const _STATE = {
+  world: {
+    nodes:['CHARGE','A','B','C'],
+    edges:[
+      {from:'CHARGE',to:'A',w:Math.hypot(3,0),p:1}, {from:'A',to:'CHARGE',w:Math.hypot(3,0),p:1},
+      {from:'A',to:'B',w:Math.hypot(3,3),p:1}, {from:'B',to:'A',w:Math.hypot(3,3),p:1},
+      {from:'B',to:'C',w:Math.hypot(3,0),p:1}, {from:'C',to:'B',w:Math.hypot(3,0),p:1},
+      {from:'CHARGE',to:'B',w:Math.hypot(3,3),p:1}, {from:'B',to:'CHARGE',w:Math.hypot(3,3),p:1},
+      {from:'A',to:'C',w:Math.hypot(3,3),p:1}, {from:'C',to:'A',w:Math.hypot(3,3),p:1}
+    ],
+    coord:{CHARGE:[0,0], A:[3,0], B:[3,3], C:[6,0]},
+    // 来源存证（神经②）：只记录"大脑自己感知进来"的节点/边，其中未经验证的部分绝不混入证明链
+    _prov:{node:{}, edge:{}}
+  },
+  body: { name: null, caps: [], state: {}, hard: [], observation: null, dimensions: null }
 };
+function getWorld(){ return _STATE.world; }
+function getBody(){ return _STATE.body; }
+function setWorldState(w){ _STATE.world = w; }
+function setBodyState(b){ _STATE.body = b; }
 
 // ⑦ 世界图外部可定义（文档：状态建模可配置）——灭蚊器仅为默认场景，非硬编码绑定
 // 安全：世界图校验（防越界 / 畸形输入进入确定性内核；资源上限防耗尽）
@@ -224,7 +234,7 @@ const FIREWALL = {
   // 图级渗漏扫描：确定性规划入口(KERNEL)消费世界图前，检测是否混入 PERCEPTION 感知边。
   // 不盲目拒(保持 perceive→plan 功能)，但如实登记污染并触发 grounding 降级——让"不幻觉"从话术变物理事实。
   scanGraph(edges) {
-    const list = edges || (typeof WORLD !== 'undefined' && WORLD.edges) || [];
+    const list = edges || (getWorld().edges) || [];
     let perceivedEdges = 0, perceivedNodes = 0;
     for (const e of list) {
       if (e && (e.perceived === true || (e.grounding && e.grounding.tier === 'UNVERIFIED_LLM'))) perceivedEdges++;
@@ -259,13 +269,13 @@ function setWorld(json){
   const explicit = !!(json.coord && typeof json.coord === 'object' && Object.keys(json.coord).length);
   const coord = json.coord || {};
   if(explicit) json.nodes.forEach(n=>{ if(!coord[n]) coord[n]=[0,0]; });
-  WORLD.nodes = json.nodes; WORLD.edges = json.edges; WORLD.coord = coord; WORLD._coordExplicit = explicit;
+  getWorld().nodes = json.nodes; getWorld().edges = json.edges; getWorld().coord = coord; getWorld()._coordExplicit = explicit;
 }
 
 // 可采纳启发式：欧氏距离（≤真实代价，保证 A* 最优）——文档附录B建议
 function heuristic(a,b){
-  if(!WORLD._coordExplicit) return 0; // 未显式给坐标 → 无启发式，退化为 Dijkstra（保证最优）
-  const ca=WORLD.coord[a], cb=WORLD.coord[b];
+  if(!getWorld()._coordExplicit) return 0; // 未显式给坐标 → 无启发式，退化为 Dijkstra（保证最优）
+  const ca=getWorld().coord[a], cb=getWorld().coord[b];
   if(!ca||!cb) return 0;
   return Math.hypot(ca[0]-cb[0], ca[1]-cb[1]);
 }
@@ -321,7 +331,7 @@ function learnedEdgePenalty(a, b){
   return +Math.min(_LEARN.penaltyScale, _LEARN.penaltyScale * (1 - sr)).toFixed(6);
 }
 function edgeW(e){ return e.w + (_SOFT.has(e.to)? _SOFT_PENALTY : 0) + (_LEARN.enabled ? learnedEdgePenalty(e.from, e.to) : 0); }
-function edgeCost(a,b){ const e=WORLD.edges.find(e=>e.from===a&&e.to===b); return e? edgeW(e):0; }
+function edgeCost(a,b){ const e=getWorld().edges.find(e=>e.from===a&&e.to===b); return e? edgeW(e):0; }
 // 学习回流②：累积被验证为最优的历史路径，供 heuristicEvolve 反向传播剩余代价（Pearl 定理：可采纳且更强）。
 let PLAN_HISTORY = [];
 function recordPlanHistory(p, goal, optimal){ if (Array.isArray(p) && p.length >= 2) PLAN_HISTORY.push({ path: p.slice(), goal: goal, optimal: optimal !== false }); }
@@ -340,12 +350,12 @@ function verifyHeuristicConsistency(goal){
   const h = _ACTIVE_H || heuristic;
   const eps = 1e-9; const viol = [];
   if(h(goal, goal) !== 0) viol.push('h(goal)≠0');
-  for(const e of WORLD.edges){
+  for(const e of getWorld().edges){
     const lhs = h(e.from, goal);
     const rhs = edgeW(e) + h(e.to, goal);
     if(lhs > rhs + eps) viol.push(e.from + '→' + e.to + '（' + lhs.toFixed(3) + '>' + rhs.toFixed(3) + '）');
   }
-  const _sc = FIREWALL.scanGraph(WORLD.edges);
+  const _sc = FIREWALL.scanGraph(getWorld().edges);
   return { consistent: viol.length === 0, violations: viol,
     basis: '一致启发式 = 三角不等式 h(n)≤c(n,n\')+h(n\')；一致 ⟹ A* 最优由定理保证，非断言' + (_sc.contaminated ? '；图含 PERCEPTION 感知边，最优性仅对确定边成立，含感知边路径须诚实降级' : '') };
 }
@@ -370,18 +380,18 @@ function aStar(start, goal, opts={}){
   _SOFT = new Set(opts.soft||[]);
   // 架构脊柱②逐点 enforcement：确定性 A* 消费世界图前，先扫 PERCEPTION 感知边(可能幻觉)。
   // 登记到防火墙审计；若污染，返回 grounding 诚实降级为 PERCEPTION(铁律③：感知不进 KERNEL 证明/决策链)。
-  const _fwScan = FIREWALL.scanGraph(WORLD.edges);
+  const _fwScan = FIREWALL.scanGraph(getWorld().edges);
   FIREWALL.lastScan = Object.assign({ at: Date.now() }, _fwScan);
   const log=[]; const rsgNodes=new Set([start]); const rsgEdges=[];
-  if(!WORLD.nodes.includes(start)) return unknownReturn('起点不在世界图', log, rsgNodes, rsgEdges);
-  if(!WORLD.nodes.includes(goal))  return unknownReturn('目标不在世界图', log, rsgNodes, rsgEdges);
+  if(!getWorld().nodes.includes(start)) return unknownReturn('起点不在世界图', log, rsgNodes, rsgEdges);
+  if(!getWorld().nodes.includes(goal))  return unknownReturn('目标不在世界图', log, rsgNodes, rsgEdges);
   if(hard.has(goal)) return unknownReturn('目标位于硬约束禁集', log, rsgNodes, rsgEdges);
   // 学习回流②：用已验证最优的历史路径反向传播剩余代价，得可采纳且更强的启发式（Pearl 定理）。
   // h_final = max(hMax/欧氏, h_learned) 仍保证 A* 最优；无历史时退化为原欧氏/0。
   let hOf = heuristic;
-  if (PLAN_HISTORY.length && WORLD._coordExplicit){
+  if (PLAN_HISTORY.length && getWorld()._coordExplicit){
     try {
-      const learned = heuristicEvolve(PLAN_HISTORY, { baseH: heuristic, edgeCost: function(a,b){ const e=WORLD.edges.find(t=>t.from===a&&t.to===b); return e ? e.w : null; } });
+      const learned = heuristicEvolve(PLAN_HISTORY, { baseH: heuristic, edgeCost: function(a,b){ const e=getWorld().edges.find(t=>t.from===a&&t.to===b); return e ? e.w : null; } });
       if (learned && learned.admissible) hOf = function(s,g){ return Math.max(heuristic(s,g), learned.h(s,g)); };
     } catch(_) { hOf = heuristic; }
   }
@@ -397,7 +407,7 @@ function aStar(start, goal, opts={}){
     if(cur.node===goal){
       const path=[]; let p=cur; while(p){path.unshift(p.node); p=p.parent;}
       const steps=path.slice(1).map((node,i)=>{
-        const e=WORLD.edges.find(e=>e.from===path[i]&&e.to===node);
+        const e=getWorld().edges.find(e=>e.from===path[i]&&e.to===node);
         return {seq:i+1, state:path[i], action:'move→'+node, result:node,
           reason:'A* 选最小 f 后继；代价 '+edgeW(e).toFixed(3)+'｜命题 ℙ='+(edgeHolds(e, opts.facts)===true?'成立':'—'),
           confidence:1, evidenceIds:[], proposition:(e && (e.P !== undefined ? e.P : e.proposition)) || null};
@@ -415,7 +425,7 @@ function aStar(start, goal, opts={}){
     if(closed.has(cur.node) && closed.get(cur.node)<=cur.g) continue;
     closed.set(cur.node, cur.g);
     if(hard.has(cur.node) && cur.node!==start) continue;
-    for(const e of WORLD.edges.filter(e=>e.from===cur.node)){
+    for(const e of getWorld().edges.filter(e=>e.from===cur.node)){
       if(hard.has(e.to)) continue;
       // ℙ 命题闸门：命题为假 → 剪枝；命题不可判定（事实不足）→ 不进解，记入 𝕌
       const holds = edgeHolds(e, opts.facts || {});
@@ -457,7 +467,7 @@ function buildRSG(path, log, rsgNodes, rsgEdges, start, goal){
 function system1(start, goal, opts={}){
   const hard = new Set(opts.hard||[]);
   if(hard.has(goal)) return {system:'1', decided:false, reason:'目标位于硬约束禁集，系统1 拒绝快答，升级系统2', usedSystem:'1'};
-  const edge = WORLD.edges.find(e=>e.from===start&&e.to===goal);
+  const edge = getWorld().edges.find(e=>e.from===start&&e.to===goal);
   const direct = !!edge;
   if(direct && edge.perceived) return {system:'1', decided:false, reason:'该边为感知未确认(perceived)，系统1 拒绝快答，升级系统2', usedSystem:'1'};
   // 学习回流①：直连边若被真实反馈证实不可靠（learnedEdgePenalty>0），系统1 不快答，升级系统2 绕开它
@@ -551,15 +561,15 @@ function reason(start, goal, opts={}){
 // 把 WORLD 视为 (S=节点, A=边, P=均匀转移, G={goal}, C=hard 约束)：BFS 可达性 → 值迭代求到达概率 → 贪心策略
 function goalDirected(start, goal, opts){
   opts = opts || {}; const hard = new Set(opts.hard || []);
-  const _gdScan = FIREWALL.scanGraph(WORLD.edges); const _gdContam = _gdScan.contaminated; // 防火墙：确定性规划入口扫 PERCEPTION 感知边
-  if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
-  const adj = {}; WORLD.nodes.forEach(s => adj[s] = WORLD.edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to));
+  const _gdScan = FIREWALL.scanGraph(getWorld().edges); const _gdContam = _gdScan.contaminated; // 防火墙：确定性规划入口扫 PERCEPTION 感知边
+  if(!getWorld().nodes.includes(start) || !getWorld().nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
+  const adj = {}; getWorld().nodes.forEach(s => adj[s] = getWorld().edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to));
   // 可达性（ima_288）：BFS 求从 start 在约束 C 内可达状态集
   const reach = new Set([start]); const q=[start];
   while(q.length){ const u=q.shift(); for(const v of adj[u]) if(!reach.has(v)){ reach.add(v); q.push(v); } }
   if(!reach.has(goal)) return { status:'unreachable', reason:'约束下目标不可达(ima_288 可达性分析)', reach:reach.size, imaRef:['ima_288'] };
   // 值迭代（ima_291 目标导向版）：V(s)=1(s∈G)；V(s)=max_a ΣP(s'|s,a)V(s')，确定性边 a→a
-  const V = {}; WORLD.nodes.forEach(s => V[s] = (s===goal)?1:0);
+  const V = {}; getWorld().nodes.forEach(s => V[s] = (s===goal)?1:0);
   const gamma = opts.gamma != null ? opts.gamma : 0.99;
   for(let k=0;k<200;k++){ let maxDelta=0;
     for(const s of reach){ if(s===goal) continue; const ch=adj[s]; if(!ch.length) continue;
@@ -799,10 +809,10 @@ const Memory = {
   _restored: false,
   available(){ try { return typeof localStorage !== 'undefined' && !!localStorage; } catch(e){ return false; } },
   worldDelta(){
-    const prov = WORLD._prov || {node:{},edge:{}};
+    const prov = getWorld()._prov || {node:{},edge:{}};
     return {
       nodes: Object.keys(prov.node || {}),
-      edges: (WORLD.edges || []).filter(function(e){ return e.perceived; })
+      edges: (getWorld().edges || []).filter(function(e){ return e.perceived; })
               .map(function(e){ return { from:e.from, to:e.to, w:e.w, p:e.p, perceived:true }; }),
       prov
     };
@@ -810,14 +820,14 @@ const Memory = {
   applyWorldDelta(d){
     if(!d) return { addedNodes:0, addedEdges:0 };
     let an = 0, ae = 0;
-    for(const n of (d.nodes || [])) if(!WORLD.nodes.includes(n)){ WORLD.nodes.push(n); an++; }
+    for(const n of (d.nodes || [])) if(!getWorld().nodes.includes(n)){ getWorld().nodes.push(n); an++; }
     for(const e of (d.edges || [])){
-      if(!WORLD.nodes.includes(e.from)){ WORLD.nodes.push(e.from); an++; }
-      if(!WORLD.nodes.includes(e.to)){ WORLD.nodes.push(e.to); an++; }
-      const dup = WORLD.edges.find(function(x){ return x.from === e.from && x.to === e.to; });
-      if(!dup){ WORLD.edges.push({ from:e.from, to:e.to, w:e.w, p:(e.p==null?1:e.p), perceived:true }); ae++; }
+      if(!getWorld().nodes.includes(e.from)){ getWorld().nodes.push(e.from); an++; }
+      if(!getWorld().nodes.includes(e.to)){ getWorld().nodes.push(e.to); an++; }
+      const dup = getWorld().edges.find(function(x){ return x.from === e.from && x.to === e.to; });
+      if(!dup){ getWorld().edges.push({ from:e.from, to:e.to, w:e.w, p:(e.p==null?1:e.p), perceived:true }); ae++; }
     }
-    WORLD._prov = d.prov || WORLD._prov || {node:{},edge:{}};
+    getWorld()._prov = d.prov || getWorld()._prov || {node:{},edge:{}};
     return { addedNodes:an, addedEdges:ae };
   },
   // 大脑不维护内置经验库；快照持久化「世界模型 + 情景反思 + 工作记忆(学习闭环)」，由外部身体/浏览器存储
@@ -862,8 +872,8 @@ const Memory = {
   },
   reset(){
     const c = this.clear();
-    WORLD._prov = { node:{}, edge:{} };
-    WORLD.edges = (WORLD.edges || []).filter(function(e){ return !e.perceived; });
+    getWorld()._prov = { node:{}, edge:{} };
+    getWorld().edges = (getWorld().edges || []).filter(function(e){ return !e.perceived; });
     if(typeof SelfLearn !== 'undefined') SelfLearn.experience.length = 0;
     this._restored = false;
     return { ok:true, cleared:!!(c && c.ok), note:'清档并回到出厂状态（世界图感知增量与工作记忆全清）' };
@@ -872,8 +882,8 @@ const Memory = {
     const raw = this.available() ? (localStorage.getItem(this.KEY) || null) : null;
     return { available:this.available(), hasArchive:!!raw, archiveBytes: raw ? raw.length : 0,
              restored:this._restored, workingMemory:(typeof SelfLearn!=='undefined'?SelfLearn.experience.length:0),
-             worldNodes:WORLD.nodes.length, worldEdges:WORLD.edges.length,
-             perceivedEdges:(WORLD.edges || []).filter(function(e){ return e.perceived; }).length };
+             worldNodes:getWorld().nodes.length, worldEdges:getWorld().edges.length,
+             perceivedEdges:(getWorld().edges || []).filter(function(e){ return e.perceived; }).length };
   }
 };
 function bootMemory(){
@@ -907,7 +917,7 @@ function perceive(input){
   const obs = input.observations
     || (Array.isArray(input.edges) ? input.edges.map(e => Object.assign({type:'edge'}, e)) : null);
   if(!Array.isArray(obs) || !obs.length) return {ok:false, error:'缺少 observations（[{type:"node"|"edge", ...}]）'};
-  if(!WORLD._prov) WORLD._prov = {node:{}, edge:{}};
+  if(!getWorld()._prov) getWorld()._prov = {node:{}, edge:{}};
 
   for(const o of obs){
     if(!o || typeof o!=='object'){ rejected.push({obs:o, reason:'非对象'}); continue; }
@@ -915,31 +925,31 @@ function perceive(input){
     if(type === 'node'){
       const n = (o.node != null ? o.node : o.id);
       if(n == null){ rejected.push({obs:o, reason:'缺 node 名'}); continue; }
-      if(!WORLD.nodes.includes(n)){
-        WORLD.nodes.push(n); added.nodes.push(n);
-        WORLD._prov.node[n] = {source, evidence, ts, verified:false};
-      } else if(!WORLD._prov.node[n]){
-        WORLD._prov.node[n] = {source, evidence, ts, verified:false, preExisting:true};
+      if(!getWorld().nodes.includes(n)){
+        getWorld().nodes.push(n); added.nodes.push(n);
+        getWorld()._prov.node[n] = {source, evidence, ts, verified:false};
+      } else if(!getWorld()._prov.node[n]){
+        getWorld()._prov.node[n] = {source, evidence, ts, verified:false, preExisting:true};
       }
-      if(o.coord && WORLD.coord) WORLD.coord[n] = o.coord;
+      if(o.coord && getWorld().coord) getWorld().coord[n] = o.coord;
     } else if(type === 'edge'){
       const from = o.from, to = o.to;
       if(from == null || to == null){ rejected.push({obs:o, reason:'边缺 from/to'}); continue; }
       const w = (typeof o.w === 'number' && !isNaN(o.w)) ? o.w : 1;
       const p = (typeof o.p === 'number' && !isNaN(o.p)) ? Math.max(0, Math.min(1, o.p)) : 1;
-      if(!WORLD.nodes.includes(from)){ WORLD.nodes.push(from); added.nodes.push(from); WORLD._prov.node[from] = {source, evidence, ts, verified:false}; }
-      if(!WORLD.nodes.includes(to)){ WORLD.nodes.push(to); added.nodes.push(to); WORLD._prov.node[to] = {source, evidence, ts, verified:false}; }
+      if(!getWorld().nodes.includes(from)){ getWorld().nodes.push(from); added.nodes.push(from); getWorld()._prov.node[from] = {source, evidence, ts, verified:false}; }
+      if(!getWorld().nodes.includes(to)){ getWorld().nodes.push(to); added.nodes.push(to); getWorld()._prov.node[to] = {source, evidence, ts, verified:false}; }
       const key = from + '→' + to;
-      const dup = WORLD.edges.find(x => x.from === from && x.to === to);
+      const dup = getWorld().edges.find(x => x.from === from && x.to === to);
       if(!dup){
-        WORLD.edges.push({from, to, w, p, perceived:true});
-        WORLD._prov.edge[key] = {source, evidence, ts, verified:false, confidence:(typeof o.confidence==='number'&&!isNaN(o.confidence))?o.confidence:0.7};
+        getWorld().edges.push({from, to, w, p, perceived:true});
+        getWorld()._prov.edge[key] = {source, evidence, ts, verified:false, confidence:(typeof o.confidence==='number'&&!isNaN(o.confidence))?o.confidence:0.7};
         added.edges.push(key);
       } else {
         // 既有认知边：事实(o.p)可能与推测(dup.p)偏差 → 自我修正使推测贴合事实
-        const priorW = (WORLD._prov.edge[key] && WORLD._prov.edge[key].confidence != null) ? WORLD._prov.edge[key].confidence : 0.5;
+        const priorW = (getWorld()._prov.edge[key] && getWorld()._prov.edge[key].confidence != null) ? getWorld()._prov.edge[key].confidence : 0.5;
         const oConf = (typeof o.confidence==='number' && !isNaN(o.confidence)) ? Math.max(0,Math.min(1,o.confidence))
-                     : (WORLD._prov.edge[key] && WORLD._prov.edge[key].verified) ? 1 : 0.7;
+                     : (getWorld()._prov.edge[key] && getWorld()._prov.edge[key].verified) ? 1 : 0.7;
         if(typeof o.p==='number' && !isNaN(o.p)){
           const before = (dup.p==null?1:dup.p);
           const rec = reconcile(before, o.p, {priorWeight:priorW, factWeight:oConf});
@@ -948,7 +958,7 @@ function perceive(input){
             const corr = {transition:key, conjectureBefore:+before.toFixed(6), fact:+o.p.toFixed(6),
               factConfidence:+oConf.toFixed(3), alpha:rec.alpha, conjectureAfter:+dup.p.toFixed(6),
               residual:+rec.residual.toFixed(6), contractionL:rec.contractionL, ts:new Date().toISOString()};
-            (WORLD._corrections || (WORLD._corrections = [])).push(corr);
+            (getWorld()._corrections || (getWorld()._corrections = [])).push(corr);
             selfCorrections.push(corr);
             if(typeof EventBus!=='undefined') EventBus.publish('selfCorrection', corr);
             updated.push({transition:key, field:'p', from:+before.toFixed(6), to:+dup.p.toFixed(6), mode:'reconciled'});
@@ -957,7 +967,7 @@ function perceive(input){
         // w 冲突：保留原值 + 登记，绝不静默改写
         if(Math.abs((dup.w == null ? 1 : dup.w) - w) > 1e-9){
           conflicts.push({transition:key, existingW:dup.w, observedW:w, policy:'保留原值并登记冲突，待元认知仲裁'});
-          WORLD._prov.edge[key] = Object.assign({}, WORLD._prov.edge[key] || {},
+          getWorld()._prov.edge[key] = Object.assign({}, getWorld()._prov.edge[key] || {},
             {conflict:{existingW:dup.w, observedW:w, source, evidence, ts}});
         }
       }
@@ -966,7 +976,7 @@ function perceive(input){
 
   const changed = added.nodes.length || added.edges.length || updated.length;
   const out = {ok:true, mode:'graph-update', source, evidence, ts, added, updated, conflicts, rejected, selfCorrections,
-    graphChanged: !!changed, world:{nodes:WORLD.nodes.length, edges:WORLD.edges.length},
+    graphChanged: !!changed, world:{nodes:getWorld().nodes.length, edges:getWorld().edges.length},
     grounding:GROUNDING.PERCEPTION,
     note:'感知写入属 PERCEPTION 档（可能出错），未经 confirmObservation 确认前不进证明链'};
   if(changed && typeof EventBus !== 'undefined') EventBus.publish('perception', out);
@@ -977,16 +987,16 @@ function perceive(input){
 function confirmObservation(key, success){
   if(!key || typeof key !== 'string') return {ok:false, error:'key 形如 "A→B" 或节点名'};
   const parts = String(key).split('→');
-  const prov = WORLD._prov || (WORLD._prov = {node:{}, edge:{}});
+  const prov = getWorld()._prov || (getWorld()._prov = {node:{}, edge:{}});
   if(prov.edge && prov.edge[key]){
     prov.edge[key].verified = true; prov.edge[key].verifiedAt = new Date().toISOString(); prov.edge[key].confidence = 1;
-    if(parts.length === 2) WORLD.edges.forEach(e => { if(e.from === parts[0] && e.to === parts[1]) delete e.perceived; });
+    if(parts.length === 2) getWorld().edges.forEach(e => { if(e.from === parts[0] && e.to === parts[1]) delete e.perceived; });
   } else if(prov.node && prov.node[key]){
     prov.node[key].verified = true;
   } else {
     return {ok:false, error:'未找到该观测的存证：' + key};
   }
-  if(parts.length === 2){ const e = WORLD.edges.find(function(x){return x.from===parts[0]&&x.to===parts[1];}); if(e){ e.p = Math.max(e.p==null?0:e.p, 0.85); } }
+  if(parts.length === 2){ const e = getWorld().edges.find(function(x){return x.from===parts[0]&&x.to===parts[1];}); if(e){ e.p = Math.max(e.p==null?0:e.p, 0.85); } }
   if(typeof EventBus !== 'undefined') EventBus.publish('learning', {type:'confirm-observation', key});
   return {ok:true, key, verified:true, note:'已升级为已验证认知（可进入证明链与系统1快答）'};
 }
@@ -1126,7 +1136,7 @@ async function explainWithLLM(result, apiKey, opts){
   return r;
 }
 // 编排：大白话 → 外部 LLM 输入理解 → 灵脑确定性推理 → 外部 LLM 解释（端到端"让大脑听懂人话"）
-function _resolveNode(text){ const up=String(text||'').toUpperCase(); return WORLD.nodes.find(n=>up.includes(n))||null; }
+function _resolveNode(text){ const up=String(text||'').toUpperCase(); return getWorld().nodes.find(n=>up.includes(n))||null; }
 async function askBrain(text, apiKey, opts){
   opts = opts || {};
   const p = await perceiveLLM(text, {apiKey, model:opts.model});
@@ -1149,9 +1159,9 @@ async function askBrain(text, apiKey, opts){
 function quantifyUncertainty(path, opts={}){
   if(path.status!=='optimal') return {aleatoric:null, cognitive:null, note:'不可判定，无路径可量化'};
   let alea=0;
-  for(const s of path.steps){ const e=WORLD.edges.find(e=>e.from===s.state&&e.to===s.result); if(e) alea += (1-edgeP(e))*e.w; }
+  for(const s of path.steps){ const e=getWorld().edges.find(e=>e.from===s.state&&e.to===s.result); if(e) alea += (1-edgeP(e))*e.w; }
   const steps = path.steps||[];
-  const perceived = steps.filter(s=>{ const e=WORLD.edges.find(e=>e.from===s.state&&e.to===s.result); return e && e.perceived; }).length;
+  const perceived = steps.filter(s=>{ const e=getWorld().edges.find(e=>e.from===s.state&&e.to===s.result); return e && e.perceived; }).length;
   const cognitive = +(steps.length ? perceived/steps.length : 0).toFixed(3);
   return {aleatoric:+alea.toFixed(4), cognitive, total:+(alea+cognitive).toFixed(4),
     note:'偶然=路径边信息缺失(1-p)·w 之和；认知=路径未确认感知边占比(源于世界图)'};
@@ -1189,7 +1199,7 @@ function generateAudit(path, opts={}){
   // 形式化证明证书（霍尔逻辑）：调用机器验证器生成可检查的结构化证明（非模板）
   // 诚实修复：hoare 记号仅在 verified===true 时给出；pre/post 的"最优"断言也只在证明通过时声称
   const proof = path.status==='optimal'
-    ? Object.assign(verifyHoarePath(path, WORLD), {
+    ? Object.assign(verifyHoarePath(path, getWorld()), {
         pre:'起点 '+path.path[0]+' 满足硬约束',
         post: '终止于 '+path.path[path.path.length-1]+' 且累计代价='+path.cost
       })
@@ -1206,14 +1216,14 @@ function generateAudit(path, opts={}){
     },
     details, evidence, constraints, unknown, uncertainty, proof,
     // ⑧ 自验证段（吸收 Chain-of-Verification / 自验证提示 思想）：对结论做反向证伪，而非直接信任前向推理
-    selfVerification: selfVerify(path, WORLD),
+    selfVerification: selfVerify(path, getWorld()),
     // ⑨ 反思段（吸收 Reflexion: 语言式强化学习 思想）：确定性复盘写入情景记忆，不更新权重、可审计
     reflection: reflect(path, opts.feedback),
     reproducible, meta: metaCognition({path}), status, generatedAt:new Date().toISOString(), version:'2.0',
     // ⑩ 信念修正段：推测与事实偏差时自我修正的轨迹（Banach 压缩 / KL I-投影），使大脑诚实"认错并贴合事实"
     beliefRevision: {
-      recent: (WORLD._corrections || []).slice(-5),
-      count: (WORLD._corrections || []).length,
+      recent: (getWorld()._corrections || []).slice(-5),
+      count: (getWorld()._corrections || []).length,
       principle: '事实与推测偏差时，用 Banach 压缩映射(标量) / 最小交叉熵 I-投影(分布) 修正推测使其贴合事实'
     },
     grounding:{perception:GROUNDING.PERCEPTION, reason:GROUNDING.KERNEL, proof:GROUNDING.PROOF},
@@ -1298,7 +1308,7 @@ function carrierReport(state){
 }
 // 兼容 MCP / 外部调用的全局别名（与 lingnao-mcp.js 抽取契约一致）
 // 兼容 MCP / 外部调用的全局别名（世界图查询接口；大脑不维护内置经验库）
-function findExperience(from,to){ return WORLD.edges.find(e=>e.from===from&&e.to===to)||null; }
+function findExperience(from,to){ return getWorld().edges.find(e=>e.from===from&&e.to===to)||null; }
 function updateConfidence(from,to,success,step){ return {from,to,success,note:'置信度由外部世界图维护，大脑不内置经验库'}; }
 
 // ================= 通用大脑 v3.0 扩层模块（此前均 TODO 桩，本次确定性实装） =================
@@ -1552,12 +1562,12 @@ function dmcts(start, goal, opts){
   opts = opts || {}; const hard = new Set(opts.hard || []); _SOFT = new Set(opts.soft || []);
   // 确定性化：用可设种子的 PRNG 取代 Math.random()，使探索可复现/可审计（默认固定种子）
   const rng = mulberry32(opts.seed != null ? opts.seed : 0x1234abcd);
-  const _dmScan = FIREWALL.scanGraph(WORLD.edges);
-  if(!WORLD.nodes.includes(start) || !WORLD.nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
+  const _dmScan = FIREWALL.scanGraph(getWorld().edges);
+  if(!getWorld().nodes.includes(start) || !getWorld().nodes.includes(goal)) return { status:'unknown', reason:'起点/目标不在世界图' };
   const nodes = {};
-  WORLD.nodes.forEach(s => { nodes[s] = { visits:0, value:0, children: WORLD.edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to) }; });
+  getWorld().nodes.forEach(s => { nodes[s] = { visits:0, value:0, children: getWorld().edges.filter(e=>e.from===s && !hard.has(e.to)).map(e=>e.to) }; });
   if(start!==goal && !nodes[start].children.length) return { status:'unknown', reason:'起点无可达边' };
-  const budget = opts.iterations || 120, C = opts.c || 1.4, root = start, maxD = WORLD.nodes.length + 2;
+  const budget = opts.iterations || 120, C = opts.c || 1.4, root = start, maxD = getWorld().nodes.length + 2;
   const ucb = s => nodes[s].visits===0 ? Infinity : nodes[s].value + C*Math.sqrt(Math.log(nodes[root].visits+1)/nodes[s].visits);
   const rollout = s => { let cur=s, d=0; while(cur!==goal && d<maxD){ const ch=nodes[cur].children; if(!ch.length) break; cur=ch[Math.floor(rng()*ch.length)]; d++; } return cur===goal?1:0; };
   for(let it=0; it<budget; it++){
@@ -1599,7 +1609,7 @@ function pacSampleBound(dvc, eps, delta){
 // ④ 因果发现（PC-lite）：从经验库统计共现+置信度 → 因果骨架（文档 4.2 / do演算）
 function causalDiscovery(){
   const nodes = new Set(); const edges = [];
-  for(const e of WORLD.edges){ nodes.add(e.from); nodes.add(e.to);
+  for(const e of getWorld().edges){ nodes.add(e.from); nodes.add(e.to);
     edges.push({ from: e.from, to: e.to, confidence: +(edgeP(e)).toFixed(2), kind: e.perceived?'perceived':'known' }); }
   return { nodes: [...nodes], edges, method: 'PC-lite（共现+置信度→因果骨架；离散经验库近似）', note: '真 PC/FCI 需连续观测数据；此为经验库结构化近似，满足后门可识别时使用 doQuery' };
 }
@@ -1942,13 +1952,13 @@ EventBus.on('metacognition', m => ({ noted:true, mode: m && m.sched && m.sched.e
 const KBFabric = {
   _versions: [],
   // 数据织物版本化「世界模型 + 情景反思 + 工作记忆」——大脑不内置经验库，故不再版本化经验库
-  commit(msg){ const snap = JSON.stringify({ world:WORLD.edges, reflections:(typeof ReflectionBuffer!=='undefined'?ReflectionBuffer.slice(-20):[]),
+  commit(msg){ const snap = JSON.stringify({ world:getWorld().edges, reflections:(typeof ReflectionBuffer!=='undefined'?ReflectionBuffer.slice(-20):[]),
     working:(typeof SelfLearn!=='undefined'?SelfLearn.experience.slice(-50):[]) });
     const v = { version: this._versions.length + 1, msg: msg, snapshot: snap, ts: new Date().toISOString(),
-      count: (WORLD.edges||[]).length }; this._versions.push(v); return v; },
+      count: (getWorld().edges||[]).length }; this._versions.push(v); return v; },
   list(){ return this._versions.map(function(v){ return { version: v.version, msg: v.msg, ts: v.ts, count: v.count }; }); },
   checkout(ver){ const v = this._versions.find(function(x){ return x.version === ver; }); if(!v) return null;
-    try { const s = JSON.parse(v.snapshot); if(Array.isArray(s.world)) WORLD.edges = s.world; } catch(e){}
+    try { const s = JSON.parse(v.snapshot); if(Array.isArray(s.world)) getWorld().edges = s.world; } catch(e){}
     return v; },
   diff(a, b){ const va = this._versions.find(function(x){ return x.version === a; }), vb = this._versions.find(function(x){ return x.version === b; });
     if(!va || !vb) return null; return { from: a, to: b, delta: JSON.parse(vb.snapshot).length - JSON.parse(va.snapshot).length }; }
@@ -1969,7 +1979,7 @@ function runtimeMonitor(path, safety){
   // 公式1：G(每步代价 within maxCost) —— 逐边累加代价不得超 bound（比"末态 cost"更细，对应 temporal 全程约束）
   if(safety.maxCost != null){
     let acc = 0;
-    for(const s of (path.steps||[])){ const e = WORLD.edges.find(e=>e.from===s.state && e.to===s.result); acc += e ? e.w : 0;
+    for(const s of (path.steps||[])){ const e = getWorld().edges.find(e=>e.from===s.state && e.to===s.result); acc += e ? e.w : 0;
       if(acc > safety.maxCost) violations.push('cost>' + safety.maxCost + ' @' + s.state); }
     const termWithin = (path.cost != null) ? (path.cost <= safety.maxCost) : true;
     if(!termWithin) violations.push('terminal cost>' + safety.maxCost);
@@ -1984,7 +1994,7 @@ function runtimeMonitor(path, safety){
   const rTrace = (path.path || []).map((st, i) => {
     if (i > 0 && path.steps) {
       const s = path.steps[i - 1];
-      const e = s ? WORLD.edges.find(e2 => e2.from === s.state && e2.to === s.result) : null;
+      const e = s ? getWorld().edges.find(e2 => e2.from === s.state && e2.to === s.result) : null;
       acc2 += e ? e.w : 0;
     }
     return { state: st, acc: acc2 };
@@ -2036,8 +2046,8 @@ function continuousVerify(){
 // 数学：H(K)=-Σ p(e)log p(e)（信息熵，单位 bit）；C(K)=1-冲突率-α·H(K)（一致性度量，文档七/八）
 // 元认知与协调层：不确定性管理基于世界图（边概率信息熵），不依赖内置经验库
 function metaCognition(opts={}){
-  const edges = WORLD.edges||[];
-  const nodes = WORLD.nodes||[];
+  const edges = getWorld().edges||[];
+  const nodes = getWorld().nodes||[];
   const ps = edges.map(e=>edgeP(e)).filter(p=>p>0&&p<1);
   const meanBit = ps.length ? -ps.reduce((a,p)=>a-(p*Math.log2(p)+(1-p)*Math.log2(1-p)),0)/ps.length : 0;
   const H = +meanBit.toFixed(4);
@@ -2092,9 +2102,9 @@ const Capabilities = {
 // 保证"转运代价"本身就不会经由禁区（此前 planTransport 不认 hard，导致绕过约束划走应急金）。
 function allPairsCost(exclude){
   const ban = new Set(exclude || []);
-  const nodes = WORLD.nodes.filter(n => !ban.has(n));
+  const nodes = getWorld().nodes.filter(n => !ban.has(n));
   const adj = {}; for(const n of nodes) adj[n] = [];
-  for(const e of WORLD.edges){
+  for(const e of getWorld().edges){
     if(ban.has(e.from) || ban.has(e.to)) continue;
     if(adj[e.from]) adj[e.from].push({ to:e.to, w:(typeof e.w === 'number' ? e.w : 1) });
   }
@@ -2177,34 +2187,34 @@ function ensureChannels(entities, hub, channels){
   const link = (a, b, w) => {
     for(const pair of [[a, b], [b, a]]){
       const f = pair[0], t = pair[1];
-      if(!WORLD.nodes.includes(f)){ WORLD.nodes.push(f); added.nodes++; }
-      if(!WORLD.nodes.includes(t)){ WORLD.nodes.push(t); added.nodes++; }
-      const dup = WORLD.edges.find(e => e.from === f && e.to === t);
-      if(!dup){ WORLD.edges.push({ from:f, to:t, w:(typeof w === 'number' ? w : 1), p:0.99 }); added.edges++; }
+      if(!getWorld().nodes.includes(f)){ getWorld().nodes.push(f); added.nodes++; }
+      if(!getWorld().nodes.includes(t)){ getWorld().nodes.push(t); added.nodes++; }
+      const dup = getWorld().edges.find(e => e.from === f && e.to === t);
+      if(!dup){ getWorld().edges.push({ from:f, to:t, w:(typeof w === 'number' ? w : 1), p:0.99 }); added.edges++; }
     }
   };
-  if(hub){ WORLD.hub = hub; for(const e of (entities || [])) if(e && e.id != null) link(String(e.id), hub, 1); }
+  if(hub){ getWorld().hub = hub; for(const e of (entities || [])) if(e && e.id != null) link(String(e.id), hub, 1); }
   for(const c of (channels || [])) if(c && c[0] != null && c[1] != null) link(String(c[0]), String(c[1]), c[2]);
   return added;
 }
 // —— L2：把领域实体（资源持有/缺口/产能）叠加到世界图 G 上 ——
 function attachResources(entities){
   if(!Array.isArray(entities)) throw new Error('attachResources 需要 entities 数组');
-  WORLD.resources = WORLD.resources || {}; WORLD.needs = WORLD.needs || {}; WORLD.entities = WORLD.entities || {};
+  getWorld().resources = getWorld().resources || {}; getWorld().needs = getWorld().needs || {}; getWorld().entities = getWorld().entities || {};
   for(const e of entities){
     if(!e || e.id == null) throw new Error('实体缺少 id');
     const id = String(e.id);
-    if(!WORLD.nodes.includes(id)) WORLD.nodes.push(id);
-    WORLD.resources[id] = Object.assign({}, e.resources || {});
-    WORLD.needs[id] = Object.assign({}, e.needs || {});
-    WORLD.entities[id] = { id, name:e.name || id, produces:e.produces || null };
+    if(!getWorld().nodes.includes(id)) getWorld().nodes.push(id);
+    getWorld().resources[id] = Object.assign({}, e.resources || {});
+    getWorld().needs[id] = Object.assign({}, e.needs || {});
+    getWorld().entities[id] = { id, name:e.name || id, produces:e.produces || null };
   }
-  return { nodes:WORLD.nodes.length, entities:Object.keys(WORLD.entities).length,
+  return { nodes:getWorld().nodes.length, entities:Object.keys(getWorld().entities).length,
            grounding:GROUNDING.KERNEL };
 }
 // —— L2/L3：发现错配（谁缺什么、谁多什么、谁能造什么）——
 function discoverMismatch(){
-  const res = WORLD.resources || {}, need = WORLD.needs || {}, ents = WORLD.entities || {};
+  const res = getWorld().resources || {}, need = getWorld().needs || {}, ents = getWorld().entities || {};
   const out = [];
   for(const id in need){
     for(const r in need[id]){
@@ -2252,7 +2262,7 @@ function planTransport(opts){
   opts = opts || {};
   const hard = new Set(opts.hard || []);       // 约束单一真源：分配层同样尊重硬约束
   const aps = allPairsCost(opts.hard);         // 转运代价不得经由禁区
-  const res = WORLD.resources || {}, need = WORLD.needs || {};
+  const res = getWorld().resources || {}, need = getWorld().needs || {};
   const resources = new Set();
   for(const id in res) for(const r in res[id]) if(res[id][r] > 0) resources.add(r);
   for(const id in need) for(const r in need[id]) if(need[id][r] > 0) resources.add(r);
@@ -2292,18 +2302,18 @@ function planTransport(opts){
 function applyAllocations(flows){
   const done = [];
   for(const f of flows){
-    const fromRes = (WORLD.resources || {})[f.from], toRes = (WORLD.resources || {})[f.to];
+    const fromRes = (getWorld().resources || {})[f.from], toRes = (getWorld().resources || {})[f.to];
     if(!fromRes || !toRes){ done.push(Object.assign({}, f, { status:'SKIPPED', reason:'主体不存在' })); continue; }
     const avail = fromRes[f.resource] || 0;
-    const need = ((WORLD.needs || {})[f.to] || {})[f.resource] || 0;
+    const need = ((getWorld().needs || {})[f.to] || {})[f.resource] || 0;
     const amount = Math.max(0, Math.min(avail, need, f.amount));
     if(!(amount > 0)){ done.push(Object.assign({}, f, { status:'BLOCKED', amount:0 })); continue; }
     fromRes[f.resource] = avail - amount;
     toRes[f.resource] = (toRes[f.resource] || 0) + amount;
-    ((WORLD.needs || {})[f.to])[f.resource] = Math.max(0, need - amount);
-    const we = WORLD.edges.find(function(x){return x.from===f.from&&x.to===f.to;}); if(we){ we.p = Math.min(1, (we.p==null?0.5:we.p) + 0.1); }
-    WORLD._txCounter = (WORLD._txCounter || 0) + 1;
-    const entry = { id:'TX' + WORLD._txCounter, from:f.from, to:f.to, resource:f.resource,
+    ((getWorld().needs || {})[f.to])[f.resource] = Math.max(0, need - amount);
+    const we = getWorld().edges.find(function(x){return x.from===f.from&&x.to===f.to;}); if(we){ we.p = Math.min(1, (we.p==null?0.5:we.p) + 0.1); }
+    getWorld()._txCounter = (getWorld()._txCounter || 0) + 1;
+    const entry = { id:'TX' + getWorld()._txCounter, from:f.from, to:f.to, resource:f.resource,
                     amount, route:f.route, ts:new Date().toISOString() };
     if(typeof EventBus !== 'undefined') EventBus.publish('action', entry);
     done.push(Object.assign({}, f, { amount, status: amount < need ? 'PARTIAL' : 'ALLOCATED', tx:entry.id }));
@@ -2400,9 +2410,9 @@ const Brain = {
   name: '灵脑 LingNao（世界通用大脑）', version: 'v3.0',
   // 𝕎 世界图 = (𝕍 节点, 𝔼 边, 𝕨 权重, ℙ 命题, ℂ 约束, 𝕌 不可判定区)
   W: {
-    get V(){ return WORLD.nodes; },
-    get E(){ return WORLD.edges; },
-    w: (a, b) => { const e = WORLD.edges.find(x => x.from === a && x.to === b); return e ? edgeW(e) : 0; },
+    get V(){ return getWorld().nodes; },
+    get E(){ return getWorld().edges; },
+    w: (a, b) => { const e = getWorld().edges.find(x => x.from === a && x.to === b); return e ? edgeW(e) : 0; },
     P: (e) => (e && (e.P !== undefined ? e.P : e.proposition)) || null,   // ℙ = 命题
     holds: (e, facts) => edgeHolds(e, facts || {}),                       // 命题判定：true/false/null
     C: (opts) => ({ hard:(opts && opts.hard) || [], soft:(opts && opts.soft) || [] }),
@@ -2410,7 +2420,7 @@ const Brain = {
     setWorld, validateWorld, allPairsCost, reconstructPath,
     note: '第四分量 ℙ = 命题（转移成立的条件），不是概率；命题不可判定 → 归入 𝕌，绝不猜测'
   },
-  K: { world: WORLD, ima: imaKnowledge, note: '知识来自外部世界图与 IMA 数学库；大脑不内置经验库(KB 已移除)' },
+  K: { world: getWorld(), ima: imaKnowledge, note: '知识来自外部世界图与 IMA 数学库；大脑不内置经验库(KB 已移除)' },
   Phi:   { perceive, perceiveLLM, perceiveBelief, confirmObservation,
            note:'感知属 PERCEPTION 档（可能幻觉），绝不进证明链' },
   Psi:   { learn, pacSampleBound, SelfLearn, slRecord,
@@ -2437,9 +2447,9 @@ function brainManifest(){
   return {
     tuple: ['W', 'K', 'Phi', 'Psi', 'Theta', 'Lambda', 'Xi'],
     layers: Layers.map(l => l.n + '·' + l.name + '(' + l.id + ')'),
-    world: { V:WORLD.nodes.length, E:WORLD.edges.length,
-             withProposition: WORLD.edges.filter(e => e.P !== undefined || e.proposition !== undefined).length },
-    worldModel: { nodes:(WORLD.nodes||[]).length, edges:(WORLD.edges||[]).length, perceived:(WORLD.edges||[]).filter(e=>e.perceived).length },
+    world: { V:getWorld().nodes.length, E:getWorld().edges.length,
+             withProposition: getWorld().edges.filter(e => e.P !== undefined || e.proposition !== undefined).length },
+    worldModel: { nodes:(getWorld().nodes||[]).length, edges:(getWorld().edges||[]).length, perceived:(getWorld().edges||[]).filter(e=>e.perceived).length },
     capabilities: (typeof Capabilities !== 'undefined') ? Capabilities.list().length : 0,
     theorem: 'A* + 可采纳启发式 ⇒ 有限世界图上完备且最优；否则诚实标 𝕌',
     caveat: '村庄/机队/账本等场景属「虚拟模拟空间」模块（第二层之上的沙盘），不是大脑结构层'
@@ -3342,7 +3352,7 @@ function hybridReach(HA, st0, dt, steps, opts) {
 function heuristicEvolve(records, opts) {
   opts = opts || {};
   var edgeCost = opts.edgeCost || function (a, b) {
-    var e = (typeof WORLD !== 'undefined' && WORLD.edges) ? WORLD.edges.find(function (t) { return t.from === a && t.to === b; }) : null;
+    var e = (getWorld().edges) ? getWorld().edges.find(function (t) { return t.from === a && t.to === b; }) : null;
     return e ? e.w : null;
   };
   var table = {}, learned = 0, skipped = [], i, j;
@@ -5311,7 +5321,7 @@ function variableScreening(data, k) {
   };
 }
 
-const BODY = { name: null, caps: [], state: {}, hard: [], observation: null, dimensions: null };
+// 具身态 B 已并入 _STATE.body（去全局化）；声明见 _STATE 模块
 const CAPS = Object.create(null);
 var LAST_EXECUTION = null; // 供 generateAudit ⑪ 执行段引用（var 避免 TDZ：generateAudit 在更靠前位置定义）
 
@@ -5319,7 +5329,7 @@ var LAST_EXECUTION = null; // 供 generateAudit ⑪ 执行段引用（var 避免
 // 区间可区分性：两状态可区分 ⟺ ∃ 传感器的观测区间不相交
 // 返回 true(可区分) / false(不可区分) / null(无观测契约 → 不可判定 𝕌)
 function distinguishable(s1, s2, obs) {
-  obs = obs || BODY.observation;
+  obs = obs || getBody().observation;
   if (!obs || !obs.sensors) return null;
   let anyChecked = false;
   for (const name in obs.sensors) {
@@ -5346,41 +5356,41 @@ function observationBlindSpots(states, obs) {
 }
 function attachBody(body) {
   body = body || {};
-  BODY.name = body.name || 'unknown-body';
-  BODY.state = Object.assign({}, body.state || {});
-  BODY.hard = (body.hard || []).slice();
-  BODY.observation = (body.observation && typeof body.observation === 'object') ? body.observation : null;
-  BODY.dimensions = (body.dimensions && typeof body.dimensions === 'object') ? body.dimensions : null;
-  BODY.caps = [];
+  getBody().name = body.name || 'unknown-body';
+  getBody().state = Object.assign({}, body.state || {});
+  getBody().hard = (body.hard || []).slice();
+  getBody().observation = (body.observation && typeof body.observation === 'object') ? body.observation : null;
+  getBody().dimensions = (body.dimensions && typeof body.dimensions === 'object') ? body.dimensions : null;
+  getBody().caps = [];
   for (const k in CAPS) delete CAPS[k];
-  (body.capabilities || []).forEach(function (c) { if (c && c.id) { CAPS[c.id] = c; BODY.caps.push(c.id); } });
+  (body.capabilities || []).forEach(function (c) { if (c && c.id) { CAPS[c.id] = c; getBody().caps.push(c.id); } });
   let declarative = 0, opaque = 0, irreversible = 0;
-  BODY.caps.forEach(function (id) {
+  getBody().caps.forEach(function (id) {
     const c = CAPS[id];
     if (capVerifiable(c)) declarative++; else opaque++;
     if (c && c.irreversible === true) irreversible++;
   });
-  if (typeof EventBus !== 'undefined') EventBus.publish('body', { type: 'attach', name: BODY.name, caps: BODY.caps.slice() });
-  const dimCheck = checkDimensions(CAPS, BODY.dimensions);
+  if (typeof EventBus !== 'undefined') EventBus.publish('body', { type: 'attach', name: getBody().name, caps: getBody().caps.slice() });
+  const dimCheck = checkDimensions(CAPS, getBody().dimensions);
   const notes = [];
   if (opaque > 0) notes.push(opaque + ' 个能力为黑盒函数式，不可静态验证');
-  if (!BODY.dimensions) notes.push('未声明量纲表，跳过物理正确性检查');
+  if (!getBody().dimensions) notes.push('未声明量纲表，跳过物理正确性检查');
   else if (!dimCheck.ok) notes.push(dimCheck.issues.length + ' 处字段未声明量纲');
   return {
-    ok: true, body: BODY.name, capabilities: BODY.caps.slice(), state: getState(),
+    ok: true, body: getBody().name, capabilities: getBody().caps.slice(), state: getState(),
     contract: {
       state: true,
-      control: { total: BODY.caps.length, declarative: declarative, opaque: opaque },
-      observation: !!BODY.observation,
+      control: { total: getBody().caps.length, declarative: declarative, opaque: opaque },
+      observation: !!getBody().observation,
       irreversible: irreversible,
       dimensions: dimCheck
     },
     note: notes.length ? notes.join('；') : '全部能力为声明式且量纲齐备，可静态验证'
   };
 }
-function capabilities() { return BODY.caps.slice(); }
-function getState() { return Object.assign({}, BODY.state); }
-function setState(s) { BODY.state = Object.assign({}, s || {}); return getState(); }
+function capabilities() { return getBody().caps.slice(); }
+function getState() { return Object.assign({}, getBody().state); }
+function setState(s) { getBody().state = Object.assign({}, s || {}); return getState(); }
 function stateDiff(a, b) {
   const keys = Object.keys(a || {}).concat(Object.keys(b || {})).filter(function (k, i, arr) { return arr.indexOf(k) === i; });
   const d = {};
@@ -5391,11 +5401,11 @@ function stateDiff(a, b) {
 }
 function checkHard(state, step) {
   // 安全校验同时覆盖两层硬约束：
-  //   · 身体级 BODY.hard（离散禁区标签 + 声明式包线，跨 JSON-RPC 传入）
+  //   · 身体级 getBody().hard（离散禁区标签 + 声明式包线，跨 JSON-RPC 传入）
   //   · 能力级 cap.hard（每个能力自带的安全包线，如角度极限/力上限/电子围栏）
   // 二者任一违反即 fail-closed 拦截。此前 cap.hard 未被检查，导致连续物理量安全门形同虚设。
   const cap = (step && step.cap && CAPS[step.cap]) || null;
-  const hard = (BODY.hard || []).concat((WORLD && WORLD.hard) ? WORLD.hard : []).concat((cap && cap.hard) || []);
+  const hard = (getBody().hard || []).concat((getWorld() && getWorld().hard) ? getWorld().hard : []).concat((cap && cap.hard) || []);
   for (let i = 0; i < hard.length; i++) {
     const h = hard[i];
     if (typeof h === 'string') {
@@ -5481,7 +5491,7 @@ function evalRequire(s, req) {
 function applyEffect(s, effect, dims) {
   const next = Object.assign({}, s);
   if (!effect || typeof effect !== 'object') return next;
-  const D = dims || BODY.dimensions;
+  const D = dims || getBody().dimensions;
   if (effect.set) for (const k in effect.set) {
     const u = unwrapDimValue(effect.set[k], D ? D[k] : null, k);
     if (u.error) throw new Error(u.error);
@@ -5528,8 +5538,8 @@ function hMax(s0, goalFn, maxLayer) {
   seen[JSON.stringify(relaxed)] = 1;
   for (let layer = 1; layer <= maxLayer; layer++) {
     let changed = false;
-    for (let i = 0; i < BODY.caps.length; i++) {
-      const cap = CAPS[BODY.caps[i]], params = groundParams(relaxed, cap, goalFn);
+    for (let i = 0; i < getBody().caps.length; i++) {
+      const cap = CAPS[getBody().caps[i]], params = groundParams(relaxed, cap, goalFn);
       if (!applicable(relaxed, cap, params)) continue;
       const nx = applyCap(relaxed, cap, params);
       if (nx == null) continue;
@@ -5557,8 +5567,8 @@ function planTask(goalFn, opts) {
     closed[key] = 1; expanded++;
     if (goalFn(node.state)) return { ok: true, plan: node.plan, cost: node.g, expanded: expanded, pruned: pruned, finalState: node.state, grounding: GROUNDING.KERNEL, guarantee: 'A*+h_max(delete-relaxation 可采纳) ⇒ 相对给定能力集与状态的最优动作序列' };
     if (expanded >= capExp) break;
-    for (let i = 0; i < BODY.caps.length; i++) {
-      const id = BODY.caps[i], cap = CAPS[id], params = groundParams(node.state, cap, goalFn);
+    for (let i = 0; i < getBody().caps.length; i++) {
+      const id = getBody().caps[i], cap = CAPS[id], params = groundParams(node.state, cap, goalFn);
       if (!applicable(node.state, cap, params)) continue;
       const ns = applyCap(node.state, cap, params);
       if (ns == null) continue;
@@ -5629,7 +5639,7 @@ async function execute(plan, bodyAdapter, opts) {
       }
     }
     // 观测盲区：执行后状态与当前状态在传感器上不可区分 ⇒ 效果无法验证 ⇒ 拒绝下发
-    if (BODY.observation && step.expect && distinguishable(step.expect, state, BODY.observation) === false) {
+    if (getBody().observation && step.expect && distinguishable(step.expect, state, getBody().observation) === false) {
       halted = true; haltReason = 'OBSERVATION-BLIND-SPOT ' + step.cap + '(执行结果无法被观测验证)'; break;
     }
     // 偏差/重规划后，当前状态可能已不满足该步前提 ⇒ 再校验一次（fail-closed）。
@@ -5723,17 +5733,17 @@ async function doWork(goalFn, bodyAdapter, opts) {
 const BrainTuple = {
   // —— X 状态空间：抽象世界节点 ⊕ 物理身体连续状态分量 ——
   X() {
-    const world = (WORLD && WORLD.nodes) ? WORLD.nodes.slice() : [];
+    const world = (getWorld() && getWorld().nodes) ? getWorld().nodes.slice() : [];
     const body = (typeof getState === 'function') ? Object.keys(getState()) : [];
     return { ok: true, world: world, body: body, cardinality: world.length + body.length,
       note: 'X = 抽象世界状态（图节点）⊕ 物理身体连续状态分量' };
   },
   // —— h 观测通道 h: X → O，O 由身体传感器张成（此前仅散落 distinguishable）——
   h(state) {
-    if (!BODY || !BODY.observation || !BODY.observation.sensors) return { ok: false, reason: '未声明观测契约 O（诚实退化，非硬报错）' };
+    if (!getBody() || !getBody().observation || !getBody().observation.sensors) return { ok: false, reason: '未声明观测契约 O（诚实退化，非硬报错）' };
     const O = {};
-    for (const name in BODY.observation.sensors) {
-      const sp = BODY.observation.sensors[name];
+    for (const name in getBody().observation.sensors) {
+      const sp = getBody().observation.sensors[name];
       const f = (sp && sp.field) || name;
       O[name] = (state && state[f] !== undefined) ? state[f] : null;
     }
@@ -5752,8 +5762,8 @@ const BrainTuple = {
   },
   f(state, action, opts) {
     opts = opts || {};
-    if (WORLD && WORLD.edges) {
-      const e = WORLD.edges.find(function (ed) { return ed.from === state && ed.to === action; });
+    if (getWorld() && getWorld().edges) {
+      const e = getWorld().edges.find(function (ed) { return ed.from === state && ed.to === action; });
       if (e) return { ok: true, next: action, kind: 'graph-edge', grounding: GROUNDING.KERNEL, mayHallucinate: false,
         cost: (typeof edgeCost === 'function' ? edgeCost(state, action) : 1) };
     }
@@ -5775,8 +5785,8 @@ const BrainTuple = {
   candidates(state, action, opts) {
     opts = opts || {};
     const items = [];
-    if (WORLD && WORLD.edges) {
-      const e = WORLD.edges.find(function (ed) { return ed.from === state && ed.to === action; });
+    if (getWorld() && getWorld().edges) {
+      const e = getWorld().edges.find(function (ed) { return ed.from === state && ed.to === action; });
       if (e) items.push({ next: action, kind: 'graph-edge', grounding: GROUNDING.KERNEL, mayHallucinate: false, weight: 1 });
     }
     if (this._learned && typeof state === 'object' && typeof simulate === 'function') {
@@ -5792,7 +5802,7 @@ const BrainTuple = {
   // —— U 执行通道 U ⊆ actions：当前安全可执行动作集（checkHard 双层 + IRREVERSIBLE 授权后）——
   U(opts) {
     opts = opts || {};
-    const caps = (BODY && BODY.caps) ? BODY.caps : [];
+    const caps = (getBody() && getBody().caps) ? getBody().caps : [];
     const safe = [];
     for (const id of caps) {
       const step = { cap: id, params: {} };
@@ -5804,25 +5814,25 @@ const BrainTuple = {
       }
     }
     return { ok: true, actions: safe, total: caps.length, blocked: caps.length - safe.length,
-      note: 'U = BODY.caps 经 checkHard 双层 + IRREVERSIBLE-HALT 后剩余的安全可执行集' };
+      note: 'U = getBody().caps 经 checkHard 双层 + IRREVERSIBLE-HALT 后剩余的安全可执行集' };
   },
   // —— V 价值 V: X → [0,1]：到达价值，值迭代固定点（复用 ima_291 目标导向框架）——
   V(goal, opts) {
-    if (!WORLD || !WORLD.nodes || !WORLD.nodes.length) return { ok: false, reason: '无世界图，价值未定义' };
+    if (!getWorld() || !getWorld().nodes || !getWorld().nodes.length) return { ok: false, reason: '无世界图，价值未定义' };
     const goalNode = (typeof goal === 'string') ? goal : null;
     const goalFn = (typeof goal === 'function') ? goal : null;
     const V = {};
-    WORLD.nodes.forEach(function (s) { V[s] = (goalNode ? (s === goalNode ? 1 : 0) : (goalFn && goalFn(s) ? 1 : 0)); });
-    const adj = {}; WORLD.nodes.forEach(function (s) { adj[s] = []; });
-    (WORLD.edges || []).forEach(function (e) { if (adj[e.from]) adj[e.from].push(e.to); });
-    for (let it = 0; it < WORLD.nodes.length + 2; it++) {
-      for (const s of WORLD.nodes) {
+    getWorld().nodes.forEach(function (s) { V[s] = (goalNode ? (s === goalNode ? 1 : 0) : (goalFn && goalFn(s) ? 1 : 0)); });
+    const adj = {}; getWorld().nodes.forEach(function (s) { adj[s] = []; });
+    (getWorld().edges || []).forEach(function (e) { if (adj[e.from]) adj[e.from].push(e.to); });
+    for (let it = 0; it < getWorld().nodes.length + 2; it++) {
+      for (const s of getWorld().nodes) {
         if ((goalNode && s === goalNode) || (goalFn && goalFn(s))) continue;
         const ch = adj[s]; if (!ch.length) continue;
         let best = 0; for (const nx of ch) best = Math.max(best, V[nx]); V[s] = best;
       }
     }
-    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : (WORLD.nodes[0]);
+    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : (getWorld().nodes[0]);
     return { ok: true, V: V, startValue: (V[startKey] !== undefined ? V[startKey] : 0), goal: goal,
       note: 'V: X→[0,1] 到达价值（值迭代固定点，≤|X| 步收敛）' };
   },
@@ -5832,14 +5842,14 @@ const BrainTuple = {
   //   (1,1) 稳健可达 ⇒ 即使最坏不确定也达目标； (0,1) 风险可达 ⇒ 仅赖可能幻觉的 PERCEPTION 转移，须保守/人机协同； (0,0) 不可达。
   // 悲观=仅 KERNEL 图边推进；乐观=图边+学习的f预测（PERCEPTION 仅乐观侧）。两次值迭代皆压缩映射（THM_BANACH_FP）。
   V_robust(goal, opts) {
-    if (!WORLD || !WORLD.nodes || !WORLD.nodes.length) return { ok: false, reason: '无世界图，价值未定义' };
+    if (!getWorld() || !getWorld().nodes || !getWorld().nodes.length) return { ok: false, reason: '无世界图，价值未定义' };
     const goalNode = (typeof goal === 'string') ? goal : null;
     const goalFn = (typeof goal === 'function') ? goal : null;
     const isGoal = function (s) { return (goalNode && s === goalNode) || (goalFn && goalFn(s)); };
-    const nodes = WORLD.nodes;
+    const nodes = getWorld().nodes;
     const adjOpt = {}, adjPes = {};
     nodes.forEach(function (s) { adjOpt[s] = []; adjPes[s] = []; });
-    (WORLD.edges || []).forEach(function (e) { if (adjOpt[e.from]) { adjOpt[e.from].push(e.to); adjPes[e.from].push(e.to); } });
+    (getWorld().edges || []).forEach(function (e) { if (adjOpt[e.from]) { adjOpt[e.from].push(e.to); adjPes[e.from].push(e.to); } });
     // 学习的 f 预测作为乐观可达边（仅乐观侧；PERCEPTION 不进悲观侧）
     if (this._learned) {
       for (const s of nodes) for (const a of nodes) {
@@ -5877,13 +5887,13 @@ const BrainTuple = {
   // （对手不借 PERCEPTION 幻觉转移得利）。复用 THM_MINIMAX_ADVERSARIAL。
   adversarialValue(goal, opts) {
     opts = opts || {};
-    if (!WORLD || !WORLD.nodes || !WORLD.nodes.length) return { ok: false, reason: '无世界图，对抗价值未定义' };
+    if (!getWorld() || !getWorld().nodes || !getWorld().nodes.length) return { ok: false, reason: '无世界图，对抗价值未定义' };
     const horizon = Math.max(1, Math.min(opts.horizon || 1, 3));
     const self = this;
     const goalNode = (typeof goal === 'string') ? goal : null;
     const goalFn = (typeof goal === 'function') ? goal : null;
     const isGoal = function (s) { return (goalNode && s === goalNode) || (goalFn && goalFn(s)); };
-    const outs = {}; (WORLD.edges || []).forEach(function (e) { if (!outs[e.from]) outs[e.from] = []; outs[e.from].push(e.to); });
+    const outs = {}; (getWorld().edges || []).forEach(function (e) { if (!outs[e.from]) outs[e.from] = []; outs[e.from].push(e.to); });
     const term = function (s) { const r = self.V_robust(goal, { startKey: s }); const v = (r.ok && r.envelope[s]) ? r.envelope[s].low : 0; return v; };
     const memo = {};
     function rec(s, h, agentTurn) {
@@ -5897,7 +5907,7 @@ const BrainTuple = {
       else { let worst = 1; for (const nx of next) worst = Math.min(worst, rec(nx, h - 1, true)); val = worst; }
       return memo[key] = val;
     }
-    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : WORLD.nodes[0];
+    const startKey = (typeof getState === 'function' && getState() && typeof _skey === 'function') ? _skey(getState()) : getWorld().nodes[0];
     const value = rec(startKey, horizon, true);
     const classify = function (v) { return v >= 1 ? 'robust' : (v > 0 ? 'risky' : 'unreachable'); };
     return { ok: true, value: +value.toFixed(4), classification: classify(value), horizon: horizon,
@@ -5915,8 +5925,8 @@ const BrainTuple = {
   },
   // —— Inv 不变量：硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性 ∪ 守恒律（可选）——
   Inv() {
-    const hard = ((BODY && BODY.hard) || []).concat((WORLD && WORLD.hard) || []);
-    const dimOk = (BODY && BODY.dimensions && typeof checkDimensions === 'function') ? checkDimensions((typeof CAPS !== 'undefined' ? CAPS : {}), BODY.dimensions).ok : null;
+    const hard = ((getBody() && getBody().hard) || []).concat((getWorld() && getWorld().hard) || []);
+    const dimOk = (getBody() && getBody().dimensions && typeof checkDimensions === 'function') ? checkDimensions((typeof CAPS !== 'undefined' ? CAPS : {}), getBody().dimensions).ok : null;
     return { ok: true, hardConstraints: hard.length, dimensionSound: dimOk,
       note: 'Inv = 硬约束禁集 ∪ 物理安全包线 ∪ 量纲齐备性（物理正确性第1层）；守恒律见 physicsInvariant（第2层）' };
   },
@@ -5943,8 +5953,8 @@ const BrainTuple = {
     deceptionBound(j, trueState, maskState) {
       const a = this.agents[j];
       if (!a) return { ok: false, reason: '未登记他心 agent: ' + j };
-      if (!BODY || !BODY.observation) return { ok: false, reason: '未声明观测契约 O，无法评估伪装性' };
-      const dist = (typeof distinguishable === 'function') ? distinguishable(trueState, maskState, BODY.observation) : null;
+      if (!getBody() || !getBody().observation) return { ok: false, reason: '未声明观测契约 O，无法评估伪装性' };
+      const dist = (typeof distinguishable === 'function') ? distinguishable(trueState, maskState, getBody().observation) : null;
       return { ok: true, agent: j, distinguishable: dist, deceptionPossible: (dist === false),
         honesty: 'BELIEF-LEVEL: 仅评估我方观测下的可区分性，不代表他心真实意图' };
     },
@@ -6061,13 +6071,13 @@ MathKernel.axiom('AX_TUPLE_FORMAL',
 MathKernel.theorem('THM_OBS_CHANNEL_RANGE',
   '观测通道 h: X→O 的值域由身体传感器集张成；未声明观测契约时 h 诚实退化（返回 ok:false），不编造观测',
   { by: 'COMPUTE', from: ['AX_TUPLE_FORMAL'], field: '观测理论',
-    proof: 'h 实现逐传感器投影（BODY.observation.sensors → O）；无传感器则值域空，诚实返回未定义',
+    proof: 'h 实现逐传感器投影（getBody().observation.sensors → O）；无传感器则值域空，诚实返回未定义',
     evidence: 'verify() 实跑 BrainTuple.h 不抛且返回结构合法',
     check: function () { try { const r = BrainTuple.h({}); return !!(r && typeof r === 'object'); } catch (e) { return false; } } });
 MathKernel.theorem('THM_ACTION_SAFE_CLOSED',
   '执行通道 U 中每个动作都已通过 checkHard 双层安全门（+IRREVERSIBLE 显式授权）；U 中任意动作下发前不变量不被破坏',
   { by: 'DERIVE', from: ['AX_TUPLE_FORMAL', 'THM_CBF_INVARIANCE'], field: '执行安全',
-    proof: 'U 由 BODY.caps 经 checkHard 过滤构造（见 BrainTuple.U），与 execute() 四道 fail-closed 守卫（checkHard 双层 / IRREVERSIBLE-HALT / OBSERVATION-BLIND-SPOT / pre 重校验）同源',
+    proof: 'U 由 getBody().caps 经 checkHard 过滤构造（见 BrainTuple.U），与 execute() 四道 fail-closed 守卫（checkHard 双层 / IRREVERSIBLE-HALT / OBSERVATION-BLIND-SPOT / pre 重校验）同源',
     evidence: 'BrainTuple.U 与 execute 共用 checkHard / IRREVERSIBLE-HALT，证明链一致' });
 MathKernel.theorem('THM_VALUE_ITER_CONVERGE',
   '到达价值 V: X→[0,1] 由值迭代（固定点）给出，在有限节点图上 ≤|X| 步收敛到最优到达概率',
@@ -6161,7 +6171,7 @@ MathKernel.thinking = LingNaoThinking;
 
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
-  globalThis.__WB = {WORLD, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
+  globalThis.__WB = {getWorld(), IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
     metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
@@ -6171,7 +6181,7 @@ if(typeof globalThis!=='undefined'){
     Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch,
     planTransport, applyAllocations, allPairsCost, reconstructPath, transportation,
     Brain, Layers, brainManifest, evaluateProposition, edgeHolds,
-    attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, BODY,
+    attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, getBody,
     // 连接契约 / 量纲分析 / 高等数学工具箱 / CBF 安全滤子（与 UMD、MCP 三态导出对齐）
     evalRequire, applyEffect, capVerifiable, distinguishable, observationBlindSpots,
     DIM, DIM_AXES, dimOf, dimMul, dimDiv, dimPow, dimEq, dimAdd, dimFormat, buckinghamPi, unwrapDimValue, checkDimensions,
@@ -6336,8 +6346,8 @@ function renderAudit(aud){
 }
 function renderKB(){
   const el=$('kbOut'); if(!el) return;
-  const edges=WORLD.edges||[];
-  let h='<b>世界节点</b> '+(WORLD.nodes||[]).length+' ｜ <b>世界边</b> '+edges.length+' ｜ <b>感知边</b> '+edges.filter(function(e){return e.perceived;}).length+' ｜ <b>情景反思</b> '+((typeof ReflectionBuffer!=='undefined')?ReflectionBuffer.length:0)+' <span class="muted">(大脑不内置经验库；知识来自外部世界模型)</span><br><table><tr><th>从</th><th>到</th><th>代价</th><th>概率p</th><th>感知</th></tr>';
+  const edges=getWorld().edges||[];
+  let h='<b>世界节点</b> '+(getWorld().nodes||[]).length+' ｜ <b>世界边</b> '+edges.length+' ｜ <b>感知边</b> '+edges.filter(function(e){return e.perceived;}).length+' ｜ <b>情景反思</b> '+((typeof ReflectionBuffer!=='undefined')?ReflectionBuffer.length:0)+' <span class="muted">(大脑不内置经验库；知识来自外部世界模型)</span><br><table><tr><th>从</th><th>到</th><th>代价</th><th>概率p</th><th>感知</th></tr>';
   edges.slice(0,50).forEach(function(e){ h+='<tr><td>'+e.from+'</td><td>'+e.to+'</td><td>'+e.w+'</td><td>'+(e.p==null?'-':e.p)+'</td><td>'+(e.perceived?'是':'否')+'</td></tr>'; });
   h+='</table>';
   el.innerHTML=h;

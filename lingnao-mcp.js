@@ -70,7 +70,7 @@ if (SELFTEST) sandbox.fetch = mockFetchOpenRouter;
 sandbox.__LINGSHU__ = lingShuBridge;   // 注入真引擎桥，供内核 algebraicSolve 委派（无 Node 时桥为 available:false 诚实降级）
 const ctx = vm.createContext(sandbox);
   vm.runInContext(
-  kernelSrc + '\nglobalThis.__exp = {WORLD, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport, metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable, identifiabilityID, counterfactualIdentifiable, learnWorldModel, simulate, counterfactual, SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus, EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED, explainWithLLM, askBrain, causalEffect, groundingMeta, GROUNDING, validateWorld, Memory, bootMemory, confirmObservation, exploreAlternatives, Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch, planTransport, applyAllocations, allPairsCost, reconstructPath, transportation, quantifyUncertainty, Brain, Layers, brainManifest, evaluateProposition, edgeHolds, attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, BODY};',
+  kernelSrc + '\nglobalThis.__exp = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport, metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable, identifiabilityID, counterfactualIdentifiable, learnWorldModel, simulate, counterfactual, SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus, EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED, explainWithLLM, askBrain, causalEffect, groundingMeta, GROUNDING, validateWorld, Memory, bootMemory, confirmObservation, exploreAlternatives, Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch, planTransport, applyAllocations, allPairsCost, reconstructPath, transportation, quantifyUncertainty, Brain, Layers, brainManifest, evaluateProposition, edgeHolds, attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, getBody};',
   ctx
 );
 const K = sandbox.__exp;
@@ -184,16 +184,16 @@ K.BrainTuple = sandbox.__exp.BrainTuple;
 
 // ---------- 2. 编排工具（纯函数，复用内核，不依赖 DOM） ----------
 function worldInfo() {
-  return { nodes: K.WORLD.nodes, edgeCount: K.WORLD.edges.length, edges: K.WORLD.edges, coord: K.WORLD.coord };
+  return { nodes: K.getWorld().nodes, edgeCount: K.getWorld().edges.length, edges: K.getWorld().edges, coord: K.getWorld().coord };
 }
 function setWorldLogic(json) {
   if (typeof json === 'string') json = JSON.parse(json);
   K.setWorld(json);
-  return { ok: true, nodes: K.WORLD.nodes, edgeCount: K.WORLD.edges.length };
+  return { ok: true, nodes: K.getWorld().nodes, edgeCount: K.getWorld().edges.length };
 }
 function reasonLogic(start, goal, hard, soft) {
   start = start || 'CHARGE';
-  if (!K.WORLD.nodes.includes(start) || !K.WORLD.nodes.includes(goal)) {
+  if (!K.getWorld().nodes.includes(start) || !K.getWorld().nodes.includes(goal)) {
     return { status: 'unknown', U: true, reason: '起点或目标不在世界图 𝕎 中（不可判定区域 𝕌）', path: [], cost: 0 };
   }
   const r = K.reason(start, goal, { hard: hard || [], soft: soft || [] });
@@ -261,7 +261,7 @@ function cogGraphLogic() { if (!kbAvailable()) return { available: false, reason
 function symbolicVerifyLogic(start, goal, hard, soft) {
   const r = K.reason(start || 'CHARGE', goal, { hard: hard || [], soft: soft || [] });
   if (r.status !== 'optimal') return { verified: false, reason: '路径不可判定' };
-  return K.verifyHoarePath(r, K.WORLD);
+  return K.verifyHoarePath(r, K.getWorld());
 }
 // 委派给真引擎「灵数求解器」(lingshu-solver)：区间收缩 + Krawczyk 认证，离线确定性
 function algebraicSolveLogic(args) {
@@ -1033,7 +1033,7 @@ function callTool(name, args) {
     case 'h_max': return hMaxLogic(args.state, args.goalSpec, args.maxLayer);
     case 'plan_task': return planTaskLogic(args.goalSpec, { maxLayer: args.maxLayer, maxExpansions: args.maxExpansions });
     case 'execute_task': return executeLogic(args.goalSpec, { maxReplans: args.maxReplans, deviationTolerance: args.deviationTolerance, allowIrreversible: args.allowIrreversible === true }, args.faults);
-    case 'positioning': return { positioning: K.POSITIONING, body: K.BODY };
+    case 'positioning': return { positioning: K.POSITIONING, body: K.getBody() };
     case 'world_model': return worldModelLogic(args.samples, args.state, args.action);
     case 'counterfactual': return counterfactualLogic(args.samples, args.factual, args.intervention);
     case 'causal_effect': return causalEffectLogic(args.samples, args.cause, args.effect, args.mediator);
@@ -1354,7 +1354,7 @@ function selftest() {
 }
 
 // 记录默认世界边，供 selftest 还原
-try { K.__defaultEdges = JSON.parse(JSON.stringify(K.WORLD.edges)); } catch (e) {}
+try { K.__defaultEdges = JSON.parse(JSON.stringify(K.getWorld().edges)); } catch (e) {}
 
 if (SELFTEST) {
   selftest();
@@ -1362,7 +1362,7 @@ if (SELFTEST) {
   // 仅当以 `node lingnao-mcp.js` 直接运行（而非被 require）时，才启动 stdio 服务
   process.stdin.on('data', c => { buf = Buffer.concat([buf, c]); pump(); });
   process.stdin.on('end', () => { /* 等 stdout 自然 flush */ });
-  process.stderr.write('[lingnao-mcp] 已启动，内核载入: ' + K.WORLD.nodes.length + ' 节点 / ' + K.WORLD.edges.length + ' 边；工具 ' + TOOLS.length + ' 个\n');
+  process.stderr.write('[lingnao-mcp] 已启动，内核载入: ' + K.getWorld().nodes.length + ' 节点 / ' + K.getWorld().edges.length + ' 边；工具 ' + TOOLS.length + ' 个\n');
 }
 
 // 库导出：让 examples / 第三方 `require('./lingnao-mcp')` 直接拿到内核（不自启 stdio 服务）

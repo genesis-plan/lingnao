@@ -17,7 +17,7 @@ const KERNEL_SRC = m[1];
 
 // 导出名列表（对齐 lingnao-mcp.js 的 __exp）
 const EXPORT_NAMES = [
-  'WORLD', 'IMA', 'imaKnowledge', 'loadIMAKB', 'setWorld', 'heuristic', 'aStar',
+  'getWorld', 'getBody', 'IMA', 'imaKnowledge', 'loadIMAKB', 'setWorld', 'heuristic', 'aStar',
   'perceive', 'perceiveLLM', 'perceiveBelief', 'reconcile', 'configureLLM', 'getLLMConfig', 'system1', 'system2', 'reason', 'goalDirected',
   'buildRSG', 'generateAudit', 'learn', 'carrierReport', 'metaCognition',
   'symbolicSolve', 'algebraicSolve', 'verifyHoarePath', 'dmcts', 'pacSampleBound',
@@ -35,7 +35,7 @@ const EXPORT_NAMES = [
   // 七元组 𝔹=(𝕎,K,Φ,Ψ,Θ,Λ,Ξ) 与八层（依 ARCHITECTURE.md）；ℙ=命题
   'Brain', 'Layers', 'brainManifest', 'evaluateProposition', 'edgeHolds',
   // 具身层（2026-08-29）：通用大脑 + 任意物理身体（具身智能在物理世界干活的通用大脑）
-  'attachBody', 'capabilities', 'getState', 'setState', 'stateDiff', 'checkHard', 'hMax', 'planTask', 'execute', 'doWork', 'POSITIONING', 'BODY',
+  'attachBody', 'capabilities', 'getState', 'setState', 'stateDiff', 'checkHard', 'hMax', 'planTask', 'execute', 'doWork', 'POSITIONING', 'getBody',
   // 连接契约（2026-08-30）：声明式契约求值 + 观测契约可区分性
   'evalRequire', 'applyEffect', 'capVerifiable', 'distinguishable', 'observationBlindSpots',
   // 量纲分析（2026-08-30）：物理正确性约束层（SI 七基本量纲 + Buckingham π）
