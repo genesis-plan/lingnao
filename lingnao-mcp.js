@@ -1146,6 +1146,12 @@ function selftest() {
     T('lift_belief', !!(K.liftToBelief && K.liftToBelief({ value: 1, source: 'x' }, {}).kind === 'belief'));
     // 架构次轴④：数学思想索引可发现
     T('thinking_index', !!(K.LingNaoThinking && K.LingNaoThinking.ignorance && K.LingNaoThinking.ignorance.theorems.length > 0));
+    // 架构脊柱②逐点 enforcement：确定性规划入口扫描 PERCEPTION 感知边 → 污染即登记
+    T('firewall_scan_graph', (function () {
+      const c1 = K.FIREWALL.scanGraph([{ from: 'A', to: 'B', w: 1 }, { from: 'B', to: 'C', w: 1, perceived: true }]).contaminated === true;
+      const c0 = K.FIREWALL.scanGraph([{ from: 'A', to: 'B', w: 1 }]).contaminated === false;
+      return c1 && c0;
+    })());
     const r1 = reasonLogic('CHARGE', 'C', [], []);
     T('reason-optimal', r1.status === 'optimal' && r1.path[0] === 'CHARGE' && r1.path[r1.path.length - 1] === 'C' && Math.abs(r1.cost - 7.242641) < 1e-3, 'cost=' + r1.cost);
     T('reason-system2-rsg', r1.usedSystem === '2' && r1.rsg && r1.rsg.branchCount > 0, 'rsg=' + JSON.stringify(r1.rsg));

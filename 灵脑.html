@@ -220,6 +220,16 @@ const FIREWALL = {
       }
     }
     return true;
+  },
+  // 图级渗漏扫描：确定性规划入口(KERNEL)消费世界图前，检测是否混入 PERCEPTION 感知边。
+  // 不盲目拒(保持 perceive→plan 功能)，但如实登记污染并触发 grounding 降级——让"不幻觉"从话术变物理事实。
+  scanGraph(edges) {
+    const list = edges || (typeof WORLD !== 'undefined' && WORLD.edges) || [];
+    let perceivedEdges = 0, perceivedNodes = 0;
+    for (const e of list) {
+      if (e && (e.perceived === true || (e.grounding && e.grounding.tier === 'UNVERIFIED_LLM'))) perceivedEdges++;
+    }
+    return { perceivedEdges, perceivedNodes, contaminated: perceivedEdges > 0 };
   }
 };
 // 唯一合法通道：PERCEPTION → 信念（D-S 证据理论包络，记录不确定性，永不成公理）
@@ -335,13 +345,18 @@ function verifyHeuristicConsistency(goal){
     const rhs = edgeW(e) + h(e.to, goal);
     if(lhs > rhs + eps) viol.push(e.from + '→' + e.to + '（' + lhs.toFixed(3) + '>' + rhs.toFixed(3) + '）');
   }
+  const _sc = FIREWALL.scanGraph(WORLD.edges);
   return { consistent: viol.length === 0, violations: viol,
-    basis: '一致启发式 = 三角不等式 h(n)≤c(n,n\')+h(n\')；一致 ⟹ A* 最优由定理保证，非断言' };
+    basis: '一致启发式 = 三角不等式 h(n)≤c(n,n\')+h(n\')；一致 ⟹ A* 最优由定理保证，非断言' + (_sc.contaminated ? '；图含 PERCEPTION 感知边，最优性仅对确定边成立，含感知边路径须诚实降级' : '') };
 }
 
 function aStar(start, goal, opts={}){
   const hard = new Set(opts.hard||[]);
   _SOFT = new Set(opts.soft||[]);
+  // 架构脊柱②逐点 enforcement：确定性 A* 消费世界图前，先扫 PERCEPTION 感知边(可能幻觉)。
+  // 登记到防火墙审计；若污染，返回 grounding 诚实降级为 PERCEPTION(铁律③：感知不进 KERNEL 证明/决策链)。
+  const _fwScan = FIREWALL.scanGraph(WORLD.edges);
+  FIREWALL.lastScan = Object.assign({ at: Date.now() }, _fwScan);
   const log=[]; const rsgNodes=new Set([start]); const rsgEdges=[];
   if(!WORLD.nodes.includes(start)) return unknownReturn('起点不在世界图', log, rsgNodes, rsgEdges);
   if(!WORLD.nodes.includes(goal))  return unknownReturn('目标不在世界图', log, rsgNodes, rsgEdges);
@@ -374,9 +389,14 @@ function aStar(start, goal, opts={}){
           confidence:1, evidenceIds:[], proposition:(e && (e.P !== undefined ? e.P : e.proposition)) || null};
       });
       const cons = verifyHeuristicConsistency(goal);   // 消费一致性定理：最优性由验证结果派生
+      const _contam = _fwScan.contaminated;
       return {status: cons.consistent ? 'optimal' : 'optimal-unverified', optimalGuaranteed: cons.consistent,
         heuristicConsistency: cons, path, cost:+cur.g.toFixed(6), steps, expanded, searchLog:log,
-        rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal), grounding:GROUNDING.KERNEL};
+        rsg:buildRSG(path, log, rsgNodes, rsgEdges, start, goal),
+        grounding: _contam ? GROUNDING.PERCEPTION : GROUNDING.KERNEL,
+        perceptionContaminated: _contam,
+        firewallScan: _fwScan,
+        note: _contam ? '路径依赖 PERCEPTION 感知边(可能幻觉)：确定性保证降级，结果须过 D-S 包络方可作决策依据(铁律③)' : '全程 KERNEL 确定边，确定性保证成立'};
     }
     if(closed.has(cur.node) && closed.get(cur.node)<=cur.g) continue;
     closed.set(cur.node, cur.g);
@@ -5622,6 +5642,14 @@ async function execute(plan, bodyAdapter, opts) {
       env: { step: i, deviation: Object.keys(diff).length, source: 'execute()' }
     });
     i++;
+  }
+  // 具身对外动作末道防火墙：真实世界执行前，禁止任何 PERCEPTION 感知步骤渗入计划(防幻觉污染物理执行，铁律③)。
+  if (plan && Array.isArray(plan)) {
+    for (const st of plan) {
+      if (st && (st.perceived === true || st.mayHallucinate === true || (st.grounding && st.grounding.tier === 'UNVERIFIED_LLM'))) {
+        throw new Error(FIREWALL.REJECTED + ': 对外执行计划含 PERCEPTION 感知步骤 @ execute（须过 liftToBelief 提升为信念）');
+      }
+    }
   }
   const _ex = { ok: !halted, halted: halted, haltReason: haltReason, steps: trace.length, replans: replans, deviations: deviations, trace: trace, finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
   // 自动记录整段任务（episode）结果：真实世界反馈进入经验库，供 sl_discover 归纳
