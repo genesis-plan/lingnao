@@ -206,6 +206,6 @@ $$
 - **X 仍是离散图近似**：连续构型流形的离散化代价（§6.4）未消除，非线性下可达集过近似未必保守（CONJ_NONLINEAR_REACH）。
 
 ### 8.3 验证
-- `node test-tuple-eight.js`：16/16 通过（h/U/V/M 四项 + X/f/Inv + LCF 全链 25 定理闭合）。
+- `node test/test-tuple-eight.js`：16/16 通过（h/U/V/M 四项 + X/f/Inv + LCF 全链 25 定理闭合）。
 - LCF `verifyAll`：25 定理 / 12 公理 / 5 猜想全链闭合（含 AX_TUPLE_FORMAL + 4 八元组定理）。
 - `node lingnao-mcp.js --selftest`：51/51 工具自测不破（八元组为叠加层，未改现有工具计数）。

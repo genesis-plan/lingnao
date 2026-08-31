@@ -31,9 +31,9 @@
     "llms.txt",
     "openai-tools.json",
     "anthropic-tools.json",
-    "gen-agent-manifests.js",
-    "selftest-umd.js",
-    "test-mcp-stdio-transport.js",
+    "examples/gen-agent-manifests.js",
+    "test/selftest-umd.js",
+    "test/test-mcp-stdio-transport.js",
     "ARCHITECTURE.md",
     "VERIFIABLE-PHYSICAL-AI.md",
     "README.md",
@@ -54,10 +54,10 @@
   "author": "红尘灵脑 / 太白",
   "scripts": {
     "selftest": "node lingnao-mcp.js --selftest",
-    "test": "node lingnao-mcp.js --selftest && node test-mcp-stdio-transport.js",
-    "test:umd": "node selftest-umd.js",
-    "test:transport": "node test-mcp-stdio-transport.js",
-    "gen:manifests": "node gen-agent-manifests.js"
+    "test": "node lingnao-mcp.js --selftest && node test/test-mcp-stdio-transport.js",
+    "test:umd": "node test/selftest-umd.js",
+    "test:transport": "node test/test-mcp-stdio-transport.js",
+    "gen:manifests": "node examples/gen-agent-manifests.js"
   },
   "optionalDependencies": {
     "lingshu-solver": "^1.0.2"

@@ -221,3 +221,25 @@ theoremOf('lqg') → THM_LQG_SEPARATION + THM_KALMAN_MINVAR + THM_LQR_OPTIMAL
 - 仓库清理：**暂不删除** GitHub 3 个 fork + worldbrain-mcp（用户："修，仓库先不删"）
 - npm：lingnao-mcp 已发布；lingjing-mcp 弃用待 deprecate（需凭据，未做）
 - 上述 2026-08-30 工作**尚未 git 提交**（工作区 90 文件改动，含早期 rebrand 改名）
+
+## 2026-08-31（架构定型 + 仓库精简 + 首个正式发布）
+
+### 架构脊柱重大重构（①②③④ 全部完成 + 验证 + 推送 remote main）
+- ① **机检证明账本** `verifyLedger()` + 启动自检：能力→定理映射闭合 + 推导链闭合，断裂即内核拒绝启动
+- ② **信任防火墙全链** `FIREWALL` + 唯一通道 `liftToBelief()`（D-S 包络，永不成公理）；PERCEPTION 规划入口 aStar / dmcts / goalDirected 入口扫感知边、污染即诚实降级 grounding 为 PERCEPTION + `execute` 末道物理拦截
+- ③ **去全局化** 删裸全局 `let WORLD`/`const BODY`，建 `_STATE` 单一真相源 + `getWorld()/getBody()` 访问器；232 处读点机械解耦（裸全局态真消除，`K.WORLD===undefined`）
+- ④ **思想索引** `LingNaoThinking` 11 类数学思想挂 `MathKernel.thinking`
+- **算法第一性原理优化** A* open 集换二叉堆 O(log n)；dmcts 改确定性（mulberry32 取代 Math.random，全仓库随机源清零）；goalDirected 补确定性档
+- **验证** tuple 56/56、MCP 自测 58/58、npm test（自测+传输 9/9）全绿；多轮回归一致
+
+### 仓库精简（发布前清理）
+- 删垃圾目录：`_待删除_乱码副本/`（乱码）、`legacy/worldbrain-mcp/`（被灵脑取代的旧产品）
+- 文档归档：冗余审计过程稿（ARCH-FIRST-PRINCIPLES / ARCH-RESTRUCTURE / MATH-THINKING-AUDIT / HUMAN-MATH-INVENTORY / MATH-FIRST-PRINCIPLES-AUDIT / FIRST-PRINCIPLES-REEXAMINATION / 数学与模块现状总览 / ima-map / kernel-formal.json）→ `docs/archive/`
+- 脚本归整：所有 `test-*.js`/`selftest-umd.js` → `test/`；`demo-*/`/`brain-*/`/`gen-*/`/`*-demo.js`/`virtual-world.js`/`knowledge-distillery.js`/`audit-math-coverage.js`/`ima_lingnao_map.js` → `examples/`；同步修正 package.json `files`/`scripts` 与 README/AGENT-SETUP 引用路径（修复挪动后的相对引用，双测试复跑全绿）
+- 内核：无 debugger、无重复定义；深度死代码删除因紧邻发布风险高、扫描误报多，保留靠测试兜底
+
+### 发布（进行中，见下方各平台）
+- GitHub Release v1.0.0（tag 见仓库）
+- npm `lingnao-mcp@1.0.0`（UNLICENSED，非开源；免费面向 AI Agent 分发）
+- COS 在线试用页 `/lingnao/`（playground.html / lingnao-console.html）
+- 注册市场：mcp.so / Glama / PulseMCP 提交（mcp.json 已备）；Smithery 待 Key（用户未提供，暂未收录）

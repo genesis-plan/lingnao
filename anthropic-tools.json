@@ -495,7 +495,7 @@
   },
   {
     "name": "dmcts",
-    "description": "D-MCTS 分布式分支探索：并行分支+回溯，返回多候选最优路径。 / EN: D-MCTS distributed branch exploration: parallel branching + backtracking, returns multiple candidate optimal paths.",
+    "description": "确定性 D-MCTS（determinized MCTS）：可复现的多候选探索规划器（UCB1 选择 + 确定性 rollout），默认固定种子 ⇒ 同输入同输出。注意：此为近似探索层，非 KERNEL/PROOF，结果须经 liftToBelief 提升为信念方可进决策，不直接构成证明链。 / EN: Deterministic D-MCTS: reproducible multi-candidate exploration planner. Approximation layer only — not a KERNEL proof; lift to belief before use in decisions.",
     "input_schema": {
       "type": "object",
       "properties": {
@@ -1066,6 +1066,10 @@
         "faults": {
           "type": "object",
           "description": "演示用注入：{failAt:[...], deviateAt:[{step,patch}]}"
+        },
+        "allowIrreversible": {
+          "type": "boolean",
+          "description": "显式授权执行不可逆动作（如封箱/点火/剪切）。缺省 false ⇒ 遇不可逆能力即 IRREVERSIBLE-HALT 停机。大脑绝不依赖事后重规划补救不可逆后果。  / EN: Explicitly authorize irreversible actions (seal / ignite / cut). Default false ⇒ IRREVERSIBLE-HALT on any irreversible capability. The brain never relies on事后 replanning to undo irreversible effects."
         }
       },
       "required": [

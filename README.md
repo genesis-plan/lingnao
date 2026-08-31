@@ -312,25 +312,25 @@ node examples/real-robots.js --llm           # 真调 OpenRouter free 做感知�
 | `examples/real-robots.js` | 4 个真实机器人案例接入（Amazon Kiva / Aethon TUG / Starship / 废墟搜救），含硬约束改道演示，离线零成本可跑 |
 | `lingnao.umd.js` | **零安装 UMD**（浏览器/Node 通用）：`build-umd.js` 从 `灵脑.html` 单一真源抽取同一份内核自动构建；`<script>` 或 `require` 一行接入，开发者/前端最易用入口 |
 | `build-umd.js` | UMD 构建脚本（抽内核→包 UMD），单一真源，改内核后重跑即同步 |
-| `selftest-umd.js` | UMD 自测（`node selftest-umd.js` 直接 require 验证 reason/审计/前门因果/不幻觉分层），别人也能跑 |
+| `test/selftest-umd.js` | UMD 自测（`node test/selftest-umd.js` 直接 require 验证 reason/审计/前门因果/不幻觉分层），别人也能跑 |
 | `playground.html` | 零安装网页 Playground（双击即用，引用 `lingnao.umd.js`），可视化规划+审计+不幻觉分层 |
 | `mcp.example.json` | 智能体零安装 MCP 配置（`npx github:genesis-plan/lingnao`），复制即用 |
 | `lingnao-console.html` | 零安装「开始干活」控制台（三步接入 + 开始干活按钮，模拟/真实 WebSocket 双模式），非技术用户首选入口 |
 | `lingnao-body-bridge.js` | 真实身体 WebSocket 桥（零依赖，实现 bodyAdapter 契约：大脑→动作 / 身体→观测态）。注意真实链路为**四层**（大脑→适配器软件→现场总线→物理器件），握手对象是**适配器**而非传感器；另含心跳看门狗 / 新鲜度 / 物理合理性 / progress 续期 / 幂等查询五道物理现实性守卫 |
 | `lingnao-body-sim-server.js` | 零依赖真身体仿真服务端（手工 RFC6455），模拟 AGV，供端到端验证真实桥（已支持 hello-ack 与 ping/pong） |
-| `test-console-wiring.js` / `test-real-bridge.js` | 控制台接线 / 真实桥无头验证（9/9 通过），别人可复跑 |
-| `test-body-physics.js` | **身体桥物理现实性验证（24 项）**：心跳判死、不误杀回 pong 的身体、陈旧状态拒绝、progress 证明慢≠死、maxActionTime 封顶、量程/变化率/卡死校验、动作幂等查询 |
+| `test/test-console-wiring.js` / `test/test-real-bridge.js` | 控制台接线 / 真实桥无头验证（9/9 通过），别人可复跑 |
+| `test/test-body-physics.js` | **身体桥物理现实性验证（24 项）**：心跳判死、不误杀回 pong 的身体、陈旧状态拒绝、progress 证明慢≠死、maxActionTime 封顶、量程/变化率/卡死校验、动作幂等查询 |
 | `smithery.yaml` | Smithery MCP 市场清单（stdio 启动 + 可选 OPENROUTER_API_KEY） |
 | `mcp.json` | 标准 MCP 客户端一键配置（`npx -y lingnao-mcp`，可选 OPENROUTER_API_KEY） |
 | `LingNao_Brain_Review_Brief_EN.md` | 英文外部评审简报（Embodied Brain 契约最小实装说明） |
 | `VERIFIABLE-PHYSICAL-AI.md` | **可验证物理 AI 定位**：与产业界「三道门槛」（泛化性/可靠性/持续学习）的对齐，量纲分析的作用，以及 4 条诚实边界 |
-| `test-contract-layer.js` | 连接契约层验证（32 项）：声明式契约求值、硬约束 fail-closed、观测可区分性、不可逆动作拦截 |
-| `test-dimension-layer.js` | 量纲分析层验证（34 项）：量纲代数、齐次性、Buckingham π、物理荒谬动作不进入规划 |
-| `test-mcp-stdio-transport.js` | **MCP stdio 传输层验证（9 项）**：NDJSON（现代 MCP 客户端）与 Content-Length（旧客户端）双帧格式握手 + `tools/list` + 端到端 `tools/call`。**必须独立存在**——`--selftest` 直接调内核函数、绕开传输层，传输坏了自测照样全绿 |
-| `gen-agent-manifests.js` | 生成「给前沿大模型用」的接入清单：真起 MCP 服务走 `tools/list` **实时抓取**（与客户端所见一致、永不过期），产出 `llms.txt` / `openai-tools.json` / `anthropic-tools.json` |
+| `test/test-contract-layer.js` | 连接契约层验证（32 项）：声明式契约求值、硬约束 fail-closed、观测可区分性、不可逆动作拦截 |
+| `test/test-dimension-layer.js` | 量纲分析层验证（34 项）：量纲代数、齐次性、Buckingham π、物理荒谬动作不进入规划 |
+| `test/test-mcp-stdio-transport.js` | **MCP stdio 传输层验证（9 项）**：NDJSON（现代 MCP 客户端）与 Content-Length（旧客户端）双帧格式握手 + `tools/list` + 端到端 `tools/call`。**必须独立存在**——`--selftest` 直接调内核函数、绕开传输层，传输坏了自测照样全绿 |
+| `examples/gen-agent-manifests.js` | 生成「给前沿大模型用」的接入清单：真起 MCP 服务走 `tools/list` **实时抓取**（与客户端所见一致、永不过期），产出 `llms.txt` / `openai-tools.json` / `anthropic-tools.json` |
 | `llms.txt` | LLM 发现文档（中英双语，[llmstxt.org](https://llmstxt.org) 标准）：给大模型/爬虫读的项目说明、接入方式、推荐调用顺序、诚实边界 |
 | `openai-tools.json` / `anthropic-tools.json` | 46 个工具的 function-calling / tool-use 清单，供 OpenAI Agents SDK、各家 function calling 框架直接加载 |
-| `docs/` `docs/archive/` `legacy/` | 文档导览见上文；过程稿归档 16 篇；WorldBrain 历史归档 |
+| `docs/` `docs/archive/` | 文档导览见上文；架构/数学审计与专家评审过程稿归档 |
 
 > 部署时 `lingnao-mcp.js` 与 `灵脑.html` 需同目录（或设 `LINGNAO_HTML` 环境变量，旧名 `LINGJING_HTML` 仍兼容）。
 

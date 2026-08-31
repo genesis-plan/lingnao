@@ -15,7 +15,7 @@
 ## Three ways to connect
 1. **MCP (recommended)** — `npx -y lingnao-mcp`; config: see `mcp.json` / `mcp.example.json`.
    Works with Claude Desktop, Cursor, Cline, and any MCP client.
-2. **Node library** — `const K = require('./lingnao-mcp'); K.reason(start, goal)` (no server started).
+2. **Node library** — `const K = require('../lingnao-mcp'); K.reason(start, goal)` (no server started).
 3. **Browser** — `<script src="lingnao.umd.js"></script>` then `window.LingNao` (zero install).
 
 ## Two separate products (do not confuse)
@@ -65,7 +65,7 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 
 ## 三种接入方式
 1. **MCP（推荐）**：`npx -y lingnao-mcp`，配置见 `mcp.json`
-2. **Node 库**：`const K = require('./lingnao-mcp')`（不自启服务）
+2. **Node 库**：`const K = require('../lingnao-mcp')`（不自启服务）
 3. **浏览器**：引入 `lingnao.umd.js`，零安装
 
 ## 两个独立产品，分属两个仓库

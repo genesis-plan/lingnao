@@ -45,8 +45,8 @@ const m=h.match(/\/\/ ==KERNEL START==[^\n]*\n([\s\S]*?)\n\/\/ ==KERNEL END==/);
 fs.writeFileSync('/tmp/k.js',m[1]);" && node --check /tmp/k.js
 
 node build-umd.js        # rebuild UMD (75 exports)
-node selftest-umd.js     # SELFTEST-UMD OK (offline / with OPENROUTER_API_KEY)
-node test-robot-integration.js   # the two-robot integration test: 13/13
+node test/selftest-umd.js     # SELFTEST-UMD OK (offline / with OPENROUTER_API_KEY)
+node test/test-robot-integration.js   # the two-robot integration test: 13/13
 ```
 
 Kernel: `灵脑.html` (~2,400 lines, single source of truth; UMD is extracted from it).

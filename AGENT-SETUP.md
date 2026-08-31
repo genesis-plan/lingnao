@@ -76,7 +76,7 @@ server = MCPServerStdio(name="lingnao", params={"command":"node",
             "args":["D:/Projects/genesis-plan/lingnao/lingnao-mcp.js"]})
 agent = Agent(name="robot-planner", mcp_servers=[server], instructions="...")
 ```
-（Anthropic 生态可用 `anthropic-tools.json`；二者均由 `gen-agent-manifests.js` 实时生成。）
+（Anthropic 生态可用 `anthropic-tools.json`；二者均由 `examples/gen-agent-manifests.js` 实时生成。）
 
 ---
 
