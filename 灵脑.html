@@ -1207,8 +1207,40 @@ function generateAudit(path, opts={}){
   proof.hoare = proof.verified===true ? (proof.hoare || '{P} C {Q}') : null;
   if(proof.verified!==true){ delete proof.pre; delete proof.post; proof.note='证明未通过机器验证，不声称最优（fail-closed）'; }
   const reproducible = {algorithmVersion:ALGO_VERSION, seed:SEED, ts:new Date().toISOString()};
-  // 诚实分级（修复"恒 valid"）：unknown→warning；声称 optimal 但证明未通过→unverified；其余 valid
-  const status = unknown.length? 'warning' : (path.status==='optimal' && proof.verified!==true ? 'unverified' : 'valid');
+  // ⑫ 安全层判定（吸收「冗余设计/防御纵深」4.1 + 「信任=审计报告」8.1）：
+  //    规划层三层（硬约束/自验证/Hoare 证明）与控制层两层（确定性陷阱 / CLF-CBF 统一 QP）
+  //    统一记录为可审计纵深防线；任一拒绝 ⇒ 整体 unsafe（fail-closed），前提不足 ⇒ undecided。
+  const _safetyLayers = [];
+  _safetyLayers.push({ layer:'plan.hard', theorem:'THM_CBF_INVARIANCE(契约硬约束 check_hard fail-closed)',
+    verdict: constraints[0].passed ? 'safe' : 'unsafe',
+    detail: constraints[0].nodes.length ? ('禁行节点 ' + constraints[0].nodes.join(',')) : '无硬约束' });
+  var _selfVerify = selfVerify(path, getWorld());
+  _safetyLayers.push({ layer:'plan.selfVerify', theorem:'Chain-of-Verification 反向证伪',
+    verdict: _selfVerify.passed ? 'safe' : 'unsafe',
+    detail: _selfVerify.contradictions.length ? _selfVerify.contradictions.map(function (c) { return c.detail; }).join('; ') : '前向推理无矛盾' });
+  _safetyLayers.push({ layer:'plan.hoare', theorem:'THM_HOARE(霍尔机器验证)',
+    verdict: proof.verified === true ? 'safe' : (path.status === 'unknown' ? 'undecided' : 'unverified'),
+    detail: proof.verified === true ? '路径最优性已机器验证' : (proof.note || '证明未通过机器验证（仅意味不可证最优，非 unsafe）') });
+  if (opts.control) {
+    var _c = opts.control;
+    if (_c.traps) {
+      var _traps = runDeterministicTraps(_c.traps);
+      _safetyLayers.push({ layer:'control.deterministicTraps', theorem:'THM_DETERMINISTIC_TRAPS(Layer2 六定理陷阱)',
+        verdict: _traps.verdict, detail: _traps.note, traps: _traps.traps });
+    }
+    if (_c.clfCbf) {
+      var _qp = clfCbfUnified(_c.clfCbf.V || null, _c.clfCbf.f, _c.clfCbf.g, _c.clfCbf.hList, _c.clfCbf.uNom, _c.clfCbf.x, _c.clfCbf.opts);
+      _safetyLayers.push({ layer:'control.clfCbfQP', theorem:'THM_CLF_CBF_QP(安全∧收敛统一)',
+        verdict: _qp.feasible ? 'safe' : 'unsafe',
+        detail: _qp.feasible ? _qp.guarantee : (_qp.reason || 'CLF-CBF 统一 QP 不可行（约束冲突）'),
+        qp: _qp });
+    }
+  }
+  var _safetyOverall = _safetyLayers.some(function (l) { return l.verdict === 'unsafe'; }) ? 'unsafe'
+    : (_safetyLayers.some(function (l) { return l.verdict === 'undecided'; }) ? 'undecided'
+      : (_safetyLayers.some(function (l) { return l.verdict === 'unverified'; }) ? 'unverified' : 'safe'));
+  // 诚实分级（修复"恒 valid"）：控制层 unsafe ⇒ unsafe（fail-closed 优先于 unknown warning）；Hoare 不可证⇒unverified；unknown→warning；声称 optimal 但证明未通过→unverified；其余 valid
+  const status = _safetyOverall === 'unsafe' ? 'unsafe' : (_safetyOverall === 'unverified' ? 'unverified' : (unknown.length ? 'warning' : (path.status === 'optimal' && proof.verified !== true ? 'unverified' : 'valid')));
   const _rep = {
     reportId:'AUD'+Date.now(), pathId:path.id||'P', summary:{
       totalCost:path.cost, status:path.status, nodes:path.path.length,
@@ -1227,6 +1259,9 @@ function generateAudit(path, opts={}){
       principle: '事实与推测偏差时，用 Banach 压缩映射(标量) / 最小交叉熵 I-投影(分布) 修正推测使其贴合事实'
     },
     grounding:{perception:GROUNDING.PERCEPTION, reason:GROUNDING.KERNEL, proof:GROUNDING.PROOF},
+    // ⑫ 安全层判定（防御纵深可审计记录）：规划层三层 + 控制层两层；任一 unsafe ⇒ 整体 unsafe（fail-closed）
+    safetyLayers: { layers: _safetyLayers, overall: _safetyOverall, defenseInDepth: true,
+      note: '冗余设计/防御纵深：各层独立提供安全保障，任一层拒绝即足以阻止不安全行为；本报告逐层记录判定（非仅最终结论）' },
     // 诚实修复：noHallucination 不再恒 true——仅当结论被证明验证或已诚实声明不可判定时才声称,
     noHallucination: (path.status==='unknown' || proof.verified===true),
     // ⑪ 执行段（具身层）：记录最近一次物理执行的可审计轨迹（trace/deviations/replans/SAFE-STOP）
@@ -3619,6 +3654,26 @@ function runDeterministicTraps(ctx) {
   };
 }
 function _attachTrap(id, r) { r.id = id; return r; }
+
+// ── 13h. 安全层判定报告（供审计/执行流 / MCP 直接取控制层判定，无需规划路径）──
+// 与 generateAudit 的 control 段同源：确定性陷阱 + CLF-CBF 统一 QP。任一层 unsafe ⇒ overall unsafe（fail-closed）。
+function safetyLayersReport(control) {
+  control = control || {};
+  var layers = [];
+  if (control.traps) {
+    var t = runDeterministicTraps(control.traps);
+    layers.push({ layer: 'control.deterministicTraps', theorem: 'THM_DETERMINISTIC_TRAPS', verdict: t.verdict, detail: t.note, traps: t.traps });
+  }
+  if (control.clfCbf) {
+    var q = clfCbfUnified(control.clfCbf.V || null, control.clfCbf.f, control.clfCbf.g, control.clfCbf.hList, control.clfCbf.uNom, control.clfCbf.x, control.clfCbf.opts);
+    layers.push({ layer: 'control.clfCbfQP', theorem: 'THM_CLF_CBF_QP', verdict: q.feasible ? 'safe' : 'unsafe',
+      detail: q.feasible ? q.guarantee : (q.reason || 'CLF-CBF 统一 QP 不可行（约束冲突）'), qp: q });
+  }
+  var overall = layers.length === 0 ? 'n/a'
+    : (layers.some(function (l) { return l.verdict === 'unsafe'; }) ? 'unsafe'
+      : (layers.some(function (l) { return l.verdict === 'undecided'; }) ? 'undecided' : 'safe'));
+  return { layers: layers, overall: overall, defenseInDepth: true };
+}
 
 // ── 14. CLF-CBF 统一 QP（Layer 1 补全：安全 ∧ 收敛）─────────────────
 // 控制仿射系统 ẋ = f(x) + g(x)u。CLF V(x)>0 给出收敛（V̇≤−α_c(V) 指数趋近目标）；

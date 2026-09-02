@@ -175,7 +175,7 @@ var _SAFETY_STACK = ['STL', 'stlHorizon', 'stlRobustness', 'stlMonitor',
   'bertrandTrap', 'cauchyLipschitzTrap', 'compactnessTrap', 'vanDerWaerdenTrap', 'baireTrap', 'varietyTrap',
   'runDeterministicTraps', 'clfCbfUnified', 'linearControlSpec',
   // Layer 3 无模型 CBF + 反事实审计（2026-09-02）：经 MCP 暴露
-  'modelFreeCbf', 'counterfactualAudit'];
+  'modelFreeCbf', 'counterfactualAudit', 'safetyLayersReport'];
 vm.runInContext(
   _SAFETY_STACK.map(function (n) { return 'globalThis.__exp.' + n + ' = ' + n + ';'; }).join(''),
   ctx
@@ -1119,6 +1119,23 @@ const TOOLS = [
       required: ['plan'],
     },
   },
+  {
+    name: 'safety_audit', description: '安全层判定（B 切片：safetyLayersReport，防御纵深可审计）：把控制层两层（确定性陷阱 runDeterministicTraps + CLF-CBF 统一 QP clfCbfUnified）统一报告为纵深防线；任一 unsafe ⇒ overall unsafe（fail-closed）。矩阵 (A,B,P,cList,dList) 经 linearControlSpec 构造 CLF-CBF 系统。  / EN: Defense-in-depth safety-layer verdict: deterministic traps + CLF-CBF unified QP. Any layer unsafe ⇒ overall unsafe.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        A: { type: 'array', description: '线性动力学矩阵 A（ẋ=A x+B u）；标量或矩阵', items: {} },
+        B: { type: 'array', description: '控制矩阵 B', items: {} },
+        P: { type: 'array', description: '（可选）CLF 二次型 V=xᵀP x', items: {} },
+        cList: { type: 'array', description: '（可选）各 CBF 法向 cᵢ（hᵢ=cᵢ·x+dᵢ≥0）', items: { type: 'array' } },
+        dList: { type: 'array', description: '（可选）各 CBF 偏移 dᵢ', items: {} },
+        x: { type: 'array', description: '当前状态 x', items: {} },
+        uNom: { anyOf: [{ type: 'number' }, { type: 'array' }], description: '（可选）标称控制' },
+        traps: { type: 'object', description: '（可选）确定性陷阱上下文 { budget, dynamics, constraints, assignment, observations, variety }', properties: {} },
+      },
+      required: ['A', 'B', 'x'],
+    },
+  },
 ];
 
 // ---------- 2b. Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02 MCP 暴露）----------
@@ -1149,6 +1166,14 @@ function modelFreeCbfLogic(args) {
 }
 function counterfactualAuditLogic(args) {
   return K.counterfactualAudit(args.plan || {}, {});
+}
+function safetyAuditLogic(args) {
+  var control = { traps: args.traps || null, clfCbf: null };
+  if (args.A && args.B) {
+    var spec = K.linearControlSpec(args.A, args.B, args.P || null, args.cList || [], args.dList || []);
+    control.clfCbf = { V: spec.V, f: spec.f, g: spec.g, hList: spec.hList, uNom: (args.uNom == null ? 0 : args.uNom), x: args.x || [], opts: {} };
+  }
+  return K.safetyLayersReport(control);
 }
 
 function callTool(name, args) {
@@ -1212,6 +1237,7 @@ function callTool(name, args) {
     case 'clf_cbf_unified': return clfCbfUnifiedLogic(args);
     case 'model_free_cbf': return modelFreeCbfLogic(args);
     case 'counterfactual_audit': return counterfactualAuditLogic(args);
+    case 'safety_audit': return safetyAuditLogic(args);
     default: throw new Error('未知工具：' + name);
   }
 }

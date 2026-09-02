@@ -250,6 +250,13 @@ if t > T₀：
 - **经典奠基论文吸收核对**：Ames 2016 CBF-QP→`THM_CBF_INVARIANCE`；Bellman 1957→`THM_ASTAR_OPTIMAL`；Romdlony 2016 CLBF≈本次 `clfCbfUnified`；Desai 2017/SOTER 2019→`plan_task`+`runtime_monitor`+`check_hard` 重规划；Lindemann 2019 STL→CBF→`THM_STL_LTL_UNIFICATION`（路线图）；Vassilev 2026 NIST 哥德尔→`THM_GODEL_INCOMPLETENESS` 已登记（`MATHEMATICS.md`，采纳外部同行评议结论，内核不重证；灵脑"第三类集合 + 𝕌"即其工程落地）。综述中"CLF-CBF 待实现/无模型 CBF 待实现"等标注现已过期。
 - **工具计数**：`lingnao-mcp.js` 本次新增 `model_free_cbf` + `counterfactual_audit`，`tools/list` 共 **56** 个。
 
+### B 切片：安全层判定接入审计报告（2026-09-02 深夜，给实现者）
+
+- **来源思想（跨学科综述）**：工程学「冗余设计 / 防御纵深」（4.1）+ 社会学「信任 = 审计报告」（8.1）。把规划层三层（硬约束 `check_hard` / 自验证 Chain-of-Verification / Hoare 机器验证）与控制层两层（确定性陷阱 `runDeterministicTraps` / CLF-CBF 统一 QP `clfCbfUnified`）统一记录为可审计纵深防线；**任一层 unsafe ⇒ 整体 unsafe（fail-closed），优先于 unknown 的 warning**；前提不足层诚实标 𝕌。
+- **内核改动**：`generateAudit` 新增 `safetyLayers` 块（规划三层恒记录；`opts.control` 存在时追加控制两层），并据 `_safetyOverall` 修正报告 `status`。新增独立 helper `safetyLayersReport(control)`（供执行流 / MCP 直接取控制层判定，无需规划路径）。
+- **MCP 暴露**：`safety_audit`（矩阵 A/B/P/cList/dList + 可选 traps 上下文 → `linearControlSpec` 构造 CLF-CBF 系统 → `safetyLayersReport`），`tools/list` 现共 **57** 个。
+- **验证**：`test/test-b-safety-audit.js` 19/0（B1 规划三层 / B2 控制 unsafe 传导 status=unsafe / B3 控制 safe 但 plan.hoare 𝕌 仍传导 / B4 `safetyLayersReport` 独立取判定）。
+
 ### 与 `docs/MATHEMATICS.md` 的关系
 
 - `MATHEMATICS.md` = **实况诚实说明**（内核怎么"实"、Tier 0/1 两层信任、21 定理链闭合）。
