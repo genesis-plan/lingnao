@@ -170,7 +170,10 @@ var _SAFETY_STACK = ['STL', 'stlHorizon', 'stlRobustness', 'stlMonitor',
   'beliefPlausibility', 'decideImprecise',
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', 'verifyLedger',
   'FIREWALL', 'liftToBelief', 'firewallCheck', 'firewallIsPerception', 'LingNaoThinking',
-  'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures'];
+  'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
+  // Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02）：经 MCP 暴露
+  'bertrandTrap', 'cauchyLipschitzTrap', 'compactnessTrap', 'vanDerWaerdenTrap', 'baireTrap', 'varietyTrap',
+  'runDeterministicTraps', 'clfCbfUnified', 'linearControlSpec'];
 vm.runInContext(
   _SAFETY_STACK.map(function (n) { return 'globalThis.__exp.' + n + ' = ' + n + ';'; }).join(''),
   ctx
@@ -985,7 +988,129 @@ const TOOLS = [
     name: 'positioning', description: '返回灵脑产品定位 POSITIONING（具身智能在物理世界干活的通用大脑）+ 当前注册身体 BODY。让外部智能体确认大脑的自我定位与边界。  / EN: Return LingNao’s product positioning POSITIONING (a general brain for embodied AI working in the physical world) + the currently registered body BODY. Lets external agents confirm the brain’s self-positioning and boundaries.',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
+  // ── Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02 经 MCP 暴露）──
+  {
+    name: 'bertrand_trap', description: '确定性安全陷阱①伯特兰：给定安全预算 N(整数>1)，定理(Bertrand 1852)保证 ∃素数 p∈(N,2N) ⇒ 安全冗余量可证明存在(>N/2 且不超 2N)。返回 witness 素数(若 N≤1e6 实算)或定理保证区间。  / EN: Deterministic safety trap ① Bertrand: given safety budget N, theorem guarantees a prime reserve p∈(N,2N).',
+    inputSchema: {
+      type: 'object',
+      properties: { N: { type: 'number', description: '安全预算 N（整数>1）；N≤1e6 实算见证素数，否则仅定理保证存在区间' } },
+      required: ['N'],
+    },
+  },
+  {
+    name: 'compactness_trap', description: '确定性安全陷阱③紧致性：多约束族若含相互矛盾的约束对(区间不交) ⇒ 全局不可满足(不安全)。输入每项约束的 feasible 区间 interval:[lo,hi]；两两不交即检出矛盾。  / EN: Deterministic safety trap ③ Compactness: detects contradictory constraint pairs (disjoint intervals) ⇒ globally unsatisfiable.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        constraints: { type: 'array', items: { type: 'object', properties: { interval: { type: 'array', items: { type: 'number' }, description: '[lo,hi] 该变量可行区间' }, feasible: { type: 'boolean' }, id: { type: 'string' } }, description: '单条约束：{interval:[lo,hi]} 或 {feasible:bool}' }, description: '约束族（≥2 项）' },
+      },
+      required: ['constraints'],
+    },
+  },
+  {
+    name: 'van_der_waerden_trap', description: '确定性安全陷阱④范德瓦尔登：协作分配序列中检出单色等差数列(长≥k) ⇒ 设备周期独占/结构退化风险。  / EN: Deterministic safety trap ④ Van der Waerden: detects monochromatic arithmetic progressions (length≥k) in an assignment sequence.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        seq: { type: 'array', items: {}, description: '着色序列（设备/智能体标识），如 [5,9,5,9,5]' },
+        k: { type: 'number', description: 'AP 长度阈值，默认 3' },
+      },
+      required: ['seq'],
+    },
+  },
+  {
+    name: 'baire_trap', description: '确定性安全陷阱⑤贝尔纲：观测若反复落入 meager 例外集(‖x−c‖≥normalRadius) 占比超阈值 ⇒ 结构性异常(非统计波动)。  / EN: Deterministic safety trap ⑤ Baire: detects structural anomalies when observations repeatedly fall in the meager exceptional set beyond a threshold.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        observations: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '观测序列（每个为状态向量数组），如 [[0,0],[5,5]]' },
+        normalRadius: { type: 'number', description: '正常开球半径(稠密开集定义)，默认 1' },
+        threshold: { type: 'number', description: 'meager 命中占比阈值，默认 0.2' },
+      },
+      required: ['observations'],
+    },
+  },
+  {
+    name: 'variety_trap', description: '确定性安全陷阱⑥代数簇：安全态集若不连通(存在被隔开的不可达安全孤岛) ⇒ 计划无法覆盖全部安全区。在采样点邻接图上检测连通分量。  / EN: Deterministic safety trap ⑥ Variety: detects disconnected safe-state set (isolated unreachable safe islands).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        samples: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '安全态样本（每点为状态向量数组），≥2' },
+        eps: { type: 'number', description: 'ε-邻域连通半径，默认 1e-6' },
+        adjacency: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '可选显式邻接表（每点邻居下标数组）' },
+      },
+      required: ['samples'],
+    },
+  },
+  {
+    name: 'cauchy_lipschitz_trap', description: '确定性安全陷阱②柯西-利普希茨：给定 Lipschitz 常数 L(解析/估计)与初值 x0，Cauchy–Lipschitz 保证初值问题解唯一(演化不分叉、可复现)。返回分离上界 d0·e^{L·T}。  / EN: Deterministic safety trap ② Cauchy–Lipschitz: given Lipschitz constant L and x0, guarantees unique solution (no bifurcation). Returns separation bound.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        x0: { type: 'array', items: { type: 'number' }, description: '初值向量' },
+        L: { type: 'number', description: 'Lipschitz 常数 L（显式上界；线性系统可给 ‖A‖_∞）' },
+        horizon: { type: 'number', description: '时间视野 T，默认 1' },
+      },
+      required: ['x0', 'L'],
+    },
+  },
+  {
+    name: 'run_deterministic_traps', description: 'Layer 2 聚合器：在给定上下文上跑全部六陷阱（数据驱动部分）。任一 unsafe ⇒ 整体 unsafe；有 𝕌 ⇒ undecided。供审计层标注"定理驱动"。  / EN: Layer 2 aggregator: runs all six traps on the given context (data-driven parts). Any unsafe ⇒ overall unsafe.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        budget: { type: 'number', description: '①伯特兰安全预算 N' },
+        constraints: { type: 'array', items: { type: 'object' }, description: '③紧致性约束族' },
+        assignment: { type: 'object', description: '④范德瓦尔登序列 {seq:[...], k?:3}' },
+        observations: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '⑤贝尔纲观测序列' },
+        variety: { type: 'object', description: '⑥代数簇 {samples:[[...]]}' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'clf_cbf_unified', description: 'CLF-CBF 统一 QP（Layer 1 补全）：在线性系统 ẋ=Ax+Bu 上同时求安全(CBF h_i≥0)与前向收敛(CLF V=xᵀPx→目标)的控制。min‖u−u_nom‖² s.t. 两类线性约束 ⇒ Hildreth 对偶解。可行⇒安全∧收敛同时成立；冲突⇒诚实返回 infeasible(绝不谎称安全)。输入矩阵即可(经 linearControlSpec 转 dual-aware)。  / EN: CLF-CBF unified QP: jointly safe (CBF) and convergent (CLF) control for ẋ=Ax+Bu. Feasible ⇒ safe∧convergent; conflict ⇒ honestly infeasible.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        A: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '线性动力学矩阵 A（状态×状态；标量系统给 [[a]]）' },
+        B: { type: 'array', items: { type: 'number' }, description: '输入矩阵 B（状态×输入；单输入给 [b]）' },
+        P: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '可选 CLF 二次型 P（V=xᵀPx）；省略则仅安全' },
+        cList: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '各 CBF 法向 cᵢ（hᵢ=cᵢ·x+dᵢ≥0）' },
+        dList: { type: 'array', items: { type: 'number' }, description: '各 CBF 偏移 dᵢ' },
+        uNom: { type: 'array', items: { type: 'number' }, description: '标称控制 u_nom（多输入数组；单输入可给标量）' },
+        x: { type: 'array', items: { type: 'number' }, description: '当前状态 x' },
+        gammaS: { type: 'number', description: '安全率 α_s，默认 1' },
+        gammaC: { type: 'number', description: '收敛率 α_c，默认 1' },
+      },
+      required: ['A', 'B', 'x'],
+    },
+  },
 ];
+
+// ---------- 2b. Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02 MCP 暴露）----------
+function bertrandTrapLogic(N) { return K.bertrandTrap(N); }
+function compactnessTrapLogic(constraints) { return K.compactnessTrap(constraints || []); }
+function vanDerWaerdenTrapLogic(seq, k) { return K.vanDerWaerdenTrap(seq || [], { k: k || 3 }); }
+function baireTrapLogic(observations, normalRadius, threshold) { return K.baireTrap(observations || [], { normalRadius: normalRadius, threshold: threshold }); }
+function varietyTrapLogic(samples, eps, adjacency) { return K.varietyTrap(samples || [], { eps: eps, adjacency: adjacency }); }
+function cauchyLipschitzTrapLogic(x0, L, horizon) {
+  // 经 opts.L 显式传入 Lipschitz 上界（诚实：解析/精确），_lipschitzOf 直接采用，不调用 f
+  return K.cauchyLipschitzTrap(function (x) { return x; }, x0 || [], null, { L: L, horizon: horizon });
+}
+function runDeterministicTrapsLogic(args) {
+  var ctx = {};
+  if (args.budget != null) ctx.budget = args.budget;
+  if (args.constraints) ctx.constraints = args.constraints;
+  if (args.assignment) ctx.assignment = args.assignment;
+  if (args.observations) ctx.observations = args.observations;
+  if (args.variety) ctx.variety = args.variety; // {samples:[[...]]}
+  return K.runDeterministicTraps(ctx);
+}
+function clfCbfUnifiedLogic(args) {
+  var spec = K.linearControlSpec(args.A, args.B, args.P || null, args.cList || [], args.dList || []);
+  return K.clfCbfUnified(spec.V, spec.f, spec.g, spec.hList, (args.uNom == null ? 0 : args.uNom), args.x || [], { gammaS: args.gammaS, gammaC: args.gammaC });
+}
 
 function callTool(name, args) {
   args = args || {};
@@ -1037,6 +1162,15 @@ function callTool(name, args) {
     case 'world_model': return worldModelLogic(args.samples, args.state, args.action);
     case 'counterfactual': return counterfactualLogic(args.samples, args.factual, args.intervention);
     case 'causal_effect': return causalEffectLogic(args.samples, args.cause, args.effect, args.mediator);
+    // ── Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02）──
+    case 'bertrand_trap': return bertrandTrapLogic(args.N);
+    case 'compactness_trap': return compactnessTrapLogic(args.constraints);
+    case 'van_der_waerden_trap': return vanDerWaerdenTrapLogic(args.seq, args.k);
+    case 'baire_trap': return baireTrapLogic(args.observations, args.normalRadius, args.threshold);
+    case 'variety_trap': return varietyTrapLogic(args.samples, args.eps, args.adjacency);
+    case 'cauchy_lipschitz_trap': return cauchyLipschitzTrapLogic(args.x0, args.L, args.horizon);
+    case 'run_deterministic_traps': return runDeterministicTrapsLogic(args);
+    case 'clf_cbf_unified': return clfCbfUnifiedLogic(args);
     default: throw new Error('未知工具：' + name);
   }
 }

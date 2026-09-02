@@ -87,6 +87,9 @@ const EXPORT_NAMES = [
   'MathKernel', 'CAPABILITY_THEOREMS', 'theoremOf', 'proofAudit', 'verifyLedger', // 数学内核（LCF）：公理→定理→能力追溯→账本机检
   'FIREWALL', 'liftToBelief', 'firewallCheck', 'firewallIsPerception', 'LingNaoThinking', // 架构脊柱②防火墙 + 次轴④思想索引
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
+  // Layer 2 确定性安全陷阱层（2026-09-02）：六个已证明定理陷阱 + CLF-CBF 统一 QP
+  'bertrandTrap', 'cauchyLipschitzTrap', 'compactnessTrap', 'vanDerWaerdenTrap', 'baireTrap', 'varietyTrap',
+  'runDeterministicTraps', 'clfCbfUnified', 'linearControlSpec',
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象
   'BrainTuple',
   // 自主能力等级（2026-08-31 完善）：DeepMind ASL 适配的分级人机协同配置
