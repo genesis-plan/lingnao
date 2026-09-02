@@ -18,7 +18,7 @@ line('  存档：' + (st.hasArchive ? '有（' + st.archiveBytes + ' 字节）' 
 line('  世界图：节点 ' + st.worldNodes + ' 个，边 ' + st.worldEdges + ' 条（其中感知得来 ' + st.perceivedEdges + ' 条）');
 
 hr('神经②：给它一段现场观测，看世界图会不会自己长');
-const before = { nodes: L.WORLD.nodes.length, edges: L.WORLD.edges.length };
+const before = { nodes: L.getWorld().nodes.length, edges: L.getWorld().edges.length };
 const p = L.perceive({
   source: '巡检员·老周', evidence: '巡检记录#2026-08-29',
   observations: [
@@ -51,17 +51,17 @@ line('  审计：' + audit.status + '  不幻觉：' + (audit.noHallucination ? 
 hr('神经①：这次任务学到的东西，会不会留到下一次醒来');
 L.learn(r.path, true);
 const saved = L.Memory.save();
-line('  学习后落盘：' + (saved.ok ? '成功（' + saved.bytes + ' 字节，' + saved.exp + ' 条经验）' : '失败：' + saved.reason));
+line('  学习后落盘：' + (saved.ok ? '成功（' + saved.bytes + ' 字节，' + L.Memory.status().perceivedEdges + ' 条感知边）' : '失败：' + saved.reason));
 line('  直接把内存清空，模拟"进程重启"……');
-const keepExp = L.KB.summary().count, keepNodes = L.WORLD.nodes.slice();
-L.KB._exp.length = 0;                       // 杀死内存中的知识
-L.WORLD.nodes = ['CHARGE']; L.WORLD.edges = [];
-line('  清空后：经验 ' + L.KB.summary().count + ' 条，节点 ' + L.WORLD.nodes.length + ' 个');
+const keepExp = L.Memory.status().perceivedEdges, keepNodes = L.getWorld().nodes.slice();
+// 模拟失忆：下面把内存中的世界图重置为最小态，再经 L.Memory.load() 从磁盘存档恢复（与 selftest 同款）
+L.getWorld().nodes = ['CHARGE']; L.getWorld().edges = [];
+line('  清空后：感知边 ' + L.Memory.status().perceivedEdges + ' 条，节点 ' + L.getWorld().nodes.length + ' 个');
 const back = L.Memory.load();
 line('  从存档恢复：' + (back.ok ? '成功 ✔' : '失败：' + back.reason));
-line('  恢复后：经验 ' + L.KB.summary().count + '/' + keepExp + ' 条，节点含新仓区='
-  + (L.WORLD.nodes.includes('新仓区') ? '是 ✔' : '否 ✘'));
-line('  感知存证：' + JSON.stringify(Object.keys(L.WORLD._prov.edge || {})));
+line('  恢复后：感知边 ' + L.Memory.status().perceivedEdges + '/' + keepExp + ' 条，节点含新仓区='
+  + (L.getWorld().nodes.includes('新仓区') ? '是 ✔' : '否 ✘'));
+line('  感知存证：' + JSON.stringify(Object.keys(L.getWorld()._prov.edge || {})));
 
 hr('事件总线：这次运行内部到底发生了多少事');
 const byType = {};
@@ -69,6 +69,6 @@ L.EventBus.log.forEach(e => { byType[e.type] = (byType[e.type] || 0) + 1; });
 line('  ' + JSON.stringify(byType) + '  合计 ' + L.EventBus.log.length + ' 条事件');
 line('  （此前内核内部 publish 数为 0，总线是纯装饰；现在感知/学习事件会真的触发落盘）');
 
-const ok = p.graphChanged && saved.ok && back.ok && L.WORLD.nodes.includes('新仓区') && L.EventBus.log.length > 0;
+const ok = p.graphChanged && saved.ok && back.ok && L.getWorld().nodes.includes('新仓区') && L.EventBus.log.length > 0;
 line('\n  [自测] ' + (ok ? 'PASS ✔ 感知建图 / 记忆持久化 / 元认知调度 三根神经闭环成立' : 'FAIL ✘'));
 if (require.main === module) process.exitCode = ok ? 0 : 1;

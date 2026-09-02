@@ -76,13 +76,13 @@ assert(aDetour.status === 'valid' && aDetour.constraints[0].nodes.includes('B') 
 L.Memory.clear();
 L.setWorld({ nodes: ['M1', 'M2'], edges: [{ from: 'M1', to: 'M2', w: 1, p: 1 }] });
 const perN = L.perceive({ source: 'selftest', evidence: 'n1', observations: [{ type: 'edge', from: 'M2', to: 'M3', w: 2, p: 0.9 }] });
-assert(perN.ok && L.WORLD.nodes.includes('M3'), '神经① 前置：感知新增节点 M3 已写入世界图');
+assert(perN.ok && L.getWorld().nodes.includes('M3'), '神经① 前置：感知新增节点 M3 已写入世界图');
 const saved = L.Memory.save();
 assert(saved.ok === true && L.Memory.status().hasArchive === true, '神经① 记忆落盘：存档已生成');
 const beforeEdges = L.Memory.status().perceivedEdges;
 assert(beforeEdges > 0, '神经① 感知增量已计入存档(' + beforeEdges + ' 条感知边)');
 // 模拟进程失忆：清空内存中的感知增量（保留磁盘存档）
-L.WORLD.edges = L.WORLD.edges.filter(e => !e.perceived);
+L.getWorld().edges = L.getWorld().edges.filter(e => !e.perceived);
 assert(L.Memory.status().perceivedEdges === 0, '神经① 模拟失忆：内存感知增量已清空');
 const reloaded = L.Memory.load();
 assert(reloaded.ok === true && L.Memory.status().perceivedEdges === beforeEdges, '神经① 记忆恢复：从存档还原 ' + beforeEdges + ' 条感知边（进程退出不再失忆）');
@@ -104,8 +104,8 @@ const per = L.perceive({ source: 'selftest', evidence: 'unit-1', observations: [
   { type: 'edge', from: 'C', to: 'ZZ', w: 2.5, p: 0.9 },
   { type: 'edge', from: 'A', to: 'B', w: 999 }
 ] });
-assert(per.ok && L.WORLD.nodes.includes('ZZ') && L.WORLD.edges.some(e => e.from === 'C' && e.to === 'ZZ'), '神经② 感知建图：观测真的写入世界图（图会自己长）');
-assert(per.conflicts.length === 1 && L.WORLD.edges.find(e => e.from === 'A' && e.to === 'B').w !== 999, '神经② 冲突登记：与既有认知冲突时保留原值，不静默改写');
+assert(per.ok && L.getWorld().nodes.includes('ZZ') && L.getWorld().edges.some(e => e.from === 'C' && e.to === 'ZZ'), '神经② 感知建图：观测真的写入世界图（图会自己长）');
+assert(per.conflicts.length === 1 && L.getWorld().edges.find(e => e.from === 'A' && e.to === 'B').w !== 999, '神经② 冲突登记：与既有认知冲突时保留原值，不静默改写');
 const rPer = L.reason('C', 'ZZ');
 assert((rPer.usedSystem || rPer.system) !== '1', '神经② 诚实闸门：未确认的感知边不允许系统1快答（须走证明链）');
 assert(L.confirmObservation('C→ZZ', true).ok === true, '神经② 感知确认：观测升级为已验证认知');
@@ -183,7 +183,7 @@ assert(ss3.satisfiable === true && ss3.assign.x >= 1 && ss3.assign.y >= 1 && (ss
 // ② 霍尔证明：真实三元组 {pre} prog {post}（pre/post/invariant* 结构齐备，使用一致世界图）
 L.setWorld({ nodes: ['CHARGE', 'A', 'B', 'C'], edges: [{ from: 'CHARGE', to: 'A', w: 1 }, { from: 'A', to: 'B', w: 2 }, { from: 'B', to: 'C', w: 3 }] });
 const rH = L.reason('CHARGE', 'C');
-const hp = L.verifyHoarePath(rH, L.WORLD);
+const hp = L.verifyHoarePath(rH, L.getWorld());
 assert(hp.verified === true && hp.pre && hp.post && Array.isArray(hp.steps) && hp.steps.length === rH.path.length - 1 && typeof hp.hoare === 'string' && hp.hoare.length > 0,
   'verifyHoarePath 真实霍尔三元组：pre/post/invariant* 齐备，verified=' + hp.verified);
 
@@ -320,10 +320,10 @@ assert(distR2.mode === 'kl-iprojection' && distR2.belief.A < 1e-12 && Math.abs(d
 // 6.5 端到端：perceive 摄入与推测偏差的事实 → 触发自我修正并落审计⑩信念修正段
 if (L.Memory && typeof L.Memory.reset === 'function') L.Memory.reset();
 L.setWorld({ nodes: ['X', 'Y'], edges: [{ from: 'X', to: 'Y', w: 1, p: 0.2 }], coord: {} });
-const beforeP = L.WORLD.edges.find(e => e.from === 'X' && e.to === 'Y').p; // 推测=0.2
+const beforeP = L.getWorld().edges.find(e => e.from === 'X' && e.to === 'Y').p; // 推测=0.2
 const perR = L.perceive({ observations: [{ type: 'edge', from: 'X', to: 'Y', w: 1, p: 0.95, confidence: 0.9 }] });
 assert(perR.ok && Array.isArray(perR.selfCorrections) && perR.selfCorrections.length === 1, 'perceive 偏差事实：触发 1 次自我修正(selfCorrection 事件)');
-const afterP = L.WORLD.edges.find(e => e.from === 'X' && e.to === 'Y').p;
+const afterP = L.getWorld().edges.find(e => e.from === 'X' && e.to === 'Y').p;
 assert(afterP > beforeP && Math.abs(afterP - 0.95) < Math.abs(beforeP - 0.95),
   'perceive 自我修正：边概率 ' + beforeP + '→' + afterP + ' 向事实(0.95)收敛（推测贴合事实）');
 const aRev = L.generateAudit(L.reason('X', 'Y', { hard: [], soft: [] }), { hard: [], soft: [] });

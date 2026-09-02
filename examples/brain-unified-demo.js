@@ -116,16 +116,16 @@ hr('领域D · 知识蒸馏（第四层能力，由外部模块注册进 OS 后�
 
   // ── 融合证据：一张图、一套循环 ──────────────────────────────────────
   hr('融合证据');
-  line('  世界图（所有领域共用同一张 G）：节点 ' + L.WORLD.nodes.length
-    + ' 个，边 ' + L.WORLD.edges.length + ' 条');
+  line('  世界图（所有领域共用同一张 G）：节点 ' + L.getWorld().nodes.length
+    + ' 个，边 ' + L.getWorld().edges.length + ' 条');
   line('  领域共存：' + ['FARM_A','KIVA','MONTHLY'].map(n =>
-    n + (L.WORLD.nodes.includes(n) ? '✔' : '✘')).join('  '));
+    n + (L.getWorld().nodes.includes(n) ? '✔' : '✘')).join('  '));
   line('  能力总数：' + L.Capabilities.list().length + ' 个（跨 L1/L2/L3/L4/L5）');
   line('  记忆存档：' + (L.Memory.status().hasArchive ? '已落盘，重启可恢复 ✔' : '无存档'));
 
   const ok = results.every(({ r }) => r.allocations.length > 0 && r.layer.L3_audit.status !== 'audit_failed')
     && manual.steps.length > 0
-    && ['FARM_A', 'KIVA', 'MONTHLY'].every(n => L.WORLD.nodes.includes(n));
+    && ['FARM_A', 'KIVA', 'MONTHLY'].every(n => L.getWorld().nodes.includes(n));
   line('\n  [自测] ' + (ok
     ? 'PASS ✔ 四个切片已融合：同一张图 + 同一套认知循环 + 统一审计与记忆'
     : 'FAIL ✘'));

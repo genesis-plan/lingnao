@@ -49,10 +49,10 @@ assert(JSON.stringify(pathOf(rA2)) === JSON.stringify(pathA), '切回 A 规划�
 // ---------- 自我修正：机器人上报与推测偏差的事实 -> 大脑修正推测贴合事实 ----------
 console.log('\n[自我修正] 机器人上报偏差事实，大脑修正推测');
 L.setWorld({ nodes:['X','Y'], edges:[{from:'X',to:'Y',w:1,p:1}] });
-const before = L.WORLD.edges.find(e=>e.from==='X'&&e.to==='Y').p;
+const before = L.getWorld().edges.find(e=>e.from==='X'&&e.to==='Y').p;
 const per = L.perceive({ source:'robotB', observations:[{type:'edge', from:'X', to:'Y', w:1, p:0.3, confidence:0.95}] });
 assert(per.ok && per.selfCorrections.length >= 1, '偏差事实触发 selfCorrection 事件(' + per.selfCorrections.length + ')');
-const after = L.WORLD.edges.find(e=>e.from==='X'&&e.to==='Y').p;
+const after = L.getWorld().edges.find(e=>e.from==='X'&&e.to==='Y').p;
 assert(after < before && Math.abs(after - 0.3) < Math.abs(before - 0.3), '边概率向事实 0.3 收缩 (' + before + ' -> ' + after + ')');
 
 // ---------- reconcile 纯函数：Banach 收缩 ----------
