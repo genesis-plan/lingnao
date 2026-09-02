@@ -221,9 +221,9 @@ if t > T₀：
 | 层级 | 愿景标注 | 代码实况（2026-09-02） | 差距 |
 |---|---|---|---|
 | **Layer 0** | 11 公理已登记 | ✅ 11 公理已在 LCF 可信核登记；`verifyAll` 证明链闭合（见 MATHEMATICS.md §1、§3）。元定理 `THM_SOUNDNESS` 已由 `verify()` 落地；`THM_GODEL_INCOMPLETENESS` 已由 `𝕌`（未定集合）机制体现 | 基本一致 |
-| **Layer 1** | A* ✓；CBF/Zonotope/CLF 部分待实现 | ✅ **A\***（RSG+值迭代，行 365–599）；✅ **CBF** 含组合多约束 QP（行 2853–3248，Nagumo 前向不变）；✅ **Zonotope** 可达集过近似（行 3032）；✅ **Lyapunov**（行 2830）；✅ **量纲/Buckingham π**（行 2490–2603）；✅ **CLF-CBF 统一 QP**（section 14，`clfCbfUnified` + `linearControlSpec`，Hildreth 对偶凸 QP，2026-09-02 下午落地，经 MCP 暴露为 `clf_cbf_unified`） | **愿景低估**：CBF/Zonotope/Lyapunov/量纲/CLF-CBF 均已跑通。剩余：`THM_MODEL_FREE_CBF`（无模型 CBF）未做 |
+| **Layer 1** | A* ✓；CBF/Zonotope/CLF 部分待实现 | ✅ **A\***（RSG+值迭代，行 365–599）；✅ **CBF** 含组合多约束 QP（行 2853–3248，Nagumo 前向不变）；✅ **Zonotope** 可达集过近似（行 3032）；✅ **Lyapunov**（行 2830）；✅ **量纲/Buckingham π**（行 2490–2603）；✅ **CLF-CBF 统一 QP**（section 14，`clfCbfUnified` + `linearControlSpec`，Hildreth 对偶凸 QP，2026-09-02 下午落地，MCP `clf_cbf_unified`）；✅ **无模型 CBF**（section 16，`modelFreeCbf` RBF 核从轨迹学屏障，Tier 1，老设备无动力学模型场景，2026-09-02 晚落地，MCP `model_free_cbf`）；✅ **STL→CBF**（Lindemann 2019 思想）已在 `THM_STL_LTL_UNIFICATION` 路线图 | **愿景低估**：CBF/Zonotope/Lyapunov/量纲/CLF-CBF/无模型CBF 均已跑通（无模型 CBF 为 Tier 1 经验分离器，非 THM_CBF_INVARIANCE 的 Tier 0 全局保证） |
 | **Layer 2** | 六陷阱待实现 | ✅ **已落地（2026-09-02 下午，section 13a–13g）**：`bertrandTrap`/`cauchyLipschitzTrap`/`compactnessTrap`/`vanDerWaerdenTrap`/`baireTrap`/`varietyTrap` + 聚合器 `runDeterministicTraps`，全部 Tier 0 可机器核对；并经 MCP 暴露为同名/聚合工具（见 `test/test-safety-traps-clfcbf.js` 回归 28/0） | **已实装**：六个定理陷阱现为可调用安全判据（诚实边界：前提不满足标 𝕌，绝不猜；冲突诚实返回 infeasible，绝不谎称安全） |
-| **Layer 3** | 黎曼陷阱待实现 | ❌ 未实现 | **待建 + 须泼冷水**（见下方「Layer 3 诚实警示」） |
+| **Layer 3** | 黎曼陷阱待实现；反事实安全层概念 | ✅ **反事实硬干预审计**（section 17，`counterfactualAudit`，`THM_COUNTERFACTUAL_AUDIT`，Tier 1，Project Ariadne 2026 思想，2026-09-02 晚落地，MCP `counterfactual_audit`）；❌ **黎曼陷阱** 仍待建（须泼冷水，见下方警示） | **部分实装**：反事实审计可用（Tier 1，缺 premise/effect 信息步诚实标 𝕌）；黎曼陷阱维持研究示意（禁入证明链） |
 | **Layer 4** | 全部待研究 | ❌ 代码暂无反事实/哈密顿量/拓扑/博弈论模块 | 一致（待研究） |
 | **Layer 5** | 猜想隔离 | ✅ 内核铁律③已拒绝"猜想当前提"，`verify()` 篡改检测含此（MATHEMATICS.md §1） | 一致 |
 
@@ -241,6 +241,14 @@ if t > T₀：
 - **dual-aware 约定**：内核用显式双数原语（`dAdd`/`dSub`/`dMul`/`dPow`/`dual`，**无运算符重载**）。`h`/`V` 必须以这些原语书写（如 `h = x => L.dSub(L.dual(1,0), x[0])`），否则喂入 `clfCbfUnified` 的对偶求导链会得 `NaN` → 误判可行/不可行。**`f`/`g` 返回普通数组/矩阵**（`g` 朝向为 inputs×states，与 `cbfCompose` 一致）。`linearControlSpec(A,B,P,cList,dList)` 已把矩阵规范转为 dual-aware 的 `h`/`V`，是 MCP/测试以矩阵构造系统的入口。
 - **诚实边界已落实**：CLF 与 CBF 约束冲突时 `clfCbfUnified` 返回 `feasible:false`（绝不谎称安全）；前提不足的陷阱返回 `verdict:'undecided'`（标 𝕌），不猜测。
 - **验证**：`test/test-safety-traps-clfcbf.js` 覆盖六陷阱 + CLF-CBF 平凡/修正/冲突/聚合 + `linearControlSpec` 集成，28/0 通过；`lingnao-mcp.js` 已暴露 8 个对应 MCP 工具（`tools/list` 共 54 个）。
+
+### Layer 1 无模型 CBF + Layer 3 反事实审计 实现备注（2026-09-02 晚，给实现者）
+
+- **方向决策（用户拍板）**：灵脑**不开**"验证他人神经网络控制器"支线（LightCROWN / Robust NLB / PS2-RL 仅作外部验证服务另立项，不进内核）。本次只吸收与"确定性可验证"主线一致的工作：ARYA（零 NN 确定性世界模型，工业可行性背书）、核方法无模型 CBF、Ariadne 反事实审计、Vehicle/Lean 移植（战略验证，暂不动代码）。
+- **C1 `modelFreeCbf`（THM_MODEL_FREE_CBF，section 16）**：`safeSamples`/`unsafeSamples` 经 RBF 核（γ 默认 1）+ ridge（λ 默认 1e-3）最小二乘学得分离屏障 `h(x)`；`gradH(x)` 解析可得（供未来 CBF 约束构造）。**诚实边界（Tier 1）**：训练符号一致率 ≥0.9 才判 safe；样本 <4 或不可分诚实标 𝕌，绝不谎称安全。验证：`test/test-cl1-cl2.js` 18/0（含可分/不足/不可分三例）。
+- **C2 `counterfactualAudit`（THM_COUNTERFACTUAL_AUDIT，section 17）**：对计划每步施加 remove / negate-premise / flip-effect 三道硬干预（Ariadne 思想），度量因果敏感性；存在关键步（其失效连累下游）⇒ 反事实脆弱（`verdict:'unsafe'`，`robust:false`），否则 `safe`/`robust:true`；任一关键步缺 `premise/effect` 信息 ⇒ 整体 `𝕌`。纯符号、确定性、非 NN。验证：同 `test/test-cl1-cl2.js`（依赖链/无依赖/空/缺信息四例）。
+- **经典奠基论文吸收核对**：Ames 2016 CBF-QP→`THM_CBF_INVARIANCE`；Bellman 1957→`THM_ASTAR_OPTIMAL`；Romdlony 2016 CLBF≈本次 `clfCbfUnified`；Desai 2017/SOTER 2019→`plan_task`+`runtime_monitor`+`check_hard` 重规划；Lindemann 2019 STL→CBF→`THM_STL_LTL_UNIFICATION`（路线图）；Vassilev 2026 NIST 哥德尔→`THM_GODEL_INCOMPLETENESS` 已登记（`MATHEMATICS.md`，采纳外部同行评议结论，内核不重证；灵脑"第三类集合 + 𝕌"即其工程落地）。综述中"CLF-CBF 待实现/无模型 CBF 待实现"等标注现已过期。
+- **工具计数**：`lingnao-mcp.js` 本次新增 `model_free_cbf` + `counterfactual_audit`，`tools/list` 共 **56** 个。
 
 ### 与 `docs/MATHEMATICS.md` 的关系
 

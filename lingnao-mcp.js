@@ -173,7 +173,9 @@ var _SAFETY_STACK = ['STL', 'stlHorizon', 'stlRobustness', 'stlMonitor',
   'kernelVerify', 'kernelStatus', 'kernelFoundation', 'kernelProve', 'kernelConjectures',
   // Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02）：经 MCP 暴露
   'bertrandTrap', 'cauchyLipschitzTrap', 'compactnessTrap', 'vanDerWaerdenTrap', 'baireTrap', 'varietyTrap',
-  'runDeterministicTraps', 'clfCbfUnified', 'linearControlSpec'];
+  'runDeterministicTraps', 'clfCbfUnified', 'linearControlSpec',
+  // Layer 3 无模型 CBF + 反事实审计（2026-09-02）：经 MCP 暴露
+  'modelFreeCbf', 'counterfactualAudit'];
 vm.runInContext(
   _SAFETY_STACK.map(function (n) { return 'globalThis.__exp.' + n + ' = ' + n + ';'; }).join(''),
   ctx
@@ -1086,6 +1088,37 @@ const TOOLS = [
       required: ['A', 'B', 'x'],
     },
   },
+  {
+    name: 'model_free_cbf', description: '无模型 CBF（THM_MODEL_FREE_CBF，Layer 1 补全）：老设备无精确动力学模型、只有运行轨迹时，用 RBF 核方法从 safe/unsafe 轨迹学一个分离安全屏障 h(x)（h>0 判安全，gradH 解析可得）。确定性的、非 NN。Tier 1（经验分离器，非 THM_CBF_INVARIANCE 的 Tier 0 全局保证）；样本不足/不可分诚实返回 𝕌。  / EN: Model-free CBF: learn a safety barrier from trajectory data via RBF kernel (no dynamics model needed). Tier 1; honestly 𝕌 when data insufficient.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        safeSamples: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '已观测安全状态轨迹（每个是状态向量）' },
+        unsafeSamples: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '已观测不安全/失效状态轨迹' },
+        gamma: { type: 'number', description: 'RBF 带宽 γ，默认 1' },
+        lambda: { type: 'number', description: 'ridge 正则 λ，默认 1e-3（保证核矩阵非奇异）' },
+      },
+      required: ['safeSamples', 'unsafeSamples'],
+    },
+  },
+  {
+    name: 'counterfactual_audit', description: '反事实硬干预审计（THM_COUNTERFACTUAL_AUDIT，Layer 3 反事实安全层）：对计划的每步施加 remove/negate-premise/flip-effect 三道硬干预（Project Ariadne 思想），度量因果敏感性。存在关键步 ⇒ 反事实脆弱（unsafe/非鲁棒）；任一步缺 premise/effect ⇒ 诚实 𝕌。纯符号、确定性、非 NN。  / EN: Counterfactual hard-intervention audit of a plan trace (Ariadne-style). Critical step ⇒ fragile; missing info ⇒ 𝕌.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan: {
+          type: 'object',
+          description: '计划对象：{ goal, steps:[{ id, action, premise:[事实], effect:[事实], safe? }] }',
+          properties: {
+            goal: { type: 'string' },
+            steps: { type: 'array', items: { type: 'object' } },
+          },
+          required: ['steps'],
+        },
+      },
+      required: ['plan'],
+    },
+  },
 ];
 
 // ---------- 2b. Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02 MCP 暴露）----------
@@ -1110,6 +1143,12 @@ function runDeterministicTrapsLogic(args) {
 function clfCbfUnifiedLogic(args) {
   var spec = K.linearControlSpec(args.A, args.B, args.P || null, args.cList || [], args.dList || []);
   return K.clfCbfUnified(spec.V, spec.f, spec.g, spec.hList, (args.uNom == null ? 0 : args.uNom), args.x || [], { gammaS: args.gammaS, gammaC: args.gammaC });
+}
+function modelFreeCbfLogic(args) {
+  return K.modelFreeCbf(args.safeSamples || [], args.unsafeSamples || [], { gamma: args.gamma, lambda: args.lambda });
+}
+function counterfactualAuditLogic(args) {
+  return K.counterfactualAudit(args.plan || {}, {});
 }
 
 function callTool(name, args) {
@@ -1171,6 +1210,8 @@ function callTool(name, args) {
     case 'cauchy_lipschitz_trap': return cauchyLipschitzTrapLogic(args.x0, args.L, args.horizon);
     case 'run_deterministic_traps': return runDeterministicTrapsLogic(args);
     case 'clf_cbf_unified': return clfCbfUnifiedLogic(args);
+    case 'model_free_cbf': return modelFreeCbfLogic(args);
+    case 'counterfactual_audit': return counterfactualAuditLogic(args);
     default: throw new Error('未知工具：' + name);
   }
 }

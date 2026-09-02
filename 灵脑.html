@@ -3719,6 +3719,108 @@ function linearControlSpec(A, B, P, cList, dList) {
   return { f: f, g: g, V: V, hList: hList, L: L };
 }
 
+// ───────────────────────── section 16 ─────────────────────────
+// 无模型 CBF（核方法，从轨迹数据学安全屏障）：THM_MODEL_FREE_CBF
+// 来源：Kernel-Based Learning of Safety Barriers (JAIR 2026) 思想；Romdlony&Jayawardhana 2016 CLBF 的数据驱动版
+// 为什么融合：老设备无精确动力学模型（A/B 的 clfCbfUnified 需 f/g 解析），只有运行轨迹。
+//   核方法从 safe/unsafe 轨迹学一个分离屏障 h(x)，h>0 判安全。确定性的、非 NN。
+// 诚实边界（Tier 1，非 Tier 0）：
+//   • 这是经验分离器，前向不变性只在"经验裕度内"局部成立，不能像 THM_CBF_INVARIANCE 那样给全局数学保证。
+//   • 样本不足或不可分时，诚实标 𝕌（不谎称安全）。
+function _rbfKernel(x, c, gamma) {
+  var s = 0; for (var k = 0; k < x.length; k++) { var d = x[k] - c[k]; s += d * d; }
+  return Math.exp(-gamma * s);
+}
+function modelFreeCbf(safeSamples, unsafeSamples, opts) {
+  opts = opts || {};
+  var gamma = (opts.gamma != null) ? opts.gamma : 1.0;
+  var lambda = (opts.lambda != null) ? opts.lambda : 1e-3;   // ridge：保证 (K+λI) 非奇异
+  var safe = safeSamples || [], uns = unsafeSamples || [];
+  if (safe.length + uns.length < 4) return { verdict: 'undecided', U: true,
+    theorem: 'THM_MODEL_FREE_CBF', tier: 1, grounding: GROUNDING.KERNEL,
+    reason: '样本过少（safe+unsafe < 4）⇒ 无法学出可靠分离器 ⇒ 𝕌（诚实不判）',
+    h: null, gradH: null, trainAccuracy: null };
+  // 组装 labeled 数据：safe=+1, unsafe=-1
+  var X = safe.concat(uns), y = safe.map(function () { return 1; }).concat(uns.map(function () { return -1; }));
+  var n = X.length, i, j;
+  // 核矩阵 K + ridge（对角加 λ）
+  var K = []; for (i = 0; i < n; i++) { K.push([]); for (j = 0; j < n; j++) K[i].push(_rbfKernel(X[i], X[j], gamma) + (i === j ? lambda : 0)); }
+  var alpha = _solveLin(K, y);
+  if (!alpha) return { verdict: 'undecided', U: true, theorem: 'THM_MODEL_FREE_CBF', tier: 1, grounding: GROUNDING.KERNEL,
+    reason: '核矩阵正则后仍奇异（数据退化/重合）⇒ 无法唯一求解 ⇒ 𝕌', h: null, gradH: null, trainAccuracy: null };
+  // 训练准确率（符号一致性）
+  var correct = 0;
+  for (i = 0; i < n; i++) { var hi = 0; for (j = 0; j < n; j++) hi += alpha[j] * _rbfKernel(X[i], X[j], gamma); if ((hi >= 0 ? 1 : -1) === y[i]) correct++; }
+  var acc = correct / n;
+  function h(x) { var s = 0; for (var t = 0; t < n; t++) s += alpha[t] * _rbfKernel(x, X[t], gamma); return s; }
+  function gradH(x) { var g = new Array(x.length).fill(0); for (var t = 0; t < n; t++) { var kc = _rbfKernel(x, X[t], gamma); for (var d = 0; d < x.length; d++) g[d] += alpha[t] * kc * (-2 * gamma * (x[d] - X[t][d])); } return g; }
+  var ok = (acc >= 0.9);
+  return {
+    verdict: ok ? 'safe' : 'undecided', U: !ok,
+    theorem: 'THM_MODEL_FREE_CBF', tier: 1, grounding: GROUNDING.KERNEL,
+    h: h, gradH: gradH, alpha: alpha, centers: X, gamma: gamma, lambda: lambda,
+    trainAccuracy: +acc.toFixed(4), nSafe: safe.length, nUnsafe: uns.length,
+    asCbf: function () { return { h: h, gradH: gradH }; },
+    note: '核方法从轨迹学得的 CBF：h(x)>0 判安全。Tier 1（经验分离器），非 THM_CBF_INVARIANCE 的 Tier 0 全局保证；'
+        + (ok ? '训练符号一致率 ' + acc.toFixed(3) + ' ≥ 0.9 ⇒ 经验可行；未见状态仍须保守处理。'
+              : '训练符号一致率 ' + acc.toFixed(3) + ' < 0.9 ⇒ 样本不足以可信分离 ⇒ 𝕌（绝不谎称安全）。')
+  };
+}
+
+// ───────────────────────── section 17 ─────────────────────────
+// 反事实硬干预审计（Layer 3 反事实安全层）：THM_COUNTERFACTUAL_AUDIT
+// 来源：Project Ariadne (Khanzadeh 2026) 思想——结构因果模型 + 硬干预（翻转逻辑/否定前提/逆转事实）+ 因果敏感性
+// 为什么融合：灵脑的审计报告目前是"做了什么"。Ariadne 提示升级为"如果当时做了不同选择会怎样"的反事实审计，
+//   在 plan_task 阶段对每步做硬干预，检查"若此步失败/被篡改，系统是否仍安全"。纯符号、确定性、非 NN。
+// 诚实边界：仅当步骤带 premise/effect 信息时可审计；缺失则标 𝕌（不猜）。
+function counterfactualAudit(plan, opts) {
+  opts = opts || {};
+  var steps = (plan && plan.steps) ? plan.steps : (Array.isArray(plan) ? plan : []);
+  if (!steps.length) return { verdict: 'undecided', U: true, theorem: 'THM_COUNTERFACTUAL_AUDIT', tier: 1, grounding: GROUNDING.KERNEL,
+    reason: '计划为空或缺少 steps ⇒ 无可审计对象 ⇒ 𝕌', robust: null, steps: [] };
+  function facts(arr) { return (arr && arr.length) ? arr : []; }
+  var perStep = steps.map(function (s, idx) {
+    var prem = facts(s.premise), eff = facts(s.effect);
+    // 哪些下游步骤依赖本步（其 premise 引用本步 effect）
+    var dependedBy = [];
+    for (var m = 0; m < steps.length; m++) {
+      if (m === idx) continue;
+      var p = facts(steps[m].premise);
+      for (var q = 0; q < p.length; q++) if (eff.indexOf(p[q]) >= 0) { dependedBy.push(m); break; }
+    }
+    var hasInfo = (prem.length > 0 || eff.length > 0);
+    var critical = dependedBy.length > 0;   // 临界 = 其失效会连累下游
+    return {
+      id: (s.id != null ? s.id : idx), action: s.action,
+      critical: critical, sensitivity: critical ? 1 : 0,
+      dependedBy: dependedBy.slice(),
+      interventions: {
+        remove: { breaks: critical, dependedBy: dependedBy.slice() },
+        negatePremise: { breaks: critical, note: '前提被否 ⇒ 本步不执行 ⇒ 下游依赖失效' },
+        flipEffect: { breaks: critical, dependedBy: dependedBy.slice() }
+      },
+      undecided: !hasInfo,
+      safe: (s.safe != null ? s.safe : null)
+    };
+  });
+  var anyBreak = perStep.some(function (p) { return p.critical; });
+  var anyUndecided = perStep.some(function (p) { return p.undecided; });
+  // 诚实优先级：任一关键步缺失审计信息 ⇒ 无法完整认证 ⇒ 𝕌（绝不谎称 safe）；
+  //   否则存在关键步 ⇒ 反事实脆弱（unsafe/非鲁棒）；否则耐受干预（safe/robust）。
+  var verdict = anyUndecided ? 'undecided' : (anyBreak ? 'unsafe' : 'safe');
+  return {
+    verdict: verdict, U: (verdict === 'undecided'),
+    theorem: 'THM_COUNTERFACTUAL_AUDIT', tier: 1, grounding: GROUNDING.KERNEL,
+    robust: !anyBreak,
+    goal: plan.goal || null,
+    steps: perStep,
+    note: '反事实硬干预审计：对每步施加 remove/negate-premise/flip-effect 三干预，度量因果敏感性。'
+        + (verdict === 'safe' ? '无关键步骤被破坏 ⇒ 计划耐受反事实干预（robust）。'
+           : verdict === 'unsafe' ? '存在关键步骤：其失效会连累下游 ⇒ 反事实脆弱（当前安全但非鲁棒），须加固或加冗余。'
+           : '部分步骤缺 premise/effect 信息 ⇒ 无法完整审计 ⇒ 𝕌（诚实不判）。')
+  };
+}
+
 // 外部数学思想融合（一）：保形预测 Conformal Prediction
 // 来源：Vovk–Gammerman–Shafer 保形预测；split conformal（Angelopoulos & Bates 2021）
 // 为什么融合：灵脑的"不幻觉"此前只是工程断言，没有统计保证。保形预测是唯一能在

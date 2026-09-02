@@ -116,6 +116,9 @@ proofAudit: capabilities=27, proven=27, unproven=0
 | `THM_DO_CALCULUS` | 因果推断 | 满足后门/前门准则 ⟹ P(Y\|do(X)) 可由观测识别 | `AX_PROB` | 2 | Pearl (1995) do-演算 | 合成数据 ACE 还原真值 |
 | `THM_BUCKINGHAM_PI` | 量纲分析 | 量纲变换下不变 ⟹ 可化为无量纲 π 齐次函数 | `AX_REAL` | 2 | Buckingham π 定理 | `dimAdd` 异量纲相加返回 null |
 | ★ `THM_IA_INCLUSION` | 区间算术 | [a,b]+[c,d] ⊆ [a+c,b+d]（COMPUTE：verify 实际运行有限样本核对） | （无前提，Tier0 机器检查） | 1 | 区间算术定义 | `verify()` 运行 `check()` 返回 true |
+| `THM_MODEL_FREE_CBF` | 安全控制（无模型） | RBF 核从 safe/unsafe 轨迹学得分离屏障 h，h>0 判安全；前向不变性仅在经验裕度内局部成立 | `AX_REAL` | 1 | Kernel-Based Learning of Safety Barriers (JAIR 2026) 思想；Romdlony&Jayawardhana 2016 CLBF 数据驱动版 | 训练符号一致率≥0.9 才判 safe；样本不足/不可分诚实标 𝕌（非 THM_CBF_INVARIANCE 的 Tier0 全局保证） |
+| `THM_COUNTERFACTUAL_AUDIT` | 审计/安全 | 对计划每步施加硬干预（remove/negate-premise/flip-effect），存在关键步 ⇒ 反事实脆弱（当前安全但非鲁棒） | `AX_SET` | 1 | Project Ariadne (Khanzadeh 2026) 结构因果硬干预思想 | 缺 premise/effect 信息步 ⇒ 诚实标 𝕌 |
+| `THM_GODEL_INCOMPLETENESS` | 安全边界（元） | 有限护栏规则集不可覆盖无限对抗提示空间 ⇒ 绝对安全在数学上不可能；须标记第三类（不可判定）并保守处理 | `AX_SET`,`AX_REAL` | 1（采纳外部证明，非自证） | Vassilev (NIST, IEEE S&P 2026) 哥德尔不完备性形式化 | 灵脑"第三类集合 + 𝕌 标记"即其工程落地；本定理为采纳外部同行评议结论，内核不重证 |
 
 > **证明性质统一说明**：表中 `source` 列是结论的**原始出处**，`evidence` 列是产品内的**运行时核对**。这两者都不等于"内核从公理推出了该结论"（★ 中 `THM_ODE_EXISTENCE` 等四条是 `DERIVE`：文献派生草图；唯 `THM_IA_INCLUSION` 是 `COMPUTE`：内核真正执行计算验证，见 §2.5）。内核里 `DERIVE` 定理的 `proof` 字段是一段指向 `source` 的草图；`verify()` 只确认登记结构合法（并对 `COMPUTE` 实跑 `check()`）。
 
