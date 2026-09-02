@@ -3,59 +3,36 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>灵脑 LingNao · 接入控制台</title>
+<title>灵脑 LingNao · 接入</title>
 <style>
-  :root{
-    --bg:#0b1220; --panel:#111c30; --panel2:#16243d; --line:#243a5e;
-    --txt:#e6eefb; --mut:#94a8c6; --acc:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
-  }
+  :root{ --bg:#0b1220; --panel:#111c30; --line:#243a5e; --txt:#e6eefb; --mut:#94a8c6; --acc:#38bdf8; --ok:#22c55e; --err:#ef4444; }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.55 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
-  .wrap{max-width:880px;margin:0 auto;padding:22px 18px 56px}
-  h1{font-size:22px;margin:0 0 2px}
-  .sub{color:var(--mut);margin:0 0 16px}
-  .tag{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 11px;font-size:12px;color:var(--acc);margin-right:6px}
-
-  .brainbar{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 16px;margin-bottom:18px}
-  .brainbar .dot{width:11px;height:11px;border-radius:50%;background:var(--mut);flex:none}
-  .brainbar .dot.ok{background:var(--ok)} .brainbar .dot.warn{background:var(--warn)} .brainbar .dot.err{background:var(--err)}
-  .brainbar #brainState{font-size:13.5px;flex:1}
-  .brainbar .hint{color:var(--mut);font-size:12px}
-
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
-  .card h3{margin:0 0 2px;font-size:17px;display:flex;align-items:center;gap:8px}
-  .card h3 .n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--panel2);border:1px solid var(--acc);color:var(--acc);font-size:13px;font-weight:700}
-  .card .when{display:inline-block;background:#0a1424;border:1px solid var(--line);border-radius:6px;padding:2px 9px;font-size:12px;color:var(--acc);margin-bottom:12px}
-
-  textarea,input,select{width:100%;background:#0a1424;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  textarea{resize:vertical;min-height:88px}
-  label{display:block;color:var(--mut);font-size:12px;margin:10px 0 3px}
-  button{cursor:pointer;border:0;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--acc);color:#04121f}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
+  .wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+  h1{font-size:20px;margin:0 0 10px}
+  #brainState{font-size:12.5px;color:var(--mut);margin:0 0 16px;min-height:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .card h3{margin:0 0 10px;font-size:16px}
+  textarea,input,select{width:100%;background:#0a1424;color:var(--txt);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  textarea{resize:vertical;min-height:80px}
+  label{display:block;color:var(--mut);font-size:12px;margin:9px 0 3px}
+  button{cursor:pointer;border:0;border-radius:7px;padding:9px 14px;font-size:13px;font-weight:600;background:var(--acc);color:#04121f}
   button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
-  button.sm{padding:5px 11px;font-size:12px;font-weight:600}
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-  .status{margin-top:9px;font-size:12.5px;min-height:18px}
-  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)} .mut{color:var(--mut)}
-  pre.cfg{background:#0a1424;border:1px solid var(--line);border-radius:8px;padding:12px;font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#cfe3ff;white-space:pre-wrap;word-break:break-word;margin:10px 0}
-  code{background:#0a1424;padding:1px 5px;border-radius:5px;color:var(--acc)}
+  button.sm{padding:5px 11px;font-size:12px}
+  .row{display:flex;gap:8px;align-items:center}
+  .status{margin-top:8px;font-size:12.5px;min-height:16px}
+  .ok{color:var(--ok)} .err{color:var(--err)} .mut{color:var(--mut)}
+  pre.cfg{background:#0a1424;border:1px solid var(--line);border-radius:7px;padding:11px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#cfe3ff;white-space:pre-wrap;word-break:break-word;margin:10px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>灵脑 LingNao · 接入控制台</h1>
-  <p class="sub"><span class="tag">可审计</span><span class="tag">不幻觉</span><span class="tag">确定性推理</span></p>
+  <h1>灵脑 LingNao · 接入</h1>
+  <p id="brainState">大脑加载中…</p>
 
-  <div class="brainbar">
-    <span class="dot mut" id="brainDot"></span>
-    <span id="brainState">大脑加载中…</span>
-    <button class="ghost sm" id="btnSelf">重新自检</button>
-  </div>
-
-  <!-- ① 接入大模型 -->
   <section class="card" id="v-llm">
-    <h3><span class="n">1</span> 接入大模型</h3>
-    <span class="when">让大脑听懂大白话（可不填）</span>
-    <label>OpenRouter Key（免费档可用；留空则用结构化指令）</label>
+    <h3>① 接入大模型</h3>
+    <label>OpenRouter Key（可不填）</label>
     <input id="llmKey" type="password" placeholder="sk-or-...（留空则不接）">
     <label>模型</label>
     <select id="llmModel">
@@ -64,37 +41,32 @@
       <option value="meta-llama/llama-3.1-8b-instruct:free">llama-3.1-8b:free</option>
       <option value="google/gemini-2.0-flash-exp:free">gemini-2.0-flash:free</option>
     </select>
-    <div class="row" style="margin-top:12px"><button id="btnLLM">连接大模型</button></div>
+    <div class="row" style="margin-top:11px"><button id="btnLLM">连接大模型</button></div>
     <div class="status" id="stLLM"></div>
   </section>
 
-  <!-- ② 接入智能体 -->
   <section class="card" id="v-agent">
-    <h3><span class="n">2</span> 接入智能体</h3>
-    <span class="when">让 AI 智能体指挥大脑</span>
-    <button id="btnGenAgent">⚡ 一键生成 MCP 配置</button>
+    <h3>② 接入智能体</h3>
+    <button id="btnGenAgent">⚡ 生成 MCP 配置</button>
     <div id="agentCfg" style="display:none">
       <pre class="cfg" id="agentJson"></pre>
-      <div class="row" style="margin-top:4px"><button class="ghost" id="btnCopy">复制</button><span class="mut" id="copyTip"></span></div>
+      <div class="row"><button class="ghost sm" id="btnCopy">复制</button><span class="mut" id="copyTip"></span></div>
     </div>
   </section>
 
-  <!-- ③ 接入真实物理机器 -->
   <section class="card" id="v-robot">
-    <h3><span class="n">3</span> 接入真实物理机器</h3>
-    <span class="when">让真机器人执行决策</span>
+    <h3>③ 接入真实物理机器</h3>
     <label>身体配置</label>
     <textarea id="bodyJson">{
   "name": "仓储搬运臂",
   "state": { "location": "CHARGE" },
   "hard": []
 }</textarea>
-    <div class="status" id="capList" style="color:var(--mut)"></div>
-    <div class="row" style="margin-top:6px"><button id="btnBody">连接身体</button></div>
+    <div class="row" style="margin-top:8px"><button id="btnBody">连接身体</button></div>
     <div class="status" id="stBody"></div>
-    <label style="margin-top:12px">真实身体地址（可选）</label>
+    <label style="margin-top:10px">真实身体地址（可选）</label>
     <div class="row">
-      <input id="wsUrl" placeholder="ws://localhost:8787" value="ws://localhost:8787" style="flex:1;min-width:150px">
+      <input id="wsUrl" placeholder="ws://localhost:8787" value="ws://localhost:8787" style="flex:1;min-width:140px">
       <button id="btnConnect" class="ghost">连接真实身体</button>
     </div>
     <div class="status" id="stBridge"></div>
@@ -107,7 +79,8 @@
 (function(){
   "use strict";
   const L = window.LingNao;
-  if(!L){ document.getElementById('brainState').textContent='❌ 未找到 lingnao.umd.js（请与本页放在同一目录）'; return; }
+  const brain = document.getElementById('brainState');
+  if(!L){ brain.textContent='❌ 未找到 lingnao.umd.js（与本页放同一目录）'; return; }
 
   const CAPS_DEFAULT = [
     {id:'step_CHARGE_A', pre:s=>s.location==='CHARGE', eff:s=>{s.location='A';}, cost:1},
@@ -126,24 +99,15 @@
       {from:'B',to:'C',w:1},{from:'C',to:'B',w:1},
       {from:'C',to:'D',w:1},{from:'D',to:'C',w:1}
     ]};
-
-  let bodyState0 = {location:'CHARGE'};
-  let bodyHard = [];
   let bridge = null;
-
-  document.getElementById('capList').textContent =
-    '能力清单（随机器人固定）：' + CAPS_DEFAULT.map(c=>c.id.replace('step_','')).join(' · ');
 
   document.getElementById('btnBody').onclick = function(){
     const st = document.getElementById('stBody');
     try{
       const cfg = JSON.parse(document.getElementById('bodyJson').value);
-      bodyState0 = cfg.state || {location:'CHARGE'};
-      bodyHard = Array.isArray(cfg.hard) ? cfg.hard : [];
       L.setWorld(WORLD);
-      const r = L.attachBody({name:cfg.name||'body', state:bodyState0, hard:bodyHard, capabilities:CAPS_DEFAULT});
-      st.className='status ok';
-      st.textContent = '✅ 身体「'+r.body+'」已登记：'+r.capabilities.length+' 个能力';
+      const r = L.attachBody({name:cfg.name||'body', state:cfg.state||{location:'CHARGE'}, hard:Array.isArray(cfg.hard)?cfg.hard:[], capabilities:CAPS_DEFAULT});
+      st.className='status ok'; st.textContent='✅ 身体「'+r.body+'」已登记：'+r.capabilities.length+' 个能力';
     }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; }
   };
 
@@ -157,20 +121,12 @@
     st.textContent = r.ok ? '✅ 大模型已接入' : '❌ '+JSON.stringify(r);
   };
 
-  async function selfCheck(){
-    const st = document.getElementById('brainState');
-    const dot = document.getElementById('brainDot');
-    dot.className='dot mut'; st.textContent='自检中…';
-    L.setWorld(WORLD);
-    try{
-      const r = L.reason('CHARGE','C',{hard:[],soft:[]});
-      const ok = r && r.status==='optimal' && Array.isArray(r.path) && r.path[0]==='CHARGE';
-      dot.className = ok?'dot ok':'dot warn';
-      st.innerHTML = ok ? '✅ 大脑已接入（自检通过）' : '⚠️ 自检未全过';
-    }catch(e){ dot.className='dot err'; st.innerHTML='❌ 自检失败：'+e.message; }
-  }
-  document.getElementById('btnSelf').onclick = selfCheck;
-  selfCheck();
+  L.setWorld(WORLD);
+  try{
+    const r = L.reason('CHARGE','C',{hard:[],soft:[]});
+    const ok = r && r.status==='optimal' && Array.isArray(r.path) && r.path[0]==='CHARGE';
+    brain.textContent = ok ? '✅ 大脑已接入' : '⚠️ 自检未全过';
+  }catch(e){ brain.textContent='❌ 自检失败：'+e.message; }
 
   document.getElementById('btnConnect').onclick = async function(){
     const st = document.getElementById('stBridge');
@@ -181,7 +137,7 @@
     if (bridge) { try{ bridge.disconnect(); }catch(e){} bridge = null; }
     bridge = LingNaoBridge.createBodyBridge(url, {timeout:5000, onLog:function(){},
       onState:function(s){ st.className='status ok'; st.textContent='🔌 真身体在线 · '+(s&&s.location?s.location:JSON.stringify(s)); },
-      onClose:function(){ st.className='status warn'; st.textContent='⚠️ 已断开'; }});
+      onClose:function(){ st.className='status mut'; st.textContent='⚠️ 已断开'; }});
     try{
       await bridge.connect();
       const cfg = JSON.parse(document.getElementById('bodyJson').value || '{}');
