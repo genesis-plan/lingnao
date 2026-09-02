@@ -1032,6 +1032,12 @@ function getLLMConfig(){
   return {provider:LLM_CONFIG.provider, model:LLM_CONFIG.model, baseURL:LLM_CONFIG.baseURL,
     hasKey: !!LLM_CONFIG.apiKey, temperature:LLM_CONFIG.temperature, maxTokens:LLM_CONFIG.maxTokens};
 }
+// 断开大模型：清空运行时 apiKey（恢复为「不接大模型」状态；部署层 env 兜底不在控制台范围内）
+function disconnectLLM(){
+  LLM_CONFIG = Object.assign({}, LLM_CONFIG, {apiKey:''});
+  delete LLM_CONFIG.apiKey;
+  return {ok:true, hasKey:false};
+}
 
 // 统一 HTTP POST(JSON)：Node 用 node:https；浏览器用 fetch（自动选传输）
 function _httpPostJson(url, headers, bodyStr){
@@ -7070,7 +7076,7 @@ MathKernel.thinking = LingNaoThinking;
 
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
-  globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
+  globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, disconnectLLM, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
     metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     safetyLayersReport,
     learnWorldModel, simulate, counterfactual, causalEffect,

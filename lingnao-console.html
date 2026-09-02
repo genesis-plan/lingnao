@@ -41,7 +41,10 @@
       <option value="meta-llama/llama-3.1-8b-instruct:free">llama-3.1-8b:free</option>
       <option value="google/gemini-2.0-flash-exp:free">gemini-2.0-flash:free</option>
     </select>
-    <div class="row" style="margin-top:11px"><button id="btnLLM">连接大模型</button></div>
+    <div class="row" style="margin-top:11px">
+      <button id="btnLLM">连接大模型</button>
+      <button class="ghost" id="btnLLMOff">断开</button>
+    </div>
     <div class="status" id="stLLM"></div>
   </section>
 
@@ -51,6 +54,7 @@
     <div id="agentCfg" style="display:none">
       <pre class="cfg" id="agentJson"></pre>
       <div class="row"><button class="ghost sm" id="btnCopy">复制</button><span class="mut" id="copyTip"></span></div>
+      <div class="mut" style="font-size:11px;margin-top:6px">在智能体的 MCP 设置里删除此条目即断开</div>
     </div>
   </section>
 
@@ -68,6 +72,7 @@
     <div class="row">
       <input id="wsUrl" placeholder="ws://localhost:8787" value="ws://localhost:8787" style="flex:1;min-width:140px">
       <button id="btnConnect" class="ghost">连接真实身体</button>
+      <button class="ghost" id="btnBridgeOff">断开</button>
     </div>
     <div class="status" id="stBridge"></div>
   </section>
@@ -120,6 +125,12 @@
     st.className = r.ok?'status ok':'status err';
     st.textContent = r.ok ? '✅ 大模型已接入' : '❌ '+JSON.stringify(r);
   };
+  document.getElementById('btnLLMOff').onclick = function(){
+    const st = document.getElementById('stLLM');
+    const r = L.disconnectLLM();
+    st.className = r.ok ? 'status mut' : 'status err';
+    st.textContent = r.ok ? '已断开大模型' : '❌ '+JSON.stringify(r);
+  };
 
   L.setWorld(WORLD);
   try{
@@ -144,6 +155,13 @@
       try { await bridge.send({ type:'reset', state: cfg.state || {location:'CHARGE'} }); } catch(e){}
       st.className='status ok'; st.textContent='✅ 已连接 '+url;
     }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; bridge=null; }
+  };
+  document.getElementById('btnBridgeOff').onclick = function(){
+    const st = document.getElementById('stBridge');
+    if(!bridge){ st.className='status mut'; st.textContent='未连接真实身体'; return; }
+    try{ bridge.disconnect(); }catch(e){}
+    bridge = null;
+    st.className='status mut'; st.textContent='已断开真实身体';
   };
 
   document.getElementById('btnGenAgent').onclick = function(){
