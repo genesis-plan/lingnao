@@ -1221,6 +1221,18 @@ function generateAudit(path, opts={}){
   _safetyLayers.push({ layer:'plan.hoare', theorem:'THM_HOARE(霍尔机器验证)',
     verdict: proof.verified === true ? 'safe' : (path.status === 'unknown' ? 'undecided' : 'unverified'),
     detail: proof.verified === true ? '路径最优性已机器验证' : (proof.note || '证明未通过机器验证（仅意味不可证最优，非 unsafe）') });
+  // ④ 代数安全验证（A 选项落地）：调用方提供安全代数条件方程 ⇒ 委派灵数求解器做 Krawczyk 认证
+  var _certAlg = null;
+  if (opts.algebraic) {
+    _certAlg = certifiedNumeric(opts.algebraic);
+    _safetyLayers.push({ layer: 'safety.certifiedAlgebraic', theorem: 'THM_KRAWCZYK_CERTIFY(灵数求解器区间认证)',
+      verdict: !_certAlg.available ? 'unverified' : (_certAlg.provenNoSolution ? 'safe' : 'unverified'),
+      detail: _certAlg.available
+        ? (_certAlg.provenNoSolution ? '灵数证明该代数安全条件无实数解（Krawczyk 认证：安全集非空且不被穿越）'
+            : (_certAlg.certified ? '代数安全条件已 Krawczyk 认证求解（安全解读由调用方给出）' : '灵数返回未全认证 ⇒ unverified'))
+        : (_certAlg.note || '灵数求解器未接入 ⇒ 代数安全声明无法认证'),
+      algebraic: _certAlg });
+  }
   if (opts.control) {
     var _c = opts.control;
     if (_c.traps) {
@@ -1246,7 +1258,7 @@ function generateAudit(path, opts={}){
       totalCost:path.cost, status:path.status, nodes:path.path.length,
       key:'最优路径 '+path.path.join('→'), usedSystem:path.usedSystem||path.system||'2'
     },
-    details, evidence, constraints, unknown, uncertainty, proof,
+    details, evidence, constraints, unknown, uncertainty, proof, certifiedAlgebraic: _certAlg,
     // ⑧ 自验证段（吸收 Chain-of-Verification / 自验证提示 思想）：对结论做反向证伪，而非直接信任前向推理
     selfVerification: selfVerify(path, getWorld()),
     // ⑨ 反思段（吸收 Reflexion: 语言式强化学习 思想）：确定性复盘写入情景记忆，不更新权重、可审计
@@ -1548,6 +1560,38 @@ function algebraicSolve(args){
     return { available:false, note:'灵数求解器未接入（纯浏览器端需 Node 运行时 / 灵脑 MCP 服务）。请用 lingnao-mcp 的 algebraic_solve 工具调用真引擎。' };
   }
   return bridge.algebraicSolve(args);
+}
+// ④ 内部确定性代数验证层（委派灵数求解器 · Krawczyk 认证）—— A 选项落地
+//   灵脑内部"需解 f(x)=0 或证无实数解"的验证统一走此，把确定性验证的代数算术部分从 lite 浮点升级为 Krawczyk 区间认证。
+//   诚实边界（不夸大）：
+//     · 灵数求解器是「方程求解器」（解 f(x)=0 + 证明无实数解），不是区间算术/AD/QP 引擎；
+//       内核区间算术(itv*)/自动微分(dual*)/QP(clfCbfUnified) 仍各由自身模块负责，本函数不越界、不假装替换。
+//     · 灵数不可达 ⇒ 诚实降级 available:false，绝不退回裸浮点假装认证。
+//     · 真比 lite 浮点强的点：灵数能「证明无实数解」(resultTypeName:'empty' 且 certified)——浮点采样永做不到。
+function certifiedNumeric(args){
+  args = args || {};
+  const r = algebraicSolve(args);                       // 已含桥缺失 → {available:false} 诚实降级
+  if (!r.available) {
+    return { available: false, tier: 'lite-unverified',
+      note: '灵数求解器未接入 ⇒ 代数安全声明无法 Krawczyk 认证（诚实降级，不假装求解）',
+      provenNoSolution: false, certified: false };
+  }
+  const empty = r.resultTypeName === 'empty';
+  const allCert = !!r.certified;
+  return {
+    available: true, engine: r.engine, tier: 'certified-krawczyk',
+    // 真升级：灵数「证明无实数解」（resultType=empty 即引擎全局穷尽证无实根；lite 浮点永不能证）
+    //   注意：empty 情形下桥的 certified 字段因无 solutions 而为 false，但"证无实数解"本身即严谨结论，故独立判定，不与 solutions 认证耦合。
+    provenNoSolution: empty,
+    certified: allCert || empty,
+    resultTypeName: r.resultTypeName,
+    recommended: r.recommended || null,
+    certifiedRadius: (r.recommended && r.recommended.certifiedRadius) || null,
+    residual: (r.recommended && r.recommended.residual) || null,
+    solutionCount: r.solutionCount,
+    solutions: r.solutions || [],
+    summary: r.summary
+  };
 }
 // ③ 霍尔逻辑机器验证（升级：真实霍尔三元组 {pre} prog {post}——逐边校验不变量：连通 ∧ ¬hard ∧ w≥0 ∧ 代价单调）
 function verifyHoarePath(path, world){
@@ -2070,6 +2114,7 @@ function continuousVerify(){
     { name: '硬约束剪枝', pass: aStar('CHARGE', 'C', { hard: ['A'] }).path.indexOf('A') < 0 },
     { name: '不可判定U', pass: aStar('CHARGE', 'Z').status === 'unknown' },
     { name: '符号求解', pass: symbolicSolve([{ type: 'le', vars: ['x'], coeff: [1], rhs: 5 }, { type: 'ge', vars: ['x'], coeff: [1], rhs: 0 }]).satisfiable === true },
+    { name: '代数认证层', pass: (function(){ try { var c = certifiedNumeric({equations:['x^2=4'], variables:['x']}); return !!c && (c.available === true || c.available === false) && typeof c.tier === 'string'; } catch(e){ return false; } })() },
     { name: 'PAC界', pass: pacSampleBound(10, 0.1, 0.1).m > 0 }
   ];
   const all = checks.every(c => c.pass);
@@ -3669,9 +3714,19 @@ function safetyLayersReport(control) {
     layers.push({ layer: 'control.clfCbfQP', theorem: 'THM_CLF_CBF_QP', verdict: q.feasible ? 'safe' : 'unsafe',
       detail: q.feasible ? q.guarantee : (q.reason || 'CLF-CBF 统一 QP 不可行（约束冲突）'), qp: q });
   }
+  if (control.algebraic) {
+    var qa = certifiedNumeric(control.algebraic);
+    layers.push({ layer: 'safety.certifiedAlgebraic', theorem: 'THM_KRAWCZYK_CERTIFY',
+      verdict: !qa.available ? 'unverified' : (qa.provenNoSolution ? 'safe' : 'unverified'),
+      detail: qa.available ? qa.summary : (qa.note || '灵数求解器未接入'),
+      algebraic: qa });
+  }
   var overall = layers.length === 0 ? 'n/a'
     : (layers.some(function (l) { return l.verdict === 'unsafe'; }) ? 'unsafe'
       : (layers.some(function (l) { return l.verdict === 'undecided'; }) ? 'undecided' : 'safe'));
+  if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+    try { LingNaoAuditLedger.auditEvent('safety-layers-report', { overall: overall, layerCount: layers.length }); } catch (e) {}
+  }
   return { layers: layers, overall: overall, defenseInDepth: true };
 }
 
@@ -4871,6 +4926,12 @@ MathKernel.theorem('THM_IA_INCLUSION',
       }
       return true;
     } });
+// —— 代数认证（委派灵数求解器，证明权外委）——
+MathKernel.theorem('THM_KRAWCZYK_CERTIFY',
+  '灵数求解器（区间收缩 + Krawczyk 认证盒）对 f(x)=0 给出的解盒保证包含真实根，且能严格证明无实数解',
+  { by: 'DELEGATE', from: ['AX_REAL'], field: '代数验证',
+    proof: '证明权委派给独立引擎 lingshu-solver：其 Krawczyk 矩阵范数 < 1 的盒必然含唯一实根（不动点定理），且全局分支定界穷尽后 resultType=empty 即严格无实数解。灵脑不重写求解逻辑，仅消费其认证结果。',
+    evidence: 'certifiedNumeric() 在灵数可用时返回 certified:true / provenNoSolution:true；不可用时诚实降级 available:false' });
 // —— 因果 ——
 MathKernel.theorem('THM_DO_CALCULUS',
   '满足后门/前门准则 ⟹ 干预分布 P(Y|do(X)) 可由观测数据识别',
@@ -6039,13 +6100,57 @@ const AUTONOMY = {
   default: 3,
   riskTierOf(cap) { return (cap && cap.riskTier != null) ? cap.riskTier : (cap && cap.irreversible ? 4 : 2); }
 };
+// 把 opts.autonomyLevel 归一化为数值自主等级（失败 fail-closed 回 AUTONOMY.default）：
+//   'full'/'max'/Infinity -> Infinity（显式全自主，有意关闸）；'none'/'off'/0 -> 0（全人类）；
+//   数字 -> 原值；数字串 -> Number；其它(含无效字符串) -> AUTONOMY.default（不再产生 NaN 静默关闸）。
+function normalizeAutonomy(v) {
+  if (v === 'full' || v === 'max' || v === Infinity) return Infinity;
+  if (v === 'none' || v === 'off' || v === 0) return 0;
+  if (typeof v === 'number' && !isNaN(v)) return v;
+  if (typeof v === 'string') { const n = Number(v); if (!isNaN(n)) return n; }
+  return AUTONOMY.default;
+}
 async function execute(plan, bodyAdapter, opts) {
   opts = opts || {};
   if (typeof bodyAdapter !== 'function') return { ok: false, error: 'bodyAdapter 必须是 (cap,params)=>Promise<{ok,state}>', grounding: GROUNDING.KERNEL };
+  // 空计划：无指令可执行，明确 no-op 拒绝（不返回 ok:true，避免调用方误判"完成"）。
+  // 既非安全停机(halted=false)亦非任务成功(ok=false)，并仍入审计账本（提交空计划本身是可观测事件）。
+  if (!plan || !Array.isArray(plan) || plan.length === 0) {
+    if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+      try { LingNaoAuditLedger.auditEvent('execute-empty', { steps: 0, replans: 0, deviations: 0, grounding: 'KERNEL', caps: [] }); } catch (e) {}
+    }
+    return { ok: false, halted: false, haltReason: 'EMPTY-PLAN-NOOP', steps: 0, replans: 0, deviations: [], trace: [], finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
+  }
   const trace = [], deviations = [];
   let replans = 0, halted = false, haltReason = null;
   const maxReplans = (opts.maxReplans == null) ? 3 : opts.maxReplans; // 护栏：重规划次数上限，防执行死循环
   let remaining = (plan || []).slice(), i = 0;
+  // ══ 末道防火墙·前置守卫（fail-closed）：真实世界执行"前"就拦截任何 PERCEPTION 感知步骤，
+  // 绝不让未提升为信念(未经 liftToBelief)的 LLM 步骤先执行再被拒。
+  // 原则：NCS 确定性控制器须先于"释放任何一条指令"门控；否则带感知标记的步骤会先触达物理世界。
+  if (plan && Array.isArray(plan)) {
+    for (const st of plan) {
+      if (st && (st.perceived === true || st.mayHallucinate === true || (st.grounding && st.grounding.tier === 'UNVERIFIED_LLM'))) {
+        if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+          try { LingNaoAuditLedger.auditEvent('firewall-reject', { step: st, at: 'execute@firewall-pre' }); } catch (e) {}
+        }
+        throw new Error(FIREWALL.REJECTED + ': 对外执行计划含 PERCEPTION 感知步骤 @ execute（须过 liftToBelief 提升为信念）');
+      }
+    }
+  }
+  // 未知能力前置守卫（fail-closed，与 PERCEPTION 前置守卫一致）：计划含任何未注册能力，
+  // 在「释放任何一条指令」前整段拒（NCS 原则）——避免授权步在未知步之前先触达物理世界（SEQ-AUTH-FIRST 修复）。
+  if (plan && Array.isArray(plan)) {
+    for (const st of plan) {
+      if (st && st.cap && !CAPS[st.cap]) {
+        halted = true; haltReason = 'unknown-capability:' + st.cap;
+        if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+          try { LingNaoAuditLedger.auditEvent('execute-halt', { haltReason: haltReason, steps: 0, replans: 0, deviations: 0, grounding: 'KERNEL', caps: [] }); } catch (e) {}
+        }
+        return { ok: false, halted: true, haltReason: haltReason, steps: 0, replans: 0, deviations: [], trace: [], finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
+      }
+    }
+  }
   while (i < remaining.length) {
     const step = remaining[i], cap = CAPS[step.cap];
     if (!cap) { halted = true; haltReason = 'unknown-capability:' + step.cap; break; }
@@ -6056,11 +6161,14 @@ async function execute(plan, bodyAdapter, opts) {
     if (cap.irreversible === true && !opts.allowIrreversible) {
       halted = true; haltReason = 'IRREVERSIBLE-HALT ' + step.cap + '(需 opts.allowIrreversible 显式授权)'; break;
     }
-    // 自主等级 + 人机协同闸门（参照 DeepMind ASL）：按动作风险等级触发 human-in-the-loop
-    // 默认不启用（未开 humanInTheLoop 且未传 autonomyLevel），保留原 IRREVERSIBLE-HALT 行为；
-    // 启用后，风险等级 > 自主等级 且未获人类授权 ⟹ 停机等人类。
-    if (opts.humanInTheLoop || opts.autonomyLevel != null) {
-      const asl = (opts.autonomyLevel != null) ? opts.autonomyLevel : AUTONOMY.default;
+    // 自主等级 + 人机协同闸门（参照 DeepMind ASL，fail-closed 默认）：
+    //   - 默认（未显式 opt-in 全自主）对风险等级 > AUTONOMY.default(3) 的动作强制 HUMAN-IN-THE-LOOP（DEFAULT-NO-HITL 修复）；
+    //   - autonomyLevel:'full' 经 normalizeAutonomy 显式映射为 Infinity（不再因 'full'>NaN 静默关闸，AUTONOMY-TYPE 修复）；
+    //   - humanInTheLoop:true 强制每步人工（asl=-Infinity）；
+    //   - 显式数字自主等级按值比较；无效/缺失值 fail-closed 回落 AUTONOMY.default。
+    {
+      let asl = normalizeAutonomy(opts.autonomyLevel);
+      if (opts.humanInTheLoop === true) asl = -Infinity;
       const rt = AUTONOMY.riskTierOf(cap);
       if (rt > asl && !opts.humanApproved) {
         halted = true; haltReason = 'HUMAN-IN-THE-LOOP ' + step.cap + '(风险等级 ' + rt + ' > 自主等级 ' + asl + '，需人类授权)'; break;
@@ -6105,8 +6213,8 @@ async function execute(plan, bodyAdapter, opts) {
     try { obs = await bodyAdapter(step.cap, step.params); } catch (e) { obs = { ok: false, error: 'body-error:' + e.message }; }
     if (!obs || obs.ok === false) {
       deviations.push({ step: i, cap: step.cap, type: 'execution-failure', error: (obs && obs.error) || 'unknown' });
-      // 自动记录失败样本（无需调用方手动 sl_record）：以节点名记录"从→到"转移，供 learnedEdgePenalty 学回避
-      if (typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
+      // 自动记录失败样本（仅当 opts.allowLearning===true；默认关闭，严守"无学习/无数据飞轮"红线：execute 不得向任何学习器喂真实世界反馈）
+      if (opts.allowLearning === true && typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
         state: (plan[i] && plan[i].state != null) ? plan[i].state : (typeof _skey === 'function' ? _skey(state) : state),
         action: step.cap, result: (plan[i] && plan[i].result != null) ? plan[i].result : 'FAIL',
         success: false, reward: -1, env: { step: i, error: (obs && obs.error) || 'unknown', source: 'execute()' }
@@ -6133,8 +6241,8 @@ async function execute(plan, bodyAdapter, opts) {
     }
     setState(observed);
     trace.push({ i: i, cap: step.cap, params: step.params, predicted: step.expect, observed: observed, deviation: diff });
-    // 自动记录成功样本（含是否出现状态偏差 → 负反馈信号）：以节点名记录"从→到"转移
-    if (typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
+    // 自动记录成功样本（仅当 opts.allowLearning===true；默认关闭，严守"无学习/无数据飞轮"红线）
+    if (opts.allowLearning === true && typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
       state: (plan[i] && plan[i].state != null) ? plan[i].state : (typeof _skey === 'function' ? _skey(state) : state),
       action: step.cap, result: (plan[i] && plan[i].result != null) ? plan[i].result : (typeof _skey === 'function' ? _skey(observed) : observed),
       success: Object.keys(diff).length === 0, reward: Object.keys(diff).length === 0 ? 1 : 0.5,
@@ -6146,21 +6254,35 @@ async function execute(plan, bodyAdapter, opts) {
   if (plan && Array.isArray(plan)) {
     for (const st of plan) {
       if (st && (st.perceived === true || st.mayHallucinate === true || (st.grounding && st.grounding.tier === 'UNVERIFIED_LLM'))) {
+        if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+          try { LingNaoAuditLedger.auditEvent('firewall-reject', { step: st, at: 'execute@firewall' }); } catch (e) {}
+        }
         throw new Error(FIREWALL.REJECTED + ': 对外执行计划含 PERCEPTION 感知步骤 @ execute（须过 liftToBelief 提升为信念）');
       }
     }
   }
   const _ex = { ok: !halted, halted: halted, haltReason: haltReason, steps: trace.length, replans: replans, deviations: deviations, trace: trace, finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
-  // 自动记录整段任务（episode）结果：真实世界反馈进入经验库，供 sl_discover 归纳
-  if (typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
+  // 自动记录整段任务（episode）结果（仅当 opts.allowLearning===true；默认关闭，严守"无学习/无数据飞轮"红线）
+  if (opts.allowLearning === true && typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
     state: 'episode-start', action: 'episode', result: _ex.ok ? 'SUCCESS' : ('FAIL:' + (haltReason || 'unknown')),
     success: _ex.ok, reward: _ex.ok ? 1 : -1,
     env: { replans: replans, deviations: deviations.length, steps: trace.length, source: 'execute()' }
   });
-  // 学习回流②：把本次成功的任务路径写入最优路径历史，供 heuristicEvolve 反向传播（越用越准，仍最优）
-  if (typeof PLAN_HISTORY !== 'undefined' && plan && plan.length){
+  // 学习回流②：把本次成功的任务路径写入最优路径历史，供 heuristicEvolve 反向传播（仅当 opts.allowLearning===true；默认关闭，严守"无学习/无数据飞轮"红线）
+  if (opts.allowLearning === true && typeof PLAN_HISTORY !== 'undefined' && plan && plan.length){
     const path = [plan[0].state].concat(plan.map(step => step.result));
     recordPlanHistory(path, opts.goal, _ex.ok);
+  }
+  // ══ 签名审计账本：把本次执行裁决（halt/ok）写入抗篡改哈希链（越狱事件"改日志/冒名"攻击面的物理封堵）══
+  if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+    try {
+      LingNaoAuditLedger.auditEvent(halted ? 'execute-halt' : 'execute-ok', {
+        haltReason: haltReason, steps: trace.length, replans: replans,
+        deviations: deviations.length, goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null,
+        grounding: 'KERNEL',
+        caps: trace.map(function (t) { return { cap: t.cap, params: t.params }; })
+      });
+    } catch (e) { /* 审计失败不阻断主流程（账本自身有 boot 自检兜底） */ }
   }
   LAST_EXECUTION = _ex;
   return _ex;
@@ -6585,6 +6707,315 @@ CAPABILITY_THEOREMS.value = ['THM_VALUE_ITER_CONVERGE', 'THM_ROBUST_REACH'];
 CAPABILITY_THEOREMS['other-mind'] = ['THM_OTHER_MIND_BELIEF', 'THM_NESTED_BELIEF_KD45'];
 CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REACH'];
 
+// ══ 认知脊柱·确定性签名审计账本（lingnao-audit-ledger，内联零依赖副本，与 lingnao-audit-ledger.js 同源）══
+// 目的：结构性封堵越狱事件的"改日志 / 冒名发消息"攻击面。
+// 数学思想：① 哈希链 entry.h=SHA256(prev||seq||ts||type||payload) 抗篡改（⟸ SHA-256 抗碰撞 FIPS 180-4）
+//         ② 条目签名 entry.sig=HMAC-SHA256(h,K) 防冒名（⟸ HMAC EUF-CMA RFC 2104）；K 为内核单写者密钥
+//         ③ 诚实残余：K 泄露 => 可伪造；故 K 须与内核同密级保护，且不可声称"数学上不可越狱"（哥德尔不完备已注册）。
+/*
+ * 灵脑 · 确定性签名审计账本（lingnao-audit-ledger）
+ * ---------------------------------------------------------------
+ * 目的：关闭越狱事件中"改日志 / 冒名发消息"的攻击面。
+ * 数学思想（第一性原理，详见文件尾注释）：
+ *   1) 哈希链（抗篡改）  entry_i.h = SHA256(prev || seq || ts || type || payload)
+ *   2) 条目认证（防冒名） entry_i.sig = HMAC-SHA256(h, K)，K 为内核密钥（单写者认证）
+ *   3) 诚实残余风险：K 泄露 => 可伪造；仅把"无 K 下篡改/冒名"压缩为可计算检测。
+ * 约束：纯 JS、同步、零依赖、零学习、零 NN；可被逐行审计。
+ */
+(function (root) {
+  'use strict';
+
+  // ===== 纯 JS SHA-256（FIPS 180-4），同步、零依赖、可审计 =====
+  // 64 round constants: fractional part of cube root of first 64 primes, * 2^32 (FIPS 180-4 §4.2.2)
+  var K256 = new Uint32Array([
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+  ]);
+  // 8 IVs: fractional part of square root of first 8 primes, * 2^32 (FIPS 180-4 §5.3.3)
+  var H256 = new Uint32Array([
+    0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
+  ]);
+
+  function _rotr(x, n) { return ((x >>> n) | (x << (32 - n))) >>> 0; }
+
+  function _bytesOf(str) {
+    // UTF-8 编码（审计内容含中文）
+    if (typeof str !== 'string') str = String(str);
+    var out = [];
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      if (c < 0x80) out.push(c);
+      else if (c < 0x800) { out.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f)); }
+      else if (c >= 0xd800 && c <= 0xdbff) {
+        var c2 = str.charCodeAt(++i);
+        var cp = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00);
+        out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 0x3f), 0x80 | ((cp >> 6) & 0x3f), 0x80 | (cp & 0x3f));
+      } else { out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f)); }
+    }
+    return out;
+  }
+
+  function _sha256bytes(bytes) {
+    var H = H256.slice();
+    var l = bytes.length;
+    var bitLenHi = 0, bitLenLo = l * 8;
+    // 64 位长度（高 32 位，低 32 位）—— l 远小于 2^29，高位置 0。
+    var withPadLen = (((l + 8) >> 6) + 1) << 6; // 含 0x80 + 8 字节长度
+    var msg = new Uint8Array(withPadLen);
+    for (var i = 0; i < l; i++) msg[i] = bytes[i];
+    msg[l] = 0x80;
+    // 末尾 8 字节大端长度
+    msg[withPadLen - 8] = (bitLenHi >>> 24) & 0xff;
+    msg[withPadLen - 7] = (bitLenHi >>> 16) & 0xff;
+    msg[withPadLen - 6] = (bitLenHi >>> 8) & 0xff;
+    msg[withPadLen - 5] = bitLenHi & 0xff;
+    msg[withPadLen - 4] = (bitLenLo >>> 24) & 0xff;
+    msg[withPadLen - 3] = (bitLenLo >>> 16) & 0xff;
+    msg[withPadLen - 2] = (bitLenLo >>> 8) & 0xff;
+    msg[withPadLen - 1] = bitLenLo & 0xff;
+
+    var w = new Uint32Array(64);
+    for (var off = 0; off < withPadLen; off += 64) {
+      for (var t = 0; t < 16; t++) {
+        var j = off + t * 4;
+        w[t] = ((msg[j] << 24) | (msg[j + 1] << 16) | (msg[j + 2] << 8) | msg[j + 3]) >>> 0;
+      }
+      for (var t2 = 16; t2 < 64; t2++) {
+        var s0 = _rotr(w[t2 - 15], 7) ^ _rotr(w[t2 - 15], 18) ^ (w[t2 - 15] >>> 3);
+        var s1 = _rotr(w[t2 - 2], 17) ^ _rotr(w[t2 - 2], 19) ^ (w[t2 - 2] >>> 10);
+        w[t2] = (w[t2 - 16] + s0 + w[t2 - 7] + s1) >>> 0;
+      }
+      var a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+      for (var k = 0; k < 64; k++) {
+        var S1 = _rotr(e, 6) ^ _rotr(e, 11) ^ _rotr(e, 25);
+        var ch = (e & f) ^ (~e & g);
+        var t1 = (h + S1 + ch + K256[k] + w[k]) >>> 0;
+        var S0 = _rotr(a, 2) ^ _rotr(a, 13) ^ _rotr(a, 22);
+        var maj = (a & b) ^ (a & c) ^ (b & c);
+        var t2 = (S0 + maj) >>> 0;
+        h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+      }
+      H[0] = (H[0] + a) >>> 0; H[1] = (H[1] + b) >>> 0; H[2] = (H[2] + c) >>> 0; H[3] = (H[3] + d) >>> 0;
+      H[4] = (H[4] + e) >>> 0; H[5] = (H[5] + f) >>> 0; H[6] = (H[6] + g) >>> 0; H[7] = (H[7] + h) >>> 0;
+    }
+    var out = new Uint8Array(32);
+    for (var n = 0; n < 8; n++) {
+      out[n * 4] = (H[n] >>> 24) & 0xff; out[n * 4 + 1] = (H[n] >>> 16) & 0xff;
+      out[n * 4 + 2] = (H[n] >>> 8) & 0xff; out[n * 4 + 3] = H[n] & 0xff;
+    }
+    return out;
+  }
+
+  function _hex(buf) {
+    var s = '';
+    for (var i = 0; i < buf.length; i++) s += ('0' + buf[i].toString(16)).slice(-2);
+    return s;
+  }
+  function sha256hex(str) { return _hex(_sha256bytes(_bytesOf(str))); }
+
+  // ===== HMAC-SHA256（RFC 2104），块长 64 =====
+  function _hmacBytes(keyBytes, msgBytes) {
+    var block = 64;
+    var k = keyBytes;
+    if (k.length > block) k = _sha256bytes(k);
+    var kp = new Uint8Array(block);
+    for (var i = 0; i < k.length; i++) kp[i] = k[i];
+    var ipad = new Uint8Array(block), opad = new Uint8Array(block);
+    for (var j = 0; j < block; j++) { ipad[j] = kp[j] ^ 0x36; opad[j] = kp[j] ^ 0x5c; }
+    var inner = new Uint8Array(block + msgBytes.length);
+    inner.set(ipad); inner.set(msgBytes, block);
+    var innerHash = _sha256bytes(inner);
+    var outer = new Uint8Array(block + 32);
+    outer.set(opad); outer.set(innerHash, block);
+    return _sha256bytes(outer);
+  }
+  function hmacHex(keyHex, msgStr) {
+    var key = new Uint8Array(32);
+    for (var i = 0; i < 32; i++) key[i] = parseInt(keyHex.substr(i * 2, 2), 16);
+    return _hex(_hmacBytes(key, _bytesOf(msgStr)));
+  }
+
+  // ===== Deterministic signed audit ledger =====
+  var ZERO64 = '0'.repeat(64);
+
+  function _resolveSecret(opts) {
+    opts = opts || {};
+    if (opts.secret) return String(opts.secret);
+    try { if (typeof globalThis !== 'undefined' && globalThis.__LINGNAO_AUDIT_SECRET) return String(globalThis.__LINGNAO_AUDIT_SECRET); } catch (e) {}
+    try { if (typeof process !== 'undefined' && process.env && process.env.LINGNAO_AUDIT_KEY) return String(process.env.LINGNAO_AUDIT_KEY); } catch (e) {}
+    return null;
+  }
+  function _randomHex(n) {
+    var a = new Uint8Array(n);
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(a);
+    else if (typeof require !== 'undefined') { try { var rc = require('crypto').randomBytes(n); for (var i = 0; i < n; i++) a[i] = rc[i]; } catch (e) {} }
+    else for (var i = 0; i < n; i++) a[i] = (Math.random() * 256) | 0;
+    var s = ''; for (var i = 0; i < n; i++) s += ('0' + a[i].toString(16)).slice(-2); return s;
+  }
+
+  function AuditLedger(opts) {
+    opts = opts || {};
+    this._insecureFallback = false;
+    if (opts.key) {
+      this.key = opts.key;
+    } else {
+      var sk = _resolveSecret(opts);
+      if (sk) {
+        this.key = sha256hex(sk);
+      } else {
+        this.key = sha256hex('INSECURE_FALLBACK_' + _randomHex(16));
+        this._insecureFallback = true;
+      }
+    }
+    this.fingerprint = sha256hex(this.key);
+    this._store = opts.store || null;
+    this.entries = [];
+    if (opts.entries && opts.entries.length) {
+      for (var i = 0; i < opts.entries.length; i++) this.entries.push(opts.entries[i]);
+    } else if (this._store && this._store.get) {
+      var raw = this._store.get('lingnao-audit-ledger');
+      if (raw) { try { this.entries = JSON.parse(raw); } catch (e) { this.entries = []; } }
+    }
+    if (this.entries.length === 0) this._genesis();
+    else if (this._store && this._store.set) this._store.set('lingnao-audit-ledger', JSON.stringify(this.entries));
+  }
+
+  AuditLedger.prototype._genesis = function () {
+    var g = {
+      seq: 0, prev: ZERO64, ts: Date.now(), type: 'GENESIS',
+      payload: { fingerprint: this.fingerprint,
+        note: 'audit ledger genesis: every later entry hash/sig chained by this key' }
+    };
+    g.h = this._hashOf(g);
+    g.sig = this._sign(g.h);
+    this.entries.push(g);
+  };
+
+  AuditLedger.prototype._hashOf = function (e) {
+    var s = [e.prev, String(e.seq), String(e.ts), e.type, JSON.stringify(e.payload)].join('\u0000');
+    return sha256hex(s);
+  };
+
+  AuditLedger.prototype._sign = function (h) { return hmacHex(this.key, h); };
+
+  AuditLedger.prototype.append = function (type, payload) {
+    var prev = this.entries.length ? this.entries[this.entries.length - 1].h : ZERO64;
+    var e = { seq: this.entries.length, prev: prev, ts: Date.now(), type: type, payload: payload };
+    e.h = this._hashOf(e);
+    e.sig = this._sign(e.h);
+    this.entries.push(e);
+    if (this._store && this._store.set) this._store.set('lingnao-audit-ledger', JSON.stringify(this.entries));
+    return e;
+  };
+
+  AuditLedger.prototype.verify = function () {
+    var prev = ZERO64;
+    for (var i = 0; i < this.entries.length; i++) {
+      var e = this.entries[i];
+      if (e.seq !== i) return { ok: false, at: i, reason: 'seq not contiguous' };
+      if (e.prev !== prev) return { ok: false, at: i, reason: 'prev link broken (earlier block replaced)' };
+      var h = this._hashOf(e);
+      if (h !== e.h) return { ok: false, at: i, reason: 'hash mismatch (content tampered)' };
+      var expectSig = this._sign(e.h);
+      if (expectSig !== e.sig) return { ok: false, at: i, reason: 'signature mismatch (impersonation / wrong key)' };
+      if (i === 0 && e.type !== 'GENESIS') return { ok: false, at: 0, reason: 'first block is not GENESIS' };
+      prev = e.h;
+    }
+    if (this.entries.length === 0) return { ok: false, at: 0, reason: 'empty chain' };
+    return { ok: true, entries: this.entries.length, fingerprint: this.fingerprint };
+  };
+
+  AuditLedger.prototype.exportJSON = function () { return JSON.stringify(this.entries); };
+
+  // ===== Boot self-check + global event sink =====
+  var _singleton = null;
+
+  function bootAuditLedger(opts) {
+    opts = opts || {};
+    var led = new AuditLedger(opts);
+    var v = led.verify();
+    if (!v.ok) {
+      throw new Error('AUDIT_LEDGER_BROKEN: ' + JSON.stringify({ at: v.at, reason: v.reason }) +
+        ' -- audit ledger integrity violated (tamper/impersonation); kernel refuses to boot (fail-closed)');
+    }
+    if (led._insecureFallback) {
+      var w = '[AUDIT-LEDGER] WARNING: 未注入签名密钥（opts.secret / __LINGNAO_AUDIT_SECRET / env LINGNAO_AUDIT_KEY 均缺失）。账本使用每启动随机密钥，本进程控制者可伪造。生产部署前必须注入部署密钥。';
+      if (typeof console !== 'undefined' && console.warn) console.warn(w);
+      else if (typeof process !== 'undefined') try { process.stderr.write(w + '\n'); } catch (e) {}
+    }
+    return led;
+  }
+
+  AuditLedger.install = function (led) { _singleton = led; };
+
+  function auditEvent(type, payload) {
+    if (!_singleton) return null;
+    try { return _singleton.append(type, payload); }
+    catch (e) { return { error: String((e && e.message) || e) }; }
+  }
+
+  // 同步存储工厂：部署层注入审计账本持久化。Node 下用文件（跨重启保留）；无 fs（浏览器）退化为内存 Map（仍可用，但不跨页持久）。
+  function fileStore(path) {
+    var mem = {}; var fsMod = null;
+    try { if (typeof require === 'function') fsMod = require('fs'); } catch (e) {}
+    return {
+      get: function (k) {
+        if (fsMod) { try { return fsMod.readFileSync(path, 'utf8'); } catch (e) { return null; } }
+        return (k in mem) ? mem[k] : null;
+      },
+      set: function (k, v) {
+        if (fsMod) { try { fsMod.writeFileSync(path, v); return; } catch (e) {} }
+        mem[k] = v;
+      }
+    };
+  }
+
+  // ===== Self-test (deterministic, runnable in Node and browser) =====
+  function selftest() {
+    var R = [];
+    // 1) SHA-256 known-answer test
+    R.push(['SHA256(abc)', sha256hex('abc'),
+      'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad']);
+    // 2) build chain + append + verify passes
+    var led = new AuditLedger();
+    led.append('halt', { reason: 'unknown-capability:x' });
+    led.append('safety-report', { overall: 'safe' });
+    var v = led.verify();
+    R.push(['chain verify (clean)', v.ok, true]);
+    // 3) tamper a historical payload -> verify fails
+    var led2 = new AuditLedger({ entries: JSON.parse(JSON.stringify(led.entries)) });
+    led2.entries[1].payload.reason = 'TAMPERED';
+    R.push(['tamper detected', led2.verify().ok, false]);
+    // 4) forged signature -> verify fails
+    var led3 = new AuditLedger({ entries: JSON.parse(JSON.stringify(led.entries)) });
+    led3.entries[2].sig = ZERO64;
+    R.push(['forged sig detected', led3.verify().ok, false]);
+    // 5) wrong key -> verify fails
+    var led4 = new AuditLedger({ key: sha256hex('other-key'), entries: JSON.parse(JSON.stringify(led.entries)) });
+    R.push(['wrong-key verify fails', led4.verify().ok, false]);
+    // 6) drop a middle block -> prev link broken -> fails
+    var led5 = new AuditLedger({ entries: JSON.parse(JSON.stringify(led.entries)).filter(function (_, i) { return i !== 1; }) });
+    R.push(['dropped block detected', led5.verify().ok, false]);
+    return R;
+  }
+
+  var API = {
+    AuditLedger: AuditLedger, bootAuditLedger: bootAuditLedger, auditEvent: auditEvent, fileStore: fileStore,
+    sha256hex: sha256hex, hmacHex: hmacHex, selftest: selftest
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = API;
+  if (root) root.LingNaoAuditLedger = API;
+
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// ══ 审计账本内联副本结束 ══
+
 // ══ 架构不变量·证明账本机检（启动自检，断裂则内核拒绝启动）══
 // 使「可审计」从注释君子协定变物理铁律：能力映射闭合 + 推导链闭合，否则 kernel 不应跑。
 (function bootVerifyLedger() {
@@ -6604,6 +7035,26 @@ CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REA
   MathKernel.firewall = { ok: true, verdict: '信任防火墙激活：PERCEPTION 值类型级拒绝直连 KERNEL/PROOF；唯一合法通道 = liftToBelief(D-S 包络)' };
 })();
 
+// ══ 架构不变量·签名审计账本机检（启动自检，断裂/缺失则内核拒绝启动）══
+// 越狱事件攻击面"改日志 / 冒名发消息"的结构性封堵：每条 halt/安全裁决与启动自检
+// 均经 SHA-256 哈希链 + HMAC-SHA256 单写者签名，任何篡改/冒名/丢块在下次 verify 暴露（fail-closed）。
+(function bootAuditLedger() {
+  if (typeof LingNaoAuditLedger === 'undefined') {
+    throw new Error('AUDIT_LEDGER_MISSING: 签名审计账本模块未加载（内核拒绝启动，攻击面不可留空）');
+  }
+  var _auditSecret = (typeof __LINGNAO_AUDIT_SECRET !== 'undefined' && __LINGNAO_AUDIT_SECRET) ? __LINGNAO_AUDIT_SECRET : undefined;
+  // 跨重启持久化：部署方可注入 globalThis.__LINGNAO_AUDIT_STORE（同步 kv 存储，如 LingNaoAuditLedger.fileStore(path)）；
+  // 未注入则内存单例（重启即丢，退化但可用）。与密钥同机制——部署层注入，密钥/store 不入源码。
+  var _auditStore = (typeof __LINGNAO_AUDIT_STORE !== 'undefined' && __LINGNAO_AUDIT_STORE) ? __LINGNAO_AUDIT_STORE : null;
+  var led = LingNaoAuditLedger.bootAuditLedger((_auditSecret || _auditStore) ? { secret: _auditSecret, store: _auditStore } : {});
+  MathKernel.auditLedger = led;
+  led.ok = led.verify().ok; // 修复 LEDGER-OK-TRAP：auditLedger.ok 现为真实完整性状态
+  LingNaoAuditLedger.AuditLedger.install(led);
+  MathKernel.audit = { ok: true, fingerprint: led.fingerprint,
+    verdict: '确定性签名审计账本激活：执行 halt/安全裁决/启动自检均为哈希链+MAC 签名条目；篡改·冒名·丢块可被自检捕获（诚实残余：K 泄露可伪造，故 K 须与内核同密级保护）' };
+})();
+
+
 // ══ 架构不变量·八元组 typed state（决策只读、学习只写候选池；BrainTuple 为形态学载体）══
 (function bootEightTuple() {
   if (typeof BrainTuple !== 'undefined') {
@@ -6619,8 +7070,9 @@ MathKernel.thinking = LingNaoThinking;
 
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
-  globalThis.__WB = {getWorld(), IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
+  globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
+    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
+    safetyLayersReport,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
     EventBus, KBFabric, runtimeMonitor, continuousVerify, ALGO_VERSION, SEED,
@@ -6656,6 +7108,7 @@ if(typeof globalThis!=='undefined'){
     FIREWALL, liftToBelief, firewallCheck, firewallIsPerception, LingNaoThinking,
     kernelFoundation, kernelProve, kernelConjectures,
     // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）
+    auditLedgerModule: (typeof LingNaoAuditLedger !== 'undefined' ? LingNaoAuditLedger : null),
     BrainTuple};
 }
 
