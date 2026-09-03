@@ -1420,7 +1420,7 @@ function handle(msg) {
   const { id, method, params } = msg;
   try {
     if (method === 'initialize') {
-      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.0.0' } } });
+      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.1.0' } } });
     } else if (method === 'tools/list') {
       send({ jsonrpc: '2.0', id, result: { tools: TOOLS } });
     } else if (method === 'tools/call') {

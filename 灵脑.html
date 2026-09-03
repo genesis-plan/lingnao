@@ -82,7 +82,7 @@
 //   ReasonPath{id,start,goal,steps,totalCost,status,searchLog,rsg,system}
 //   AuditReport{pathId,reportId,summary,details[],evidence[],constraints[],unknown[],uncertainty,proof,reproducible,status,generatedAt,version}
 
-const ALGO_VERSION = '3.0';   // 算法版本（审计可复现信息）
+const ALGO_VERSION = '3.1';   // 算法版本（审计可复现信息）
 const SEED = null;            // 推理确定性、无随机种子（审计可复现信息）
 
 // ══════════════════════════════════════════════════════════════════════
@@ -3357,7 +3357,7 @@ if(!_boot.restored){
 //   **不是大脑的结构层**。大脑本身只认 𝕎 上的图、命题、约束与不可判定区。
 // ══════════════════════════════════════════════════════════════════════
 const Brain = {
-  name: '灵脑 LingNao（世界通用大脑）', version: 'v3.0',
+  name: '灵脑 LingNao（世界通用大脑）', version: 'v3.1',
   // 𝕎 世界图 = (𝕍 节点, 𝔼 边, 𝕨 权重, ℙ 命题, ℂ 约束, 𝕌 不可判定区)
   W: {
     get V(){ return getWorld().nodes; },
