@@ -159,7 +159,7 @@ Modbus（GB/T 19582）、CC-Link（GB/T 19760）、PROFINET（GB/T 25105）、Et
 
 - 真实硬件驱动：`dl645`/`cjt188` 串口头 (`serialport`)、`gb-charge` CAN 套接字 (`can`/`socketcan`)、`epa`/`ncuc`/`wia-pa` 现场总线网卡——均需硬件，本机 only 建档 + 字节解码自测。
 - 接入引擎已导出 `decodeDL645`/`decodeCJT188`，真实驱动拿到字节流即可复用（无需重写帧逻辑）。
-- 测试：`test-cn-standards.js` 19/19 全过（真实帧解码 + 标准文件导入 + 自动识类 + 登记表存在性）。
+- 测试：原 `test-cn-standards.js` 19/19 全过（真实帧解码 + 标准文件导入 + 自动识类 + 登记表存在性），脚本已移出首页归档。
 
 ---
 
@@ -220,7 +220,7 @@ Modbus（GB/T 19582）、CC-Link（GB/T 19760）、PROFINET（GB/T 25105）、Et
 
 - 真实硬件驱动：`profinet`/`ethercat`/`ethernet-ip` 实时以太网网卡、`profibus`/`canopen` 现场总线/CAN 卡、`iolink` IO-Link 主站、`profidrive`/`cia402` 经总线拿下 PZD/PDO、`pa-dim` 经 OPC-UA 摄入节点——均需硬件，本机 only 建档 + 字节解码自测。
 - 接入引擎已导出 5 个真实字节解码器，真实驱动拿到字节流即可复用（无需重写帧逻辑）。
-- 测试：`test-general-standards.js` 39/39 全过（真实帧解码 + 标准文件导入 + 自动识类 + 登记表存在性）。
+- 测试：原 `test-general-standards.js` 39/39 全过（真实帧解码 + 标准文件导入 + 自动识类 + 登记表存在性），脚本已移出首页归档。
 
 ---
 
@@ -292,7 +292,7 @@ Modbus（GB/T 19582）、CC-Link（GB/T 19760）、PROFINET（GB/T 25105）、Et
 > 通用协议真实驱动（profinet/ethercat/ethernet-ip 实时以太网网卡、profibus/canopen 现场总线/CAN 卡、iolink 主站、profidrive/cia402 经总线拿 PZD/PDO、pa-dim 经 OPC-UA 摄入）需硬件，目前仅建档 + 字节解码自测（`decodeCia402Status`/`encodeCia402Control`/`decodeProfidrive`/`decodeIOLinkPD` 已导出），详见第十一节。
 > 富化：`sensor.iot` 接口加 pa-dim/profibus/ethernet-ip/ethercat/matter/zigbee/thread，状态空间加 occupancy/illuminance 槽；`plc` 接口加 profibus/canopen/iolink/iec61131/codesys（通用+消费协议接入面已对齐）。
 > 消费设备真实驱动（matter/zigbee/thread/zwave/homekit 需边界路由器/协调器/网关硬件）需硬件，目前仅建档 + 字节解码自测（`decodeMatterTLV`/`decodeZclFrame` 已导出）+ 标准导入（`importStandard('matter'/'zigbee')`），详见第十二节。
-> 测试脚本：`test-realworld-devices.js`、`test-classify.js`、`test-console-pipeline.js`、`test-link-layer.js`、`test-bridge.js`、`test-access-engine.js`、`test-cn-standards.js`、`test-general-standards.js`、`test-consumer-standards.js`（共 156 项全绿，2026-09-03 实测）。
+> 测试脚本：原 9 套共 156 项全绿（2026-09-03 实测），已移出首页归档，不占根目录，需要复查时取回。
 
 ## 接入引擎（最好的方法，已实装）
 
@@ -302,7 +302,7 @@ Modbus（GB/T 19582）、CC-Link（GB/T 19760）、PROFINET（GB/T 25105）、Et
 2. **拓扑结构识别**：无标准文件 → 摄入原始信息模型 → 对有限规范库比结构签名（状态空间群 + 语义图同构）→ 最佳匹配 = 类（尽力而为）。
 3. **最小锚定兜底**：匹配不上（封闭私有无文档）→ 诚实报 `needsAnchor`，请人锚 1 个语义槽（如 `{"40001":"x"}`）或导入厂家标准文件 → 重建 nameMap 重识别。绝不硬套、不谎称。
 
-`adapter` 输出：`class / toCanonical(rawState) / send(cmd) / calibrate(φ 物理包络) / quality(SAFE-STOP 新鲜度)`，覆盖"读语义→识类→翻译→下发"全闭环。实测 `test-access-engine.js` 12/12：点表导入、MQTT 无线遥测、锚定兜底、Companion 导入、ws 真身体 全过。
+`adapter` 输出：`class / toCanonical(rawState) / send(cmd) / calibrate(φ 物理包络) / quality(SAFE-STOP 新鲜度)`，覆盖"读语义→识类→翻译→下发"全闭环。实测原 `test-access-engine.js` 12/12：点表导入、MQTT 无线遥测、锚定兜底、Companion 导入、ws 真身体 全过（脚本已移出首页归档）。
 
 > 诚实边界：封闭私有协议（裸寄存器无点表）→ 驱动连通但识类诚实报 `needsAnchor`，走锚定 1 语义槽 / 另分析；OPC-UA 真实驱动仍待补（目前对标准语义结构直接识类，驱动层未实装）。
 

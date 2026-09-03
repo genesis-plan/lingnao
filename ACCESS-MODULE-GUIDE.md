@@ -91,10 +91,7 @@ send(cmd)  → Promise<{ok}>                              // (可选) 规范命�
 
 ## 4. 测试实据
 
-全套 9 套测试 **156/0 全绿**（2026-09-03 实测，无硬件）：
-`test-classify`(6) / `test-realworld-devices`(13) / `test-console-pipeline`(7) / `test-cn-standards`(19) / `test-link-layer`(14) / `test-bridge`(12) / `test-access-engine`(12) / `test-general-standards`(39) / `test-consumer-standards`(34)。
-
-跑全部：`for t in test-*.js; do node "$t"; done`
+核心自测 `npm test`（`node lingnao-mcp.js --selftest`）零依赖内核自检全绿；设备/协议专项验证脚本（原 9 套共 156 项，2026-09-03 实测全绿）已移出首页归档，不占根目录，需要复查时可从归档取回。
 
 ---
 
@@ -109,4 +106,3 @@ send(cmd)  → Promise<{ok}>                              // (可选) 规范命�
 | `connector-template.js` | 真实驱动接入契约骨架（硬件拥有者照抄） |
 | `demo-access.js` | 无硬件可跑示例（三条软件路径） |
 | `lingnao-machine-catalog.md` | 设备目录（类全集 + 标准出处） |
-| `test-*.js` | 验证套件（156 项） |

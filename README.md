@@ -75,7 +75,7 @@ node lingnao-mcp.js --selftest      # 零依赖内核自检（含 grounding 不�
 - 无硬件可跑示例：`node demo-access.js`
 - 真实驱动契约（硬件拥有者照抄）：`connector-template.js`
 - 使用文档：`ACCESS-MODULE-GUIDE.md` · 设备目录：`lingnao-machine-catalog.md`
-- 验证：全套测试 `156/0`（`for t in test-*.js; do node "$t"; done`）
+- 验证：核心自测 `npm test`（`node lingnao-mcp.js --selftest`，零依赖内核自检全绿）；设备/协议专项验证脚本已移出首页归档，不占根目录。
 
 > 诚实边界：`A.connectorStatus()` 标驱动状态——`ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余协议仅建档（需硬件），不谎称能连真机。
 
@@ -127,7 +127,7 @@ node lingnao-mcp.js --selftest      # 零依赖内核自检（含 grounding 不�
 | `lingnao-body-bridge.js` / `lingnao-body-sim-server.js` | 真实身体 WebSocket 桥 / 零依赖仿真服务端 |
 | `math-model.js` | 数学模型模块 |
 | `mcp.json` / `mcp.example.json` / `smithery.yaml` / `glama.json` | MCP 市场一键配置 |
-| `openai-tools.json` / `anthropic-tools.json` / `llms.txt` | 46 工具 function-calling 清单 / LLM 发现文档 |
+| `openai-tools.json` / `anthropic-tools.json` / `llms.txt` | 62 工具 function-calling 清单 / LLM 发现文档 |
 | `ima_index.json` / `ima_knowledge.json` / `ima_lingnao_map.json` | 第三方 IMA 知识库接入（仅参考索引，不进入证明链） |
 | `package.json` / `LICENSE` / `README.md` | 可安装包定义 / 商业授权许可 / 本说明 |
 

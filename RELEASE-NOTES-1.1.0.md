@@ -30,9 +30,10 @@
 
 ## 验证实据（发布前全绿）
 - `node lingnao-mcp.js --selftest` → exit 0（无回归）
-- `test-export-faces.js` → EXPORT_NAMES=250 / UMD=250 / 通过 24 失败 0
-- `test-formal-proof.js` → 62 通过 / 0 失败
-- `test-complete-mediation.js` → 78 通过 / 0 失败
+- 三面导出比对：EXPORT_NAMES=250 / UMD=250 / 通过 24 失败 0
+- 形式化证明模块：M2/M3 62 通过 / 0 失败（含 FP-1 假证明回归 44 项）
+- 完全中介 M4：78 通过 / 0 失败
+- 验证脚本已移出首页归档，不占根目录；核心自测随时 `npm test` 复跑
 
 ## 诚实边界（对外口径）
 - 灵脑是**可审计、可复现的安全验证体系**（确定性、非 LLM、不幻觉），非概率型大脑

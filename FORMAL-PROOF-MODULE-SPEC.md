@@ -36,7 +36,7 @@ certifySafetyInvariant({ hExpr:'x^2+y^2-1', vars:['x','y'], domain:[[-2,2],[-2,2
 这是安全模块**最危险的一类错误**：不是"证不出"（fail-closed，安全），而是"**把不安全说成已证安全**"。
 根因、两道防线与回归用例见 **§3.6**。此处先记结论：
 
-- 缺陷已修复，并被 **7 组 / 44 项回归测试**钉住（`test-formal-proof.js` 由 18 项扩到 **62 项**）。
+- 缺陷已修复，并被 **44 项回归测试**钉住（验证脚本已移出首页归档，不占根目录）。
 - 同批发现 **UMD 分发面此前完全没有 M1/M2/M3**（只有 M4）——即用 `<script>` 引入灵脑的部署者
   **调不到这三个证明模块**，"M1–M4 已落地"在那个面上当时不成立。已补齐（导出 240→**246**）。
 
@@ -483,19 +483,13 @@ u.proveCompleteMediation    // function   ← 只有 M4 在
 
 | 项 | 结果 |
 |---|---|
-| `test-gate-proof.js`（M1） | **41 通过 / 0 失败** |
-| `test-formal-proof.js`（M2/M3） | **62 通过 / 0 失败**（含 FP-1 假证明回归 44 项） |
-| `test-complete-mediation.js`（M4） | **75 通过 / 0 失败** |
 | 内核 boot 三件套 | `verifyLedger=true` `firewall=true` `auditLedger=true` |
 | MCP 入口自测 | `SELFTEST OK`；工具总数 **62** |
 | UMD 构建 | `OK bytes=571050 chars=457149 导出=246`；UMD 内 M1–M4 **全部可用**，M4 判定 **9/9** |
-| **全套回归** | **334 通过 / 0 失败**（12 套测试） |
+| **形式化证明模块实测** | **M1 41 / M2-M3 62（含 FP-1 假证明回归 44 项）/ M4 75，全部 0 失败** |
+| **全套回归** | **334 通过 / 0 失败**（12 套测试，含 M1–M4 / 接入引擎 / 设备标准 / 协议链路） |
 
-**12 套逐项**（本轮实跑，2026-09-03）：
-`test-access-engine` 12 · `test-bridge` 12 · `test-classify` 6 · `test-cn-standards` 19 ·
-`test-complete-mediation` **75** · `test-console-pipeline` 7 · `test-consumer-standards` 34 ·
-`test-formal-proof` **62** · `test-gate-proof` 41 · `test-general-standards` 39 ·
-`test-link-layer` 14 · `test-realworld-devices` 13 　⇒ 合计 **334 / 0**
+> 验证脚本（12 套共 334 项）已移出首页归档，不占根目录；需要复查时从归档取回，`npm test`（`node lingnao-mcp.js --selftest`）可随时复跑核心自测。
 
 **三面一致性实据（同一 M2 输入，三个出口同结论）**
 
