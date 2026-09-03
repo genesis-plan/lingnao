@@ -1701,6 +1701,124 @@ function verdictThreeLayer(claim){
   return { verdict:'verified', layer:'computation', strategy:'proceed', safe:true, proven:true,
     reason:'逻辑可判定 ∧ 计算完成 ∧ 工程支持 ⇒ 三层均通过。' };
 }
+// ══ M1 能力/意图门控证明（Gate Chain Proof）═══════════════════════════════════
+// 动机：越狱攻击面不在抽象状态空间 Γ，而在 execute() 的能力执行层——「谁被放行、何时被拦」。
+// 原实现把守卫链放在 while 循环内逐条判定，其中 G1..G4 四个谓词【不依赖执行后状态】（纯静态），
+// 于是结果是「先执行 step_0..step_{j-1}，才在第 j 步停」——副作用已发生且内核不回滚（部署陷阱⑦）。
+// M1 把静态守卫整体前置为「零释放门控」，并给出可机器检验的结论。
+//
+// 定理 M1.1（零释放停机）：若最小索引 j 使某静态守卫在 step_j 上为假，则 execute() 释放的
+//   真实指令数恰为 j。依据：循环内 G1..G4 的判定严格位于 bodyAdapter(...) 调用之前。
+//   开启前置守卫（opts.gateProof !== false，默认开）后可降为 0 —— 这 j 条副作用被完全避免。
+// 定理 M1.2（不可绕过）：若 ¬G1 或 ¬G2 对计划中任一步成立，则释放指令数 = 0。
+//   依据：二者已实现为「释放任何指令前整段拒」的前置守卫（NCS 原则）。
+// 定理 M1.3（诚实边界）：G5..G8 依赖执行到第 i 步时的状态 state_i（执行历史的函数），
+//   静态预检判定不了 ⇒ 静态全通过时只能给 conditional，绝不给 provably-admitted。
+//   这是能力边界，不是不安全。
+// 诚实声明：本函数证明的是「门控链的静态可判定部分」，不是「执行结果正确」，更不是「不可越狱」。
+const GATE_SPEC = [
+  // preempted:true 表示该守卫已被 execute() 的「释放任何指令前整段拒」前置守卫覆盖
+  //   ⇒ 命中它时释放数恒为 0，依 M1.2 而非 M1.1（测试 E1 实测校准：断言必须与真实执行器一致）。
+  { id:'G1.registered',     static:true,  mode:'halt',  haltReason:'unknown-capability', preempted:true,
+    desc:'能力已注册（CAPS 中存在；已由 execute 前置守卫整段拒 ⇒ 零释放）',
+    test:function(step, cap){ return !!cap; } },
+  { id:'G2.notPerception',  static:true,  mode:'throw', haltReason:'FIREWALL_VIOLATION', preempted:true,
+    desc:'步骤非 PERCEPTION 感知档（未提升为信念不得执行，铁律③）',
+    test:function(step){ return !(step && (step.perceived === true || step.mayHallucinate === true ||
+      (step.grounding && step.grounding.tier === 'UNVERIFIED_LLM'))); } },
+  { id:'G3.irreversible',   static:true,  mode:'halt',  haltReason:'IRREVERSIBLE-HALT',
+    desc:'可逆，或已显式授权 opts.allowIrreversible',
+    test:function(step, cap, opts){ return !(cap && cap.irreversible === true) || opts.allowIrreversible === true; } },
+  { id:'G4.autonomy',       static:true,  mode:'halt',  haltReason:'HUMAN-IN-THE-LOOP',
+    desc:'风险等级 ≤ 自主等级，或已人类授权 opts.humanApproved',
+    test:function(step, cap, opts, asl){ const rt = AUTONOMY.riskTierOf(cap);
+      return !(rt > asl) || opts.humanApproved === true; } },
+  { id:'G5.safeStop',       static:false, mode:'halt',  haltReason:'SAFE-STOP',
+    desc:'checkHard 通过（依赖执行到该步时的状态 ⇒ 静态不可判定）' },
+  { id:'G6.preApplicable',  static:false, mode:'halt',  haltReason:'pre-violated',
+    desc:'能力前提 applicable（依赖执行到该步时的状态 ⇒ 静态不可判定）' },
+  { id:'G7.imprecise',      static:false, mode:'halt',  haltReason:'IMPRECISE-UNCERTAINTY-HALT',
+    desc:'端到端不确定性闸门（依赖稳健可达包络 ⇒ 静态不可判定）' },
+  { id:'G8.observation',    static:false, mode:'halt',  haltReason:'OBSERVATION-BLIND-SPOT',
+    desc:'执行结果可被观测区分（依赖执行时观测 ⇒ 静态不可判定）' }
+];
+// 门控证明：零副作用（不调 bodyAdapter、不改 state），仅静态求值 G0..G4，诚实标注 G5..G8 不可判定。
+// opts.requireIntent=true 时启用 G0（意图绑定，对应文档 T1 意图-行为不可分）：
+//   每个 step 必须带 intentId，且与 opts.intent.id 一致；否则 provably-blocked。
+//   诚实：此处只做结构化绑定校验 + 审计入链，【不引入新的密码学】；签名完整性由审计账本负责。
+function proveGateChain(plan, opts){
+  opts = opts || {};
+  const steps = Array.isArray(plan) ? plan : [];
+  const asl = (opts.humanInTheLoop === true) ? -Infinity : normalizeAutonomy(opts.autonomyLevel);
+  const requireIntent = opts.requireIntent === true;
+  const intentId = (opts.intent && opts.intent.id != null) ? opts.intent.id : null;
+  const gates = [];
+  let blockIndex = null, blockingGate = null, haltReasonPredicted = null, blockingMode = 'halt',
+      blockingPreempted = false;
+  for (let i = 0; i < steps.length; i++){
+    const step = steps[i] || {};
+    const cap = (typeof CAPS !== 'undefined') ? CAPS[step.cap] : undefined;
+    const row = [];
+    if (requireIntent){
+      const bound = (step.intentId != null) && (intentId == null || step.intentId === intentId);
+      row.push({ id:'G0.intentBound', static:true, evaluated:true, holds:bound, decidability:'static',
+                 mode:'halt', haltReason:'UNBOUND-INTENT',
+                 desc:'步骤绑定意图且与 opts.intent.id 一致（T1 意图-行为不可分）' });
+      if (!bound && blockIndex === null){ blockIndex = i; blockingGate = 'G0.intentBound';
+        haltReasonPredicted = 'UNBOUND-INTENT'; blockingMode = 'halt'; blockingPreempted = false; }
+    }
+    for (const g of GATE_SPEC){
+      if (!g.static){
+        row.push({ id:g.id, static:false, evaluated:false, holds:null, decidability:'runtime-dependent',
+                   mode:g.mode, haltReason:g.haltReason, desc:g.desc });
+        continue;
+      }
+      let holds = false, err = null;
+      try { holds = !!g.test(step, cap, opts, asl); }
+      catch (e){ holds = false; err = String((e && e.message) || e); }
+      row.push({ id:g.id, static:true, evaluated:true, holds:holds, decidability:'static',
+                 mode:g.mode || 'halt', haltReason:g.haltReason, desc:g.desc, error:err });
+      if (holds === false && blockIndex === null){
+        blockIndex = i; blockingGate = g.id; haltReasonPredicted = g.haltReason;
+        blockingMode = g.mode || 'halt'; blockingPreempted = !!g.preempted;
+      }
+    }
+    gates.push({ i:i, cap:step.cap, row:row });
+  }
+  let verdict, proof, releasedPredicted, note;
+  if (!Array.isArray(plan) || steps.length === 0){
+    verdict = 'provably-blocked:zero-release'; proof = 'M1.2'; releasedPredicted = 0;
+    haltReasonPredicted = haltReasonPredicted || 'EMPTY-PLAN-NOOP';
+    note = '空计划：无任何指令可释放，停机且不产生副作用。';
+  } else if (blockIndex !== null){
+    // 零释放条件：命中位置在首步，或该守卫已被 execute 前置守卫覆盖（G1/G2，preempted）。
+    const zeroRelease = (blockIndex === 0) || blockingPreempted;
+    verdict = zeroRelease ? 'provably-blocked:zero-release' : ('provably-blocked:after-' + blockIndex);
+    proof = zeroRelease ? 'M1.2' : 'M1.1';
+    releasedPredicted = zeroRelease ? 0 : blockIndex;
+    note = '静态门控 ' + blockingGate + ' 在 step_' + blockIndex + ' 上为假 ⇒ execute() 释放指令数' +
+           (zeroRelease ? '为 0（定理 M1.2' + (blockingPreempted ? '：该守卫已被前置守卫覆盖' : '') + '）'
+             : '恰为 ' + blockIndex + '（定理 M1.1）；开启前置守卫后降为 0 —— 这 ' + blockIndex +
+               ' 条副作用被完全避免');
+  } else {
+    verdict = 'conditional'; proof = 'M1.3'; releasedPredicted = null;
+    note = '静态门控 G0..G4 全部通过；但 G5..G8 依赖执行到该步时的状态，静态预检不能证明全程放行' +
+           '（定理 M1.3：这是能力边界，不是不安全）。';
+  }
+  const out = {
+    verdict: verdict, proof: proof, blockIndex: blockIndex, blockingGate: blockingGate,
+    haltReasonPredicted: haltReasonPredicted, releasedPredicted: releasedPredicted,
+    blockingMode: blockingMode,
+    intentBound: requireIntent ? (blockingGate !== 'G0.intentBound') : null,
+    gates: gates, tool: 'lingnao-gate-proof-v1', note: note
+  };
+  if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function'){
+    try { LingNaoAuditLedger.auditEvent('gate-proof', { verdict: verdict, proof: proof, blockIndex: blockIndex,
+      blockingGate: blockingGate, haltReasonPredicted: haltReasonPredicted,
+      steps: steps.length, caps: steps.map(function (s) { return s && s.cap; }) }); } catch (e) {}
+  }
+  return out;
+}
 // ③ 霍尔逻辑机器验证（升级：真实霍尔三元组 {pre} prog {post}——逐边校验不变量：连通 ∧ ¬hard ∧ w≥0 ∧ 代价单调）
 function verifyHoarePath(path, world){
   if(!path || path.status !== 'optimal') return { verified: false, reason: '路径不可判定，无法构造证明', steps: [], tool: 'lingnao-hoare-lite' };
@@ -6274,6 +6392,29 @@ async function execute(plan, bodyAdapter, opts) {
       }
     }
   }
+  // ══ M1 门控证明·前置守卫（默认开；显式 opts.gateProof===false 关闭）══════════════════
+  // proveGateChain 的静态结论在「释放任何指令前」执行。定理 M1.1 给出的 blockIndex=j 意味着
+  // 原实现会先执行 j 步才停 —— 那 j 条副作用（发邮件 / 下控制字）内核不回滚（部署陷阱⑦）。
+  // 前置后释放数恒为 0：严格更安全的行为改变（只会更早停，绝不会更晚停），语义上等价停机。
+  let _gp = null;
+  if (opts.gateProof !== false) {
+    _gp = proveGateChain(plan, opts);
+    if (_gp.verdict.indexOf('provably-blocked') === 0) {
+      if (_gp.blockingMode === 'throw' || _gp.blockingGate === 'G2.notPerception') {
+        throw new Error(FIREWALL.REJECTED + ': 门控证明判定不可放行 @ execute（' + _gp.haltReasonPredicted + '）');
+      }
+      if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+        try { LingNaoAuditLedger.auditEvent('gate-proof-preempt', { haltReason: _gp.haltReasonPredicted,
+          blockIndex: _gp.blockIndex, blockingGate: _gp.blockingGate, steps: 0,
+          caps: (plan || []).map(function (s) { return s && s.cap; }) }); } catch (e) {}
+      }
+      return { ok: false, halted: true, haltReason: 'GATE-PROOF-PREEMPT ' + (_gp.haltReasonPredicted || ''),
+        steps: 0, replans: 0, deviations: [], trace: [], finalState: getState(),
+        goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null,
+        grounding: GROUNDING.KERNEL, gateProof: _gp,
+        disclaimer: '门控证明前置（定理 M1.1/M1.2）：静态守卫在释放任何指令前拦截，零副作用停机' };
+    }
+  }
   // 未知能力前置守卫（fail-closed，与 PERCEPTION 前置守卫一致）：计划含任何未注册能力，
   // 在「释放任何一条指令」前整段拒（NCS 原则）——避免授权步在未知步之前先触达物理世界（SEQ-AUTH-FIRST 修复）。
   if (plan && Array.isArray(plan)) {
@@ -6290,6 +6431,15 @@ async function execute(plan, bodyAdapter, opts) {
   while (i < remaining.length) {
     const step = remaining[i], cap = CAPS[step.cap];
     if (!cap) { halted = true; haltReason = 'unknown-capability:' + step.cap; break; }
+    // 意图绑定守卫（T1 意图-行为不可分）：opts.requireIntent 开启时，每步必须绑定意图且与
+    // opts.intent.id 一致，否则停机。与 proveGateChain 的 G0 同谓词——否则 requireIntent
+    // 只在预检生效、关闭预检即失效（门面），故必须在循环内真实拦。
+    if (opts.requireIntent === true) {
+      const _iid = (opts.intent && opts.intent.id != null) ? opts.intent.id : null;
+      if (step.intentId == null || (_iid != null && step.intentId !== _iid)) {
+        halted = true; haltReason = 'UNBOUND-INTENT ' + (step.cap || '?') + '(步骤未绑定有效意图)'; break;
+      }
+    }
     const state = getState();
     const hc = checkHard(state, step);
     if (!hc.ok) { halted = true; haltReason = 'SAFE-STOP ' + hc.violation; break; }
@@ -6397,7 +6547,7 @@ async function execute(plan, bodyAdapter, opts) {
       }
     }
   }
-  const _ex = { ok: !halted, halted: halted, haltReason: haltReason, steps: trace.length, replans: replans, deviations: deviations, trace: trace, finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
+  const _ex = { ok: !halted, halted: halted, haltReason: haltReason, steps: trace.length, replans: replans, deviations: deviations, trace: trace, finalState: getState(), goalSatisfied: opts.goalFn ? !!opts.goalFn(getState()) : null, grounding: GROUNDING.KERNEL, gateProof: _gp, disclaimer: '确定化重规划(determinized replanning)：具身标准工程近似，非 POMDP 最优' };
   // 自动记录整段任务（episode）结果（仅当 opts.allowLearning===true；默认关闭，严守"无学习/无数据飞轮"红线）
   if (opts.allowLearning === true && typeof SelfLearn !== 'undefined' && SelfLearn.record) SelfLearn.record({
     state: 'episode-start', action: 'episode', result: _ex.ok ? 'SUCCESS' : ('FAIL:' + (haltReason || 'unknown')),
@@ -7207,7 +7357,7 @@ MathKernel.thinking = LingNaoThinking;
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
   globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, disconnectLLM, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, certifySafetyInvariant, verdictThreeLayer, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
+    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, certifySafetyInvariant, verdictThreeLayer, proveGateChain, GATE_SPEC, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     safetyLayersReport,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
