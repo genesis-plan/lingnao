@@ -43,10 +43,9 @@
     <input id="llmKey" type="password" placeholder="sk-or-...（留空则不接）">
     <label>模型</label>
     <select id="llmModel">
-      <option value="openrouter/free">openrouter/free（免费）</option>
-      <option value="deepseek/deepseek-r1:free">deepseek-r1:free</option>
-      <option value="meta-llama/llama-3.1-8b-instruct:free">llama-3.1-8b:free</option>
-      <option value="google/gemini-2.0-flash-exp:free">gemini-2.0-flash:free</option>
+      <option value="minimax/minimax-m3:free" selected>minimax-m3:free（推荐·稳定）</option>
+      <option value="openrouter/free">openrouter/free（路由别名·不稳定）</option>
+      <option value="z-ai/glm-5.2:free">glm-5.2:free（偶有限流）</option>
     </select>
     <div class="row" style="margin-top:11px">
       <button id="btnLLM">连接大模型</button>

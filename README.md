@@ -2,7 +2,7 @@
 
 > **本地确定性、可审计的推理大脑，不是概率生成式 LLM，不幻觉。**
 > 单文件内核 `灵脑.html` 把「世界图 → A\* 可审计推理 → 物理载体执行 → 审计」封装为单一引擎，对外以 **MCP stdio / 网页演示 / UMD** 三种接口暴露。
-> 零依赖 · 零服务器 · 免费面向 AI Agent 分发。
+> 零依赖 · 零服务器 · 非商业免费（含非商业 AI Agent），商业须授权。
 
 - 仓库：`genesis-plan/lingnao` · npm：`lingnao-mcp` · 在线试用：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html>
 

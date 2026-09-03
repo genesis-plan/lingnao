@@ -46,7 +46,7 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 - No world knowledge, no open-domain language ability; perception degrades offline.
 - World model is a lite linear SEM; causality is PC-lite; planning runs on finite graphs.
 - Eight mathematical areas are not yet implemented (MPC, SOS/SDP barrier certificates,
-  general LP solver, general nonlinear reachability, …). See `docs/数学与模块现状总览.md`.
+  general LP solver, general nonlinear reachability, …).
 
 ---
 
@@ -86,6 +86,7 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 - 8 类数学尚未实装（MPC、SOS/SDP 障碍证书、一般 LP 求解器、一般非线性可达集等）
 
 ## 更多
-- README: ./README.md
-- 架构白皮书: ./ARCHITECTURE.md
-- 可验证物理 AI 定位: ./VERIFIABLE-PHYSICAL-AI.md
+- 项目说明: ./README.md
+- 形式化证明模块规格: ./FORMAL-PROOF-MODULE-SPEC.md
+- 物理接入模块指南: ./ACCESS-MODULE-GUIDE.md
+- 设备目录: ./lingnao-machine-catalog.md

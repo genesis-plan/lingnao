@@ -187,6 +187,32 @@ _SAFETY_STACK.forEach(function (n) { K[n] = sandbox.__exp[n]; });
 vm.runInContext('globalThis.__exp.BrainTuple = BrainTuple;', ctx);
 K.BrainTuple = sandbox.__exp.BrainTuple;
 
+// 形式化证明模块 M1..M4（2026-09-03 MCP 暴露）：此前四个证明入口只存在于内核与本地测试，
+// MCP 一个都调不到 —— 等于外部智能体/审计者无法要求灵脑"出证明"。在此接出。
+const _PROOF_MODULE = [
+  'proveGateChain', 'GATE_SPEC',        // M1 能力/意图门控证明（正确性）
+  'certifySafetyInvariant',             // M2 数值安全证书（灵数 Krawczyk 全域认证）
+  'verdictThreeLayer',                  // M3 三层次裁决（逻辑/计算/工程分离）
+  'proveCompleteMediation',             // M4 完全中介证明（完备性）
+  'EffectGate', 'EFFECT_KINDS'          // M4 机制：副作用唯一出口
+];
+// 缺失即抛（fail-closed，修复 #251）：内核若未定义某证明模块名，MCP 启动必须当场失败，
+// 而不是静默吞掉让外部智能体以为"M1-M4 齐备"实则调不到（曾因此事故）。
+// 注意：证明模块多为 const 词法绑定，不挂在 globalThis 上；须在 vm 上下文内用 typeof 判定，
+// 再用 runInContext 把内核作用域里的名字拷进 __exp（与 _SAFETY_STACK 同一机制）。
+_PROOF_MODULE.forEach(function (n) {
+  var defined = false;
+  try { defined = vm.runInContext('(typeof ' + n + ' !== "undefined")', ctx); } catch (e) { defined = false; }
+  if (!defined) {
+    throw new Error('MCP_EXPORT_MISSING: 内核未定义证明模块 "' + n + '"。内核与 MCP 导出表已漂移，须修正后再启动（fail-closed）。');
+  }
+  vm.runInContext('globalThis.__exp.' + n + ' = ' + n + ';', ctx);
+  K[n] = sandbox.__exp[n];
+});
+// M4 判定的对象是内核源码文本本身（完全中介是源码性质，不是运行时性质）。
+// 把真源码交给 vm 内的判定程序，避免它在沙箱里拿不到源码而只能诚实返回 unverified。
+vm.runInContext('globalThis.__LINGNAO_SRC = ' + JSON.stringify(kernelSrc) + ';', ctx);
+
 // ---------- 2. 编排工具（纯函数，复用内核，不依赖 DOM） ----------
 function worldInfo() {
   return { nodes: K.getWorld().nodes, edgeCount: K.getWorld().edges.length, edges: K.getWorld().edges, coord: K.getWorld().coord };
@@ -759,7 +785,7 @@ const TOOLS = [
       type: 'object',
       properties: {
         text: { type: 'string', description: '用户自然语言目标，如「从充电座出发去 C 点，电量充足」' },
-        apiKey: { type: 'string', description: 'OpenRouter API Key（免费档 deepseek-r1:free）；也可由 env OPENROUTER_API_KEY 提供' },
+        apiKey: { type: 'string', description: 'OpenRouter API Key（默认免费档 minimax/minimax-m3:free）；也可由 env OPENROUTER_API_KEY 提供' },
         hard: { type: 'array', items: { type: 'string' }, description: '硬约束节点（可选）' },
         soft: { type: 'array', items: { type: 'string' }, description: '软约束节点（可选，代价加成）' },
       },
@@ -1136,6 +1162,74 @@ const TOOLS = [
       required: ['A', 'B', 'x'],
     },
   },
+  // ── 形式化证明模块 M1..M4（2026-09-03 暴露）──────────────────────────
+  {
+    name: 'prove_gate_chain',
+    description: 'M1 能力/意图门控证明（正确性 soundness）：对计划做【零副作用】静态预检——不调 bodyAdapter、不改状态。把 execute() 里隐含在控制流中的守卫提升为显式门控规格表(8 条谓词)，并证明性地在释放任何指令前拦截。verdict: provably-blocked:zero-release(定理M1.2) / provably-blocked:after-j(定理M1.1) / conditional(静态全过但 G5..G8 依赖运行时状态，定理M1.3 明说不给 provably-admitted)。诚实边界：证的是门控链的静态可判定部分，不是执行结果正确，更不是"不可越狱"。  / EN: M1 capability/intent gate-chain proof — zero-side-effect static pre-check of a plan against 8 guard predicates. Proves zero-release halting before any instruction is issued. Honest bound: proves the statically decidable part of the gate chain, not execution correctness.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        plan: { type: 'array', description: '计划：[{cap, params?, intentId?, mayHallucinate?}]', items: { type: 'object' } },
+        opts: {
+          type: 'object',
+          description: '（可选）{ autonomyLevel, allowIrreversible, humanApproved, requireIntent, intent:{id} }',
+          properties: {},
+        },
+      },
+      required: ['plan'],
+    },
+  },
+  {
+    name: 'certify_safety_invariant',
+    description: 'M2 数值安全证书：把不等式安全验证翻译成方程无解判定，委派灵数求解器给出【真数学证明】。要证 ∀x∈域 h(x)≥0，等价于证违反系统 {h(x)+s²=0, s·w=1} 在域内无实数解；灵数能证明无实根，这是单点浮点判定永远做不到的。verdict: verified(certified-krawczyk 真证明) / violated(候选反例，需回代校验) / unverified(证不了——按 fail-closed 处理，不等于安全)。硬约束：只吃方程字符串(JS 函数形态 h 诚实降级 unverified，绝不退回浮点假装认证)、盒式区间域、状态维数≤4。  / EN: M2 numeric safety certificate — reduces ∀x∈D h(x)≥0 to proving the violation system has no real solution, delegated to lingshu-solver (Krawczyk). unverified ≠ safe (fail-closed).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        hExpr: { type: 'string', description: '安全不变式表达式字符串，例 "1 - (x^2 + y^2)"' },
+        vars: { type: 'array', description: '状态变量名，例 ["x","y"]', items: { type: 'string' } },
+        domain: { type: 'object', description: '（可选）盒式域，例 {"x":[-0.5,0.5],"y":[-0.5,0.5]}', properties: {} },
+        bound: { type: 'number', description: '（可选）辅助变量域界，默认 1e6；bound=1000 ⇒ 可检出深度 ≥1e-6 的违反' },
+        options: { type: 'object', description: '（可选）透传灵数 options', properties: {} },
+      },
+      required: ['hExpr', 'vars'],
+    },
+  },
+  {
+    name: 'verdict_three_layer',
+    description: 'M3 三层次裁决引擎：修掉"把计算超时误当逻辑不可判定"的混淆。逻辑层不可判定 ⇒ refuse(算力无法弥补)；计算层未完成 ⇒ degrade-conservative(申请预算或走保守策略)；工程层不支持 ⇒ record-capability-limit(是"证不了"，不是"不安全")；三层均过 ⇒ proceed。诚实关键：unverified ≠ unsafe，证不了就停(fail-closed)，但绝不把"证不了"说成"已证安全"。  / EN: M3 three-layer verdict engine separating logical undecidability / computational incompleteness / engineering unsupport. unverified ≠ unsafe.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        logicDecidable: { type: 'boolean', description: '逻辑层：命题是否可判定' },
+        computeCompleted: { type: 'boolean', description: '计算层：计算是否在预算内完成' },
+        engineeringSupported: { type: 'boolean', description: '工程层：当前实现是否支持该检查' },
+        detail: { type: 'object', description: '（可选）附加上下文', properties: {} },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'prove_complete_mediation',
+    description: 'M4 完全中介证明（完备性 completeness，M1 的补集）：M1 证"门控逻辑对不对"，M4 证"是否所有副作用出口都过闸"——只有 M1 时，一条没接闸的 fetch 就能让全部门控形同虚设。依据参考监视器三要求(Anderson 1972)与完全中介原则(Saltzer & Schroeder 1975)，用对象能力模型剥夺环境权限(ambient authority)：副作用原语的词法名在内核作用域内被重绑为拒绝物或中介能力对象，故"没过闸"在 JS 语义下结构上不可能。返回定理 M4.1 的 9 项机器检验(C1..C9)、闸外未中介出口清单、重绑分类、策略快照、前提(H1..H6，不可机器判定者如实标 machineChecked:false)与 notProved 清单。诚实边界：这是【语法层】完全中介，不是语义层信息流不干扰(noninterference)——后者需 Isabelle/Coq 级工具，本内核没有，不谎称有；也未证无隐蔽/时间侧信道。  / EN: M4 complete-mediation proof (completeness; complement of M1). Machine-checks 9 conditions (C1..C9) for theorem M4.1 — syntactic complete mediation via ambient-authority removal (object-capability model). NOT semantic noninterference; no covert/timing-channel claims.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        src: { type: 'string', description: '（可选）待判定的内核源码文本。缺省用服务端内置真源码；拿不到源码时诚实返回 unverified（fail-closed，不假设通过）' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'effect_gate_report',
+    description: 'M4 效应闸运行时报告：返回策略快照(policy) + 效应计数(stats) + 最近效应轨迹(trace，每条含 kind/target/purpose 意图/caller 调用者/riskTier/是否入签名账本) + 运行时自证(attest：真的去碰被遮蔽的原语名，验证环境权限确已剥夺，不发任何网络)。机制与策略分离(seL4 同款)：闸只保证"必经中介+必入轨迹"，放行与否是策略。硬轨：PROCESS(进程派生)/EVAL(动态求值)不可经配置放开，否则"配置即提权"。  / EN: M4 effect-gate runtime report: policy snapshot + effect counters + recent mediated-effect trace (with intent/caller/riskTier/ledger status) + runtime self-attestation that ambient authority is actually removed. PROCESS/EVAL are non-configurable hard denials.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        n: { type: 'number', description: '（可选）返回最近 n 条效应轨迹，默认 20' },
+      },
+      required: [],
+    },
+  },
 ];
 
 // ---------- 2b. Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02 MCP 暴露）----------
@@ -1167,6 +1261,66 @@ function modelFreeCbfLogic(args) {
 function counterfactualAuditLogic(args) {
   return K.counterfactualAudit(args.plan || {}, {});
 }
+// ---------- 2c. 形式化证明模块 M1..M4（2026-09-03 MCP 暴露）----------
+// 统一原则：能力缺失一律 fail-closed 返回 unverified/unavailable，**绝不**默认通过。
+function proveGateChainLogic(args) {
+  if (typeof K.proveGateChain !== 'function') {
+    return { ok: false, verdict: 'unavailable', reason: 'M1 proveGateChain 未在内核中导出', honest: '能力缺失即如实报告，不假设通过' };
+  }
+  const plan = Array.isArray(args && args.plan) ? args.plan : [];
+  const r = K.proveGateChain(plan, (args && args.opts) || {});
+  return Object.assign({ module: 'M1', kind: 'soundness（门控逻辑正确性）' }, r);
+}
+function certifySafetyInvariantLogic(args) {
+  if (typeof K.certifySafetyInvariant !== 'function') {
+    return { ok: false, verdict: 'unavailable', reason: 'M2 certifySafetyInvariant 未在内核中导出', honest: '能力缺失即如实报告，不退回浮点假装认证' };
+  }
+  const r = K.certifySafetyInvariant({
+    hExpr: args && args.hExpr, vars: (args && args.vars) || [],
+    domain: (args && args.domain) || undefined, bound: (args && args.bound) || undefined,
+    options: (args && args.options) || undefined,
+  });
+  return Object.assign({ module: 'M2', kind: '数值安全证书（全域集合认证）' }, r);
+}
+function verdictThreeLayerLogic(args) {
+  if (typeof K.verdictThreeLayer !== 'function') {
+    return { ok: false, verdict: 'unavailable', reason: 'M3 verdictThreeLayer 未在内核中导出' };
+  }
+  args = args || {};
+  const r = K.verdictThreeLayer({
+    logicDecidable: args.logicDecidable, computeCompleted: args.computeCompleted,
+    engineeringSupported: args.engineeringSupported, detail: args.detail,
+  });
+  return Object.assign({ module: 'M3', kind: '层次分离裁决（unverified ≠ unsafe）' }, r);
+}
+function proveCompleteMediationLogic(args) {
+  if (typeof K.proveCompleteMediation !== 'function') {
+    return { ok: false, verdict: 'unavailable', reason: 'M4 proveCompleteMediation 未在内核中导出' };
+  }
+  // 缺省用服务端内置真源码（kernelSrc）；调用方可传自己的源码文本做第三方复核
+  const src = (args && typeof args.src === 'string' && args.src.length > 1000) ? args.src : kernelSrc;
+  const r = K.proveCompleteMediation(src);
+  return Object.assign({
+    module: 'M4', kind: 'completeness（副作用出口完备性，M1 的补集）',
+    srcBytes: src.length, srcFrom: (args && args.src) ? 'caller-provided' : 'server-builtin',
+  }, r);
+}
+function effectGateReportLogic(args) {
+  if (!K.EffectGate) {
+    return { ok: false, verdict: 'unavailable', reason: 'M4 EffectGate 未在内核中导出' };
+  }
+  const n = (args && typeof args.n === 'number' && args.n > 0) ? Math.min(args.n, 200) : 20;
+  return {
+    module: 'M4', kind: '效应闸运行时报告（机制，非策略）',
+    policy: K.EffectGate.policySnapshot(),
+    stats: K.EffectGate.stats(),
+    trace: K.EffectGate.trace(n),
+    attest: K.EffectGate.attest(),
+    kinds: K.EFFECT_KINDS || K.EffectGate.KINDS,
+    honest: 'PROCESS/EVAL 为不可经配置放开的硬拒绝；轨迹为本会话内存链，跨重启持久化需部署层注入 store',
+  };
+}
+
 function safetyAuditLogic(args) {
   var control = { traps: args.traps || null, clfCbf: null };
   if (args.A && args.B) {
@@ -1238,6 +1392,12 @@ function callTool(name, args) {
     case 'model_free_cbf': return modelFreeCbfLogic(args);
     case 'counterfactual_audit': return counterfactualAuditLogic(args);
     case 'safety_audit': return safetyAuditLogic(args);
+    // ── 形式化证明模块 M1..M4 ──
+    case 'prove_gate_chain': return proveGateChainLogic(args);
+    case 'certify_safety_invariant': return certifySafetyInvariantLogic(args);
+    case 'verdict_three_layer': return verdictThreeLayerLogic(args);
+    case 'prove_complete_mediation': return proveCompleteMediationLogic(args);
+    case 'effect_gate_report': return effectGateReportLogic(args);
     default: throw new Error('未知工具：' + name);
   }
 }

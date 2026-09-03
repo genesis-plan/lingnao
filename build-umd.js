@@ -35,7 +35,8 @@ const EXPORT_NAMES = [
   // 七元组 𝔹=(𝕎,K,Φ,Ψ,Θ,Λ,Ξ) 与八层（依 ARCHITECTURE.md）；ℙ=命题
   'Brain', 'Layers', 'brainManifest', 'evaluateProposition', 'edgeHolds',
   // 具身层（2026-08-29）：通用大脑 + 任意物理身体（具身智能在物理世界干活的通用大脑）
-  'attachBody', 'capabilities', 'getState', 'setState', 'stateDiff', 'checkHard', 'hMax', 'planTask', 'execute', 'doWork', 'POSITIONING', 'getBody',
+  // 注：'getBody' 已在上文 getWorld 一行声明，此处不再重复（重复会让构建报告的"导出数"虚高 1）
+  'attachBody', 'capabilities', 'getState', 'setState', 'stateDiff', 'checkHard', 'hMax', 'planTask', 'execute', 'doWork', 'POSITIONING',
   // 连接契约（2026-08-30）：声明式契约求值 + 观测契约可区分性
   'evalRequire', 'applyEffect', 'capVerifiable', 'distinguishable', 'observationBlindSpots',
   // 量纲分析（2026-08-30）：物理正确性约束层（SI 七基本量纲 + Buckingham π）
@@ -93,7 +94,20 @@ const EXPORT_NAMES = [
   // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）：把缺位的 h/U/V/M 正式建模为可审计对象
   'BrainTuple',
   // 自主能力等级（2026-08-31 完善）：DeepMind ASL 适配的分级人机协同配置
-  'AUTONOMY'
+  'AUTONOMY',
+  // M4 完全中介参考监视器（2026-09-03）：副作用唯一出口 + 语法层完全中介判定程序
+  //   EffectGate = 机制（必经中介 + 必入轨迹）；proveCompleteMediation = 该机制无旁路的机器判定
+  'EffectGate', 'EFFECT_KINDS', 'proveCompleteMediation',
+  // M1 / M2 / M3 形式化证明模块（2026-09-03 补齐分发缺口）：
+  //   此前这三个模块只在内核与 MCP 面可用，UMD 面【完全缺失】——用 <script> 引入的使用者
+  //   拿不到 M1/M2/M3，"M1-M4 已落地"这句话在 UMD 分发面上并不成立。实测发现后补入。
+  'proveGateChain', 'GATE_SPEC',                                  // M1 能力门控链证明
+  'certifiedNumeric', 'certifySafetyInvariant',                   // M2 数值安全证书（委派灵数 Krawczyk）
+  '_m2Eval', '_m2SampleRefute',                                   // M2 独立回代防线（可被外部复核/测试）
+  'verdictThreeLayer',                                            // M3 三层次裁决
+  // 2026-09-03 评审修复：下列 4 个符号内核 __WB 已导出，但 UMD 白名单曾遗漏，
+  // 导致 <script>/require 部署者调不到。补入以消除分发面漂移（与内核/ MCP 三态一致）。
+  'disconnectLLM', 'selfVerify', 'reflect', 'ReflectionBuffer'
 ];
 // 导出对象字面量源码：{ "WORLD":WORLD, ... }
 const litSrc = '{' + EXPORT_NAMES.map(n => JSON.stringify(n) + ':' + n).join(',') + '}';
@@ -173,4 +187,13 @@ const umd = `(function (root, factory) {
 `;
 
 fs.writeFileSync(path.join(__dirname, 'lingnao.umd.js'), umd, 'utf8');
-console.log('OK 生成 lingnao.umd.js  bytes=' + umd.length + '  导出=' + EXPORT_NAMES.length);
+// 报告用真实磁盘字节数（Buffer.byteLength），不用 String.length —— 后者是 UTF-16 码元数，
+// 中文注释按 UTF-8 落盘占 3 字节，两者相差十余万，曾导致文档里的"bytes"与 ls 不符。
+// 导出数按去重后的唯一名计（EXPORT_NAMES 若有重名，module.exports 的键数会少于数组长度）。
+var _uniqExports = EXPORT_NAMES.filter(function (n, i) { return EXPORT_NAMES.indexOf(n) === i; });
+if (_uniqExports.length !== EXPORT_NAMES.length) {
+  console.log('WARN 导出名单存在重名 ' + (EXPORT_NAMES.length - _uniqExports.length) + ' 个：' +
+    JSON.stringify(EXPORT_NAMES.filter(function (n, i) { return EXPORT_NAMES.indexOf(n) !== i; })));
+}
+console.log('OK 生成 lingnao.umd.js  bytes=' + Buffer.byteLength(umd, 'utf8') +
+  '  chars=' + umd.length + '  导出=' + _uniqExports.length);

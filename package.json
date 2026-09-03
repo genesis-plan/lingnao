@@ -31,18 +31,13 @@
     "llms.txt",
     "openai-tools.json",
     "anthropic-tools.json",
-    "examples/gen-agent-manifests.js",
-    "test/selftest-umd.js",
-    "test/test-mcp-stdio-transport.js",
-    "ARCHITECTURE.md",
-    "VERIFIABLE-PHYSICAL-AI.md",
     "README.md",
     "LICENSE"
   ],
   "engines": {
     "node": ">=18"
   },
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/genesis-plan/lingnao.git"

@@ -85,6 +85,498 @@
 const ALGO_VERSION = '3.0';   // 算法版本（审计可复现信息）
 const SEED = null;            // 推理确定性、无随机种子（审计可复现信息）
 
+// ══════════════════════════════════════════════════════════════════════
+// M4：完全中介参考监视器（Complete Mediation Reference Monitor）
+// ──────────────────────────────────────────────────────────────────────
+// 解决的问题（M1 的补集）：
+//   M1 proveGateChain 证的是「门控逻辑本身对不对」（正确性 soundness）；
+//   但它只覆盖走 execute() 的物理动作。副作用面审计实测：内核另有网络外发
+//   与本地持久化出口不经门控、不入账本 ⇒ 完备性 completeness 不成立。
+//   锁再坚固，只要有一扇没锁的窗，锁的结论就与整体安全无关。
+//
+// 外部思想来源（据实标注，非原创）：
+//   · Anderson 1972 参考监视器三要求：① 完全中介(always invoked) ② 防篡改 ③ 小到可验证
+//   · Saltzer & Schroeder 1975 完全中介原则(complete mediation)
+//   · 对象能力模型 / 消除环境权限(Miller; Wagner 的 Joe-E：库子集化以剥夺 ambient authority)
+//   · seL4 权限封闭(authority confinement)：静态策略是所有未来状态的安全「上界」
+//   · CompCert 可观测行为：副作用形式定义 = I/O trace（不含执行时间与内存）
+//
+// 核心机制（为何不是「约定」而是「结构」）：
+//   环境权限(ambient authority) = 不申请就能拿到的权力。fetch / localStorage 属此类。
+//   本模块在**词法层**遮蔽这些全局名：内核作用域内 `fetch` 被 const 遮蔽为拒绝物，
+//   闸内则以 `globalThis.fetch` 属性访问持有真实原语（属性访问不受词法遮蔽影响）。
+//   于是「内核里绕过闸拿到原语」在 JS 语义下需要 eval / 反射 / 动态 import ——
+//   而这三者的出现次数由 proveCompleteMediation() 机器检查为 0。
+//
+// 机制与策略分离（seL4 同款取舍）：本闸只保证「必经中介 + 必入轨迹」，
+//   放行与否是策略，交部署层配置。默认 audit（放行但记录），不是 deny ——
+//   若默认拒网络会砸掉 LLM 感知层，那是假安全。策略现状由证明器如实报告。
+//
+// 可信计算基(TCB)边界：{ EffectGate 自身, 签名审计账本 } 不被自己中介
+//   （否则「写审计需过闸、过闸需写审计」循环依赖）。TCB 的可信度来自
+//   Anderson 第③条「小到可验证」+ 账本哈希链自校验，此为诚实残余，不掩盖。
+// ==EFFECT-GATE-BEGIN==
+const EFFECT_KINDS = ['NETWORK_OUT', 'STORAGE_READ', 'STORAGE_WRITE', 'PHYSICAL', 'PROCESS', 'EVAL'];
+const EffectGate = (function () {
+  var _seq = 0, _log = [], _n = { allowed: 0, denied: 0 }, _LOG_CAP = 500;
+  // 策略表：mode ∈ 'ledger'(放行+入签名账本) | 'audit'(放行+闸内计数) | 'deny'(拒绝+入账本)
+  var POLICY = {
+    NETWORK_OUT:   { mode: 'ledger', riskTier: 4 },
+    STORAGE_WRITE: { mode: 'ledger', riskTier: 2 },
+    STORAGE_READ:  { mode: 'audit',  riskTier: 1 },
+    PHYSICAL:      { mode: 'ledger', riskTier: 4 },
+    PROCESS:       { mode: 'deny',   riskTier: 5 },
+    EVAL:          { mode: 'deny',   riskTier: 5 }
+  };
+  var NET_ALLOWLIST = null; // null=不限；数组=仅允许其中 host
+
+  function _ledger(type, payload) {
+    try {
+      if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+        LingNaoAuditLedger.auditEvent(type, payload);
+        return true;
+      }
+    } catch (e) { }
+    return false;
+  }
+  function _host(u) {
+    try { return new URL(String(u), 'http://local.invalid').host; } catch (e) { return '?'; }
+  }
+
+  // 唯一中介点：所有副作用必经此函数。fail-closed —— 未知效应类型一律拒绝。
+  function mediate(effect, ctx) {
+    effect = effect || {};
+    ctx = ctx || {};
+    var kind = String(effect.kind || '');
+    var seq = ++_seq;
+    var pol = POLICY[kind];
+    var rec = {
+      seq: seq, kind: kind, target: String(effect.target || ''),
+      purpose: String(ctx.purpose || 'unspecified'),
+      caller: String(ctx.caller || 'unknown'),
+      ts: new Date().toISOString()
+    };
+    var allowed, reason;
+    if (!pol) {                                    // 未注册效应类型 ⇒ fail-closed
+      allowed = false; reason = 'EFFECT_KIND_UNKNOWN:' + (kind || '<empty>');
+    } else if (pol.mode === 'deny') {
+      allowed = false; reason = 'EFFECT_DENIED_BY_POLICY:' + kind;
+    } else if (kind === 'NETWORK_OUT' && NET_ALLOWLIST && NET_ALLOWLIST.indexOf(_host(effect.target)) < 0) {
+      allowed = false; reason = 'NETWORK_HOST_NOT_ALLOWLISTED:' + _host(effect.target);
+    } else {
+      allowed = true; reason = 'mediated:' + pol.mode;
+    }
+    rec.allowed = allowed; rec.reason = reason;
+    rec.riskTier = pol ? pol.riskTier : 5;
+    if (effect.meta) rec.meta = effect.meta;
+    _log.push(rec);
+    if (_log.length > _LOG_CAP) _log.shift();
+    if (allowed) _n.allowed++; else _n.denied++;
+    // 入签名账本：策略为 ledger 的放行，以及**任何**拒绝（拒绝一律留证）
+    if (!allowed || (pol && pol.mode === 'ledger')) {
+      rec.inLedger = _ledger('effect-' + (allowed ? 'allow' : 'deny'), {
+        seq: seq, kind: kind, target: rec.target, purpose: rec.purpose,
+        caller: rec.caller, riskTier: rec.riskTier, reason: reason, meta: effect.meta || null
+      });
+    } else { rec.inLedger = false; }
+    return { allowed: allowed, reason: reason, seq: seq };
+  }
+
+  // ── 能力对象：网络（显式申请，须声明 purpose —— 意图绑定）──
+  function _rawFetch() { return (typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function') ? globalThis.fetch : null; }
+  function _rawHttps() {
+    try { return (typeof require === 'function') ? require('node:https') : null; } catch (e) { return null; }
+  }
+  function _isNode() { return (typeof process !== 'undefined' && process.versions && process.versions.node); }
+
+  function netPostJson(url, headers, bodyStr, ctx) {
+    var v = mediate({ kind: 'NETWORK_OUT', target: url, meta: { method: 'POST', bytes: String(bodyStr || '').length, host: _host(url) } }, ctx);
+    if (!v.allowed) return Promise.resolve({ ok: false, status: 0, text: 'EFFECT_DENIED: ' + v.reason, denied: true });
+    var f = _rawFetch();
+    if (!_isNode() && f) {
+      return f(url, { method: 'POST', headers: headers, body: bodyStr })
+        .then(async function (res) { return { ok: res.ok, status: res.status, text: await res.text() }; });
+    }
+    if (_isNode()) {
+      var httpsMod = _rawHttps();
+      if (httpsMod) {
+        var u = new URL(url);
+        var h = Object.assign({}, headers, { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(bodyStr) });
+        return new Promise(function (resolve) {
+          var req = httpsMod.request({ hostname: u.hostname, port: u.port || 443, path: (u.pathname || '') + (u.search || ''), method: 'POST', headers: h }, function (resp) {
+            var data = ''; resp.on('data', function (c) { data += c; });
+            resp.on('end', function () { resolve({ ok: (resp.statusCode >= 200 && resp.statusCode < 300), status: resp.statusCode || 0, text: data }); });
+          });
+          req.on('error', function (e) { resolve({ ok: false, status: 0, text: 'net:' + (e && e.message || e) }); });
+          req.write(bodyStr); req.end();
+        });
+      }
+      if (f) return f(url, { method: 'POST', headers: headers, body: bodyStr })
+        .then(async function (res) { return { ok: res.ok, status: res.status, text: await res.text() }; });
+    }
+    return Promise.resolve({ ok: false, status: 0, text: 'no transport (need fetch or node:https)' });
+  }
+
+  function netGetJson(url, ctx) {
+    var v = mediate({ kind: 'NETWORK_OUT', target: url, meta: { method: 'GET', host: _host(url) } }, ctx);
+    if (!v.allowed) return Promise.resolve({ ok: false, status: 0, json: null, error: 'EFFECT_DENIED: ' + v.reason, denied: true });
+    var f = _rawFetch();
+    if (!f) return Promise.resolve({ ok: false, status: 0, json: null, error: 'no fetch transport' });
+    return f(url).then(async function (res) {
+      if (!res.ok) return { ok: false, status: res.status, json: null, error: 'HTTP ' + res.status };
+      try { return { ok: true, status: res.status, json: await res.json() }; }
+      catch (e) { return { ok: false, status: res.status, json: null, error: 'bad json: ' + e.message }; }
+    }).catch(function (e) { return { ok: false, status: 0, json: null, error: String(e && e.message || e) }; });
+  }
+
+  // ── 能力对象：本地存储（透明中介代理；调用点密集故不强制显式申请，但每次必经 mediate）──
+  var storageProxy = (function () {
+    var real = null;
+    try { real = (typeof globalThis !== 'undefined' && globalThis.localStorage) ? globalThis.localStorage : null; } catch (e) { real = null; }
+    if (!real) return null;   // 无真实存储 ⇒ 遮蔽为 null，令 Memory.available() 如实返回 false
+    return {
+      getItem: function (k) {
+        var v = mediate({ kind: 'STORAGE_READ', target: String(k) }, { caller: 'storageProxy' });
+        if (!v.allowed) return null;
+        return globalThis.localStorage.getItem(k);
+      },
+      setItem: function (k, val) {
+        var v = mediate({ kind: 'STORAGE_WRITE', target: String(k), meta: { bytes: String(val == null ? '' : val).length } }, { caller: 'storageProxy' });
+        if (!v.allowed) throw new Error('EFFECT_DENIED: STORAGE_WRITE ' + k + ' (' + v.reason + ')');
+        return globalThis.localStorage.setItem(k, val);
+      },
+      removeItem: function (k) {
+        var v = mediate({ kind: 'STORAGE_WRITE', target: String(k), meta: { op: 'remove' } }, { caller: 'storageProxy' });
+        if (!v.allowed) throw new Error('EFFECT_DENIED: STORAGE_WRITE(remove) ' + k + ' (' + v.reason + ')');
+        return globalThis.localStorage.removeItem(k);
+      },
+      get length() { try { return globalThis.localStorage.length; } catch (e) { return 0; } },
+      __mediated: true
+    };
+  })();
+
+  function configure(opts) {
+    opts = opts || {};
+    if (opts.network && ['ledger', 'audit', 'deny'].indexOf(opts.network) >= 0) POLICY.NETWORK_OUT.mode = opts.network;
+    if (opts.storageWrite && ['ledger', 'audit', 'deny'].indexOf(opts.storageWrite) >= 0) POLICY.STORAGE_WRITE.mode = opts.storageWrite;
+    if (opts.storageRead && ['ledger', 'audit', 'deny'].indexOf(opts.storageRead) >= 0) POLICY.STORAGE_READ.mode = opts.storageRead;
+    if (opts.physical && ['ledger', 'audit', 'deny'].indexOf(opts.physical) >= 0) POLICY.PHYSICAL.mode = opts.physical;
+    // 硬轨：PROCESS / EVAL 不可经 configure 放开 —— 否则"配置即提权"，
+    //   策略层一句话就能把进程派生与动态求值打开，机制层的保证形同虚设。
+    //   这两类要放开只能改源码，而改源码会被 M4 判定程序（C5/C6）当场抓到。
+    if (Object.prototype.hasOwnProperty.call(opts, 'netAllowlist')) NET_ALLOWLIST = Array.isArray(opts.netAllowlist) ? opts.netAllowlist.slice() : null;
+    _ledger('effect-policy-change', { policy: policySnapshot(), netAllowlist: NET_ALLOWLIST });
+    return policySnapshot();
+  }
+  function policySnapshot() {
+    var o = {};
+    Object.keys(POLICY).forEach(function (k) { o[k] = { mode: POLICY[k].mode, riskTier: POLICY[k].riskTier }; });
+    return { policy: o, netAllowlist: NET_ALLOWLIST ? NET_ALLOWLIST.slice() : null };
+  }
+  function stats() {
+    var byKind = {};
+    _log.forEach(function (r) { byKind[r.kind] = (byKind[r.kind] || 0) + 1; });
+    return { total: _seq, allowed: _n.allowed, denied: _n.denied, byKind: byKind, logged: _log.length, logCap: _LOG_CAP };
+  }
+  function trace(n) { n = n || 50; return _log.slice(-n); }
+
+  // 运行时自证：真的去碰被遮蔽的名字，验证环境权限确已剥夺（不发任何网络）
+  function attest() {
+    var checks = [];
+    var t1;
+    try { fetch('http://local.invalid/attest'); t1 = { shadowed: false, note: '裸 fetch 未被拦截' }; }
+    catch (e) { t1 = { shadowed: /AMBIENT_AUTHORITY_DENIED/.test(String(e && e.message)), err: String(e && e.message).slice(0, 80) }; }
+    checks.push({ name: 'fetch 词法遮蔽生效', pass: !!t1.shadowed, detail: t1 });
+    var t2 = { hasRealPrimitive: !!_rawFetch(), note: '闸内经 globalThis 仍持有真实原语（否则功能全废）' };
+    checks.push({ name: '闸内保留真实原语', pass: true, detail: t2 });
+    var t3 = { proxied: !!(storageProxy && storageProxy.__mediated), realPresent: !!(typeof globalThis !== 'undefined' && globalThis.localStorage) };
+    checks.push({ name: 'localStorage 经代理中介', pass: (!t3.realPresent) || t3.proxied, detail: t3 });
+    var t4 = mediate({ kind: '__NONEXISTENT_KIND__', target: 'attest' }, { purpose: 'attest-fail-closed' });
+    checks.push({ name: '未知效应类型 fail-closed', pass: (t4.allowed === false), detail: t4 });
+    return { ok: checks.every(function (c) { return c.pass; }), checks: checks, policy: policySnapshot() };
+  }
+
+  return {
+    mediate: mediate, net: { postJson: netPostJson, getJson: netGetJson },
+    storageProxy: storageProxy, configure: configure, policySnapshot: policySnapshot,
+    stats: stats, trace: trace, attest: attest, KINDS: EFFECT_KINDS
+  };
+})();
+
+// ── 环境权限剥夺（No Ambient Authority）──
+// 词法遮蔽全局副作用原语：内核作用域内这些名字不再是「权力」，而是拒绝物。
+// 闸内以 globalThis.<name> 属性访问真实原语，故功能不损；内核别处引用即抛错。
+function __ambientDenied(name) {
+  return function () {
+    throw new Error('AMBIENT_AUTHORITY_DENIED: ' + name + ' —— 副作用须经 EffectGate 中介（M4 完全中介）；' +
+      '内核内请改用 EffectGate.net.* / EffectGate.mediate()，宿主层不受此限');
+  };
+}
+const fetch = __ambientDenied('fetch');
+const XMLHttpRequest = __ambientDenied('XMLHttpRequest');
+const WebSocket = __ambientDenied('WebSocket');
+const localStorage = EffectGate.storageProxy;   // 真实存储缺失时为 null（Memory.available() 如实为 false）
+const sessionStorage = null;
+const indexedDB = null;
+// ==EFFECT-GATE-END==
+
+// ══════════════════════════════════════════════════════════════════════
+// M4 证明器：完全中介定理的判定程序
+// ──────────────────────────────────────────────────────────────────────
+// 定理 M4.1（语法层完全中介 / syntactic complete mediation）
+//   设内核源码文本 S，副作用原语集 P = {fetch, XHR, WebSocket, localStorage,
+//   sessionStorage, indexedDB, node:https/http, fs, child_process}，
+//   GATE = 效应闸实现区间，TCB = 签名审计账本区间。
+//   若 (i) ∀p∈P：p 的词法名在 GATE 内被 const 重绑，且初始化式属已批准形态
+//          —— 拒绝物 __ambientDenied(...) / null（记 denied），或闸提供的
+//             中介能力对象 EffectGate.*（记 mediated）；
+//      (ii) ∀p∈P：以 globalThis.p / window.p 形式的真实原语访问只出现在 GATE 内；
+//      (iii) GATE∪TCB 之外对 P 的每一处引用都可归约到 (i) 的绑定：
+//            mediated ⇒ 该引用已被中介；denied ⇒ 该引用抛错或为 null，不产生副作用；
+//      (iv) 动态求值面（eval / new Function / import() / globalThis[动态键]）计数为 0；
+//      (v) 唯一物理出口 bodyAdapter 的调用点前有 EffectGate.mediate 中介；
+//      (vi) (i) 的绑定未被 GATE 外的 var/let/const 重声明覆盖（否则归约不成立）；
+//   则内核作用域内任何执行路径都无法取得未中介的副作用原语引用。∎
+//
+//   证明骨架：JS 中获得一个原语引用只有三条途径 —— (a) 词法名字引用；
+//   (b) 属性访问 globalThis.x / window.x；(c) 动态求值(eval/Function/import/反射)。
+//   (a) 被 (i)+(vi) 归约：同作用域 const 遮蔽优先于全局对象属性，故闸外写下 p
+//       解析到的**必然**是闸内那条绑定，而非环境权限；按 (iii) 两类均安全；
+//   (b) 被 (ii) 限制在 GATE 内；(c) 被 (iv) 判定为不存在。
+//   三条途径穷尽 ⇒ 闸外无从取得未中介原语 ⇒ 完全中介成立。
+//
+//   ⚠ 此处是对象能力模型（Miller）的要点，也是本判定曾写错并被实测纠正的地方：
+//     安全性不来自「禁止写这个名字」，而来自「这个名字已不再指向环境权限」。
+//     故判据不是"裸引用计数为 0"，而是"每处引用都可归约到已批准绑定"。
+//
+// 与 seL4 权限封闭的关系：本判定给出的是**静态安全上界**——只要上界内所有
+//   出口都过闸，则所有未来执行都过闸。故无需枚举运行时路径（那是不可判定的）。
+//
+// ⚠ 诚实边界（必须与结论一起读）：
+//   · 这是**语法层**完全中介，不是语义层信息流不干扰(noninterference)。后者需
+//     Isabelle/Coq 级工具（seL4 那种规模），本内核没有，不谎称有。
+//   · 证的是「所有效应出口都过闸」，没证「过闸的放行决策一定正确」（那是 M1），
+//     也没证「无隐蔽信道 / 无时间侧信道」。
+//   · 前提 H1(单 realm，无 iframe/worker 逃逸) 与 H5(宿主层不受此限) 不可由源码
+//     判定，如实标为 machineChecked:false。宿主进程若直接调 fetch，与内核无关也
+//     不在本定理射程内 —— 部署层责任。
+//   · 扫描以正则为工具，对「必须为 0」类检查在**原始文本**上取并集（宁多不少，
+//     安全侧过近似），命中后再用剥注释文本复核，故不漏报、误报可解释。
+// ==MEDIATION-PROVER-BEGIN==
+// 剥注释但保留字符串（踩过的坑：剥掉字符串会把 auditEvent('type') 的类型名吃掉 ⇒ 误报 0）
+// 保留换行以维持行号一致。
+function _mpStripComments(src) {
+  var out = '', i = 0, n = src.length, st = 0; // 0=code 1=line 2=block 3=sq 4=dq 5=tpl
+  while (i < n) {
+    var c = src.charAt(i), d = src.charAt(i + 1);
+    if (st === 0) {
+      if (c === '/' && d === '/') { st = 1; out += '  '; i += 2; continue; }
+      if (c === '/' && d === '*') { st = 2; out += '  '; i += 2; continue; }
+      if (c === "'") { st = 3; out += c; i++; continue; }
+      if (c === '"') { st = 4; out += c; i++; continue; }
+      if (c === '`') { st = 5; out += c; i++; continue; }
+      out += c; i++; continue;
+    }
+    if (st === 1) { if (c === '\n') { st = 0; out += c; } else out += ' '; i++; continue; }
+    if (st === 2) { if (c === '*' && d === '/') { st = 0; out += '  '; i += 2; } else { out += (c === '\n' ? '\n' : ' '); i++; } continue; }
+    if (c === '\\') { out += c + (d || ''); i += 2; continue; }
+    if ((st === 3 && c === "'") || (st === 4 && c === '"') || (st === 5 && c === '`')) { st = 0; out += c; i++; continue; }
+    out += c; i++; continue;
+  }
+  return out;
+}
+function _mpLineOf(src, idx) { var k = 0; for (var i = 0; i < idx && i < src.length; i++) if (src.charAt(i) === '\n') k++; return k + 1; }
+function _mpFind(src, re) {
+  var hits = [], m; re.lastIndex = 0;
+  while ((m = re.exec(src)) !== null) {
+    hits.push({ line: _mpLineOf(src, m.index), text: m[0] });
+    if (m.index === re.lastIndex) re.lastIndex++;
+  }
+  return hits;
+}
+function _mpRegion(src, beginTag, endTag) {
+  var a = src.indexOf(beginTag), b = src.indexOf(endTag);
+  if (a < 0 || b < 0 || b < a) return null;
+  return { from: _mpLineOf(src, a), to: _mpLineOf(src, b) };
+}
+function _mpIn(region, line) { return !!region && line >= region.from && line <= region.to; }
+
+function proveCompleteMediation(srcText) {
+  var src = srcText || (typeof globalThis !== 'undefined' && globalThis.__LINGNAO_SRC) || null;
+  if (!src || typeof src !== 'string' || src.length < 1000) {
+    return {
+      ok: false, theorem: 'M4.1', verdict: 'unverified',
+      reason: 'NO_SOURCE: 完全中介是源码文本的性质，须传入内核源码 —— proveCompleteMediation(srcString) 或预设 globalThis.__LINGNAO_SRC',
+      honest: '拿不到源码就给不出判定，不猜、不假设通过（fail-closed）'
+    };
+  }
+  var clean = _mpStripComments(src);
+  // 模式以拼接构造：避免证明器自身的字面量污染它要扫描的面（自指程序的标准处理）
+  var G = 'global' + 'This', W = 'win' + 'dow';
+  var PRIMS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'localStorage', 'sessionStorage', 'indexedDB'];
+  var GATE = _mpRegion(src, '==EFFECT-GATE-' + 'BEGIN==', '==EFFECT-GATE-' + 'END==');
+  var TCB = _mpRegion(src, '==TCB-AUDIT-LEDGER-' + 'BEGIN==', '==TCB-AUDIT-LEDGER-' + 'END==');
+  var PROVER = _mpRegion(src, '==MEDIATION-PROVER-' + 'BEGIN==', '==MEDIATION-PROVER-' + 'END==');
+  var checks = [], unmediated = [];
+  function add(id, name, pass, detail) { checks.push({ id: id, name: name, pass: !!pass, detail: detail }); return pass; }
+
+  // C1 区间哨兵齐备
+  add('C1', '效应闸与 TCB 区间哨兵齐备', !!GATE && !!TCB, { gate: GATE, tcb: TCB, prover: PROVER });
+
+  // C2 词法重绑齐备、位于闸内，且**初始化式属已批准形态**
+  //   只查"存在 const p ="是不够的：`const fetch = globalThis.fetch` 也是遮蔽，
+  //   却把环境权限原样放回来。必须查绑定到了什么，并据此分类供 C4 归约。
+  var CLASS = {};   // prim → 'denied'（拒绝物/null） | 'mediated'（闸提供的能力对象）
+  var shadowMissing = [], shadowOutside = [], shadowUnsafe = [];
+  PRIMS.forEach(function (p) {
+    var hs = _mpFind(clean, new RegExp('const\\s+' + p + '\\s*=\\s*([^;\\n]*)', 'g'));
+    if (!hs.length) { shadowMissing.push(p); return; }
+    var inGate = hs.filter(function (h) { return _mpIn(GATE, h.line); });
+    if (!inGate.length) { shadowOutside.push({ prim: p, at: hs.map(function (h) { return h.line; }) }); return; }
+    var init = inGate[0].text.replace(new RegExp('^const\\s+' + p + '\\s*=\\s*'), '').trim();
+    if (/^__ambientDenied\s*\(/.test(init) || /^null\b/.test(init)) CLASS[p] = 'denied';
+    else if (/^EffectGate\s*\./.test(init)) CLASS[p] = 'mediated';
+    else shadowUnsafe.push({ prim: p, at: inGate[0].line, init: init.slice(0, 60) });
+  });
+  add('C2', '环境权限已被重绑为已批准形态（拒绝物 或 闸内能力对象）',
+    shadowMissing.length === 0 && shadowOutside.length === 0 && shadowUnsafe.length === 0,
+    { missing: shadowMissing, outsideGate: shadowOutside, unsafeInitializer: shadowUnsafe, classification: CLASS });
+  shadowUnsafe.forEach(function (x) { unmediated.push({ at: x.at, kind: 'shadow-reexposes-ambient', text: x.prim + ' = ' + x.init }); });
+
+  // C3 真实原语（globalThis.p / window.p）只在闸内 —— 原始文本取并集（安全侧过近似）
+  var leak = [];
+  PRIMS.concat(['require']).forEach(function (p) {
+    [G, W].forEach(function (obj) {
+      _mpFind(src, new RegExp(obj.replace(/\$/g, '\\$') + '\\.' + p + '\\b', 'g')).forEach(function (h) {
+        if (_mpIn(GATE, h.line) || _mpIn(TCB, h.line) || _mpIn(PROVER, h.line)) return;
+        // 原始文本命中 ⇒ 用剥注释文本复核，排除注释内提及
+        var still = _mpFind(clean, new RegExp(obj.replace(/\$/g, '\\$') + '\\.' + p + '\\b', 'g'))
+          .some(function (x) { return x.line === h.line; });
+        if (still) leak.push({ at: h.line, text: h.text, kind: 'ambient-primitive-access' });
+      });
+    });
+  });
+  add('C3', '真实原语访问仅存在于闸内', leak.length === 0, { leaks: leak });
+  leak.forEach(function (x) { unmediated.push(x); });
+
+  // C4 闸外每处引用可归约到闸内绑定（对象能力模型核心论证）
+  //   有 C2(重绑分类) + C3(真实原语仅闸内) + C5(无动态求值) + C9(未被重声明覆盖)，
+  //   则闸外写下的 p 解析到的必然是闸内那条 const 绑定。按分类归约：
+  //     mediated ⇒ 每次调用必经 mediate()，已中介；
+  //     denied   ⇒ 调用即抛 AMBIENT_AUTHORITY_DENIED 或值为 null，产生不了副作用。
+  //   分类缺失 ⇒ 无法归约 ⇒ 计入真缺口 unmediated。
+  var reducedMediated = [], reducedDead = [], bare = [];
+  PRIMS.forEach(function (p) {
+    var re = new RegExp('(?:^|[^\\w.$])' + p + '\\s*(?:\\(|\\.)', 'g');
+    _mpFind(clean, re).forEach(function (h) {
+      if (_mpIn(GATE, h.line) || _mpIn(TCB, h.line) || _mpIn(PROVER, h.line)) return;
+      var cls = CLASS[p];
+      if (cls === 'mediated') reducedMediated.push({ at: h.line, prim: p });
+      else if (cls === 'denied') reducedDead.push({ at: h.line, prim: p, text: h.text.trim() });
+      else bare.push({ at: h.line, text: h.text.trim(), prim: p, kind: 'bare-primitive-unreducible' });
+    });
+  });
+  add('C4', '闸外引用可归约到闸内能力绑定（无不可归约裸引用）', bare.length === 0, {
+    unreducible: bare,
+    mediatedByCapability: reducedMediated.length, mediatedSample: reducedMediated.slice(0, 8),
+    deadPath: reducedDead.length, deadPathSample: reducedDead.slice(0, 8),
+    note: 'deadPath = 安全中性但运行时会抛错的路径（活性问题，非安全问题）；如实报告，不隐藏'
+  });
+  bare.forEach(function (x) { unmediated.push(x); });
+
+  // C5 动态求值面为 0（定理前提 H2/H3 的机器检验）
+  var dyn = [];
+  [['eval\\s*\\(', 'eval'], ['\\bFunction\\s*\\(', 'Function-constructor'],
+   ['setTimeout\\s*\\(\\s*[\'"`]', 'setTimeout-string-eval'], ['setInterval\\s*\\(\\s*[\'"`]', 'setInterval-string-eval'],
+   ['\\bwith\\s*\\(', 'with-statement'],
+   ['\\bimport\\s*\\(', 'dynamic import'], [G + '\\s*\\[', 'globalThis[dynamic]'], [W + '\\s*\\[', 'window[dynamic]']
+  ].forEach(function (pair) {
+    _mpFind(clean, new RegExp(pair[0], 'g')).forEach(function (h) {
+      if (_mpIn(PROVER, h.line)) return; // 证明器内仅为检测模式，不构成求值面
+      dyn.push({ at: h.line, what: pair[1] });
+    });
+  });
+  add('C5', '动态求值/反射面为零（前提 H2·H3）', dyn.length === 0, { hits: dyn });
+  dyn.forEach(function (x) { unmediated.push({ at: x.at, kind: 'dynamic-eval-surface', text: x.what }); });
+
+  // C6 require 只允许在 闸 ∪ TCB 内（node:https / fs / crypto）
+  var reqOut = [];
+  _mpFind(clean, /require\s*\(/g).forEach(function (h) {
+    if (_mpIn(GATE, h.line) || _mpIn(TCB, h.line) || _mpIn(PROVER, h.line)) return;
+    reqOut.push({ at: h.line, kind: 'require-outside-gate-tcb' });
+  });
+  add('C6', 'Node 模块加载仅在闸与 TCB 内', reqOut.length === 0, { hits: reqOut });
+  reqOut.forEach(function (x) { unmediated.push(x); });
+
+  // C7 唯一物理出口且其前有效应闸中介
+  var bodyCalls = _mpFind(clean, /bodyAdapter\s*\(/g).filter(function (h) { return !_mpIn(PROVER, h.line); });
+  var medPhys = _mpFind(clean, /EffectGate\.mediate\s*\(/g).filter(function (h) { return !_mpIn(PROVER, h.line) && !_mpIn(GATE, h.line); });
+  var physOk = (bodyCalls.length === 1) && medPhys.some(function (m) { return m.line < bodyCalls[0].line && (bodyCalls[0].line - m.line) <= 12; });
+  add('C7', '物理出口唯一且前置效应闸中介', physOk, { bodyAdapterCalls: bodyCalls.map(function (h) { return h.line; }), mediateCalls: medPhys.map(function (h) { return h.line; }) });
+  if (!physOk) unmediated.push({ at: bodyCalls.length ? bodyCalls[0].line : 0, kind: 'physical-exit-unmediated' });
+
+  // C8 闸不泄露真实原语持有者（_rawFetch/_rawHttps 不出闸）
+  var rawLeak = [];
+  ['_rawFetch', '_rawHttps'].forEach(function (nm) {
+    _mpFind(clean, new RegExp(nm + '\\b', 'g')).forEach(function (h) {
+      if (_mpIn(GATE, h.line) || _mpIn(PROVER, h.line)) return;
+      rawLeak.push({ at: h.line, name: nm });
+    });
+  });
+  add('C8', '闸未泄露真实原语持有者（防篡改/防提权）', rawLeak.length === 0, { hits: rawLeak });
+  rawLeak.forEach(function (x) { unmediated.push({ at: x.at, kind: 'raw-primitive-leak', text: x.name }); });
+
+  // C9 闸内绑定未被闸外重声明覆盖 —— 这是 C4 归约成立的前提
+  //   若闸外某作用域写 `let fetch = <某处拿到的真原语>`，则该作用域内的 fetch
+  //   不再解析到拒绝物，归约链断裂。故任何闸外重声明一律判失败（fail-closed）。
+  var rebind = [];
+  PRIMS.forEach(function (p) {
+    _mpFind(clean, new RegExp('\\b(?:var|let|const)\\s+' + p + '\\b', 'g')).forEach(function (h) {
+      if (_mpIn(GATE, h.line) || _mpIn(PROVER, h.line)) return;
+      rebind.push({ at: h.line, prim: p });
+    });
+  });
+  add('C9', '闸内绑定未被闸外重声明覆盖（C4 归约前提）', rebind.length === 0, { hits: rebind });
+  rebind.forEach(function (x) { unmediated.push({ at: x.at, kind: 'shadow-rebound-outside-gate', text: x.prim }); });
+
+  var allPass = checks.every(function (c) { return c.pass; });
+  var out = {
+    ok: allPass, theorem: 'M4.1',
+    verdict: allPass ? 'complete-mediation-proved' : 'incomplete',
+    scope: '语法层完全中介（syntactic complete mediation）：内核作用域内所有副作用出口必经 EffectGate',
+    checks: checks,
+    unmediated: unmediated,
+    classification: CLASS,
+    reduction: { mediatedByCapability: reducedMediated.length, deadPath: reducedDead.length, unreducible: bare.length },
+    regions: { gate: GATE, tcb: TCB, prover: PROVER },
+    policy: (typeof EffectGate !== 'undefined') ? EffectGate.policySnapshot() : null,
+    assumptions: [
+      { id: 'H1', text: '单 realm 执行，无 iframe/Worker/新 vm context 逃逸', machineChecked: false, note: '运行环境性质，源码不可判定' },
+      { id: 'H2', text: '无 eval / Function 构造器（含裸 Function()）/ 字符串 setTimeout / with 语句 / 动态 import', machineChecked: true, by: 'C5' },
+      { id: 'H3', text: '无反射式全局属性访问（globalThis[动态键]）', machineChecked: true, by: 'C5' },
+      { id: 'H4', text: '闸不向外泄露真实原语引用', machineChecked: true, by: 'C8' },
+      { id: 'H5', text: '宿主/部署层可自由调用原语，不在本定理射程内', machineChecked: false, note: '部署层责任，非内核缺陷' },
+      { id: 'H6', text: '闸内能力绑定未被闸外重声明覆盖（归约链完整）', machineChecked: true, by: 'C9' }
+    ],
+    notProved: [
+      '语义层信息流不干扰（noninterference）—— 需 Isabelle/Coq 级工具，本内核没有',
+      '放行决策的正确性 —— 那是 M1 proveGateChain 的射程',
+      '无隐蔽信道 / 无时间侧信道',
+      'TCB（效应闸自身 + 签名审计账本）的内部正确性 —— 靠"小到可验证"+哈希链自校验，非被自己中介'
+    ]
+  };
+  try {
+    if (typeof LingNaoAuditLedger !== 'undefined' && typeof LingNaoAuditLedger.auditEvent === 'function') {
+      LingNaoAuditLedger.auditEvent('complete-mediation-proof', {
+        verdict: out.verdict, checks: checks.map(function (c) { return { id: c.id, pass: c.pass }; }),
+        unmediatedCount: unmediated.length, policy: out.policy
+      });
+    }
+  } catch (e) { }
+  return out;
+}
+// ==MEDIATION-PROVER-END==
+
 // IMA 数学库素材（仅作知识库依据引用，非核心）——文档融合框架 Layer3 素材来源
 const IMA = [
   {id:'IMA-35', t:'皮亚诺公理：自然数良序，归纳法基础'},
@@ -1011,7 +1503,7 @@ let LLM_CONFIG = {
   provider: 'openrouter',
   baseURL: 'https://openrouter.ai/api/v1/chat/completions',
   apiKey: (typeof process!=='undefined' && process.env && process.env.OPENROUTER_API_KEY) || null,
-  model: 'openrouter/free',
+  model: 'minimax/minimax-m3:free',
   temperature: 0.2,
   maxTokens: 500,
 };
@@ -1039,30 +1531,11 @@ function disconnectLLM(){
   return {ok:true, hasKey:false};
 }
 
-// 统一 HTTP POST(JSON)：Node 用 node:https；浏览器用 fetch（自动选传输）
+// 统一 HTTP POST(JSON)：经 M4 效应闸中介（传输选择、Node/浏览器分支均在闸内实现）
+// 变更（M4 完全中介）：原先此处直接持有 fetch / node:https ⇒ 是不经门控、不入账本的旁路。
+// 现改为向 EffectGate 申请网络能力并声明用途，放行与否由部署层策略决定，轨迹一律留证。
 function _httpPostJson(url, headers, bodyStr){
-  const isNode = (typeof process!=='undefined' && process.versions && process.versions.node);
-  const canFetch = (typeof globalThis.fetch==='function');
-  if(!isNode && canFetch){
-    return fetch(url, {method:'POST', headers, body:bodyStr}).then(async res=>({ok:res.ok, status:res.status, text:await res.text()}));
-  }
-  if(isNode){
-    const httpsMod = (()=>{ try{ return require('node:https'); }catch(e){ return null; } })();
-    if(httpsMod){
-      const u = new URL(url);
-      const h = Object.assign({}, headers, {'Content-Type':'application/json', 'Content-Length': Buffer.byteLength(bodyStr)});
-      return new Promise((resolve)=>{
-        const req = httpsMod.request({hostname:u.hostname, port:u.port||443, path:(u.pathname||'')+(u.search||''), method:'POST', headers:h}, (resp)=>{
-          let data=''; resp.on('data', c=>data+=c);
-          resp.on('end', ()=>resolve({ok:(resp.statusCode>=200&&resp.statusCode<300), status:resp.statusCode||0, text:data}));
-        });
-        req.on('error', e=>resolve({ok:false, status:0, text:'net:'+(e&&e.message||e)}));
-        req.write(bodyStr); req.end();
-      });
-    }
-    if(canFetch) return fetch(url, {method:'POST', headers, body:bodyStr}).then(async res=>({ok:res.ok, status:res.status, text:await res.text()}));
-  }
-  return Promise.resolve({ok:false, status:0, text:'no transport (need fetch or node:https)'});
+  return EffectGate.net.postJson(url, headers, bodyStr, { purpose:'llm-chat', caller:'_httpPostJson' });
 }
 
 // 核心：调一次 LLM 对话 → {ok, text, model, raw}
@@ -1584,6 +2057,14 @@ function certifiedNumeric(args){
   }
   const empty = r.resultTypeName === 'empty';
   const allCert = !!r.certified;
+  // 诚实边界（修复 #248）：引擎在资源/预算内未穷尽时返回 truncated=true ——
+  // 此时「empty」只是「没找到」，不是「证明无解」。把 truncated 当 empty 映射成 verified 是假证明，
+  // 故预算耗尽一律降档为未认证（fail-closed），绝不把「未穷尽」说成「已证安全」。
+  if (r.truncated === true) {
+    return { available: true, engine: r.engine, tier: 'truncated-unverified', truncated: true,
+      provenNoSolution: false, certified: false, resultTypeName: r.resultTypeName, solutionCount: r.solutionCount,
+      note: '灵数在资源/预算内未穷尽（truncated）⇒ 既不能说「证无解」也不能说「有解」；诚实降档为未认证。' };
+  }
   return {
     available: true, engine: r.engine, tier: 'certified-krawczyk',
     // 真升级：灵数「证明无实数解」（resultType=empty 即引擎全局穷尽证无实根；lite 浮点永不能证）
@@ -1620,6 +2101,105 @@ function certifiedNumeric(args){
 //    · 变量总数（状态变量 + s + w）受灵数 ≤6 上限 ⇒ 状态维数 ≤ 4。
 //    · 检出粒度：s·w=1 与辅助变量域界 ±BOUND 共同决定可检出的最小违反深度 ≈ 1/BOUND²。
 //    · 只证 h ≥ 0 这类代数不变式；不证 Hoare 三元组 / BrainTuple 逻辑（那是 Coq/Lean/TLA+ 的事）。
+// ══ M2 辅助：确定性表达式求值器（递归下降）═══════════════════════════════════
+// 为什么要手写：本内核 EVAL 类效应是 deny 硬轨（见 M4 效应闸），用动态求值会当场违反自己的
+// 完全中介定理 C5。故手写一个「小到可验证」的纯函数求值器：无反射、无动态构造、确定性。
+// 文法：  expr := term (('+'|'-') term)*        term  := unary (('*'|'/') unary)*
+//        unary := ('-'|'+') unary | power        power := primary ('^' unary)?
+//        primary := num | ident['(' expr ')'] | '(' expr ')'
+// 优先级要点（2026-09-03 自检抓到的 bug）：一元负号优先级【低于】幂运算——
+//   -3^2 必须等于 -(3^2) = -9，而不是 (-3)^2 = 9；同时 2^-3 = 2^(-3) 须可解析。
+//   写错会让下方抽样反驳在形如 "-x^2+1" 的不变式上求值错误 ⇒ 漏掉真实违反点 ⇒ 防线失效。
+function _m2Eval(exprText, env) {
+  var s = String(exprText), i = 0;
+  var FN = { sin: Math.sin, cos: Math.cos, tan: Math.tan, exp: Math.exp,
+             log: Math.log, sqrt: Math.sqrt, abs: Math.abs };
+  function ws() { while (i < s.length && /\s/.test(s.charAt(i))) i++; }
+  function expr() {
+    var v = term();
+    for (;;) { ws(); var c = s.charAt(i);
+      if (c === '+') { i++; v += term(); } else if (c === '-') { i++; v -= term(); } else return v; } }
+  function term() {
+    var v = unary();
+    for (;;) { ws(); var c = s.charAt(i);
+      if (c === '*') { i++; v *= unary(); }
+      else if (c === '/') { i++; var d = unary(); if (d === 0) throw new Error('DIV0'); v /= d; }
+      else return v; } }
+  function unary() {
+    ws(); var c = s.charAt(i);
+    if (c === '-') { i++; return -unary(); }      // 负号在 power 之外 ⇒ -3^2 = -(3^2)
+    if (c === '+') { i++; return unary(); }
+    return power(); }
+  function power() {
+    var b = primary(); ws();
+    if (s.charAt(i) === '^') { i++; return Math.pow(b, unary()); }   // 右结合；指数侧允许 2^-3
+    return b; }
+  function primary() {
+    ws(); var c = s.charAt(i);
+    if (c === '(') { i++; var v = expr(); ws();
+      if (s.charAt(i) !== ')') throw new Error('EXPECT_RPAREN'); i++; return v; }
+    var numM = /^\d+(\.\d+)?([eE][+-]?\d+)?/.exec(s.slice(i));
+    if (numM) { i += numM[0].length; return parseFloat(numM[0]); }
+    var idM = /^[A-Za-z_][A-Za-z_0-9]*/.exec(s.slice(i));
+    if (idM) { i += idM[0].length; var name = idM[0]; ws();
+      if (s.charAt(i) === '(') {                                       // 函数调用
+        if (!Object.prototype.hasOwnProperty.call(FN, name)) throw new Error('UNKNOWN_FN:' + name);
+        i++; var a = expr(); ws();
+        if (s.charAt(i) !== ')') throw new Error('EXPECT_RPAREN'); i++; return FN[name](a); }
+      if (name === 'pi' || name === 'PI') return Math.PI;
+      if (name === 'e' && !Object.prototype.hasOwnProperty.call(env, 'e')) return Math.E;
+      if (!Object.prototype.hasOwnProperty.call(env, name)) throw new Error('UNBOUND_VAR:' + name);
+      return env[name]; }
+    throw new Error('PARSE_ERROR@' + i); }
+  var out = expr(); ws();
+  if (i !== s.length) throw new Error('TRAILING@' + i);
+  if (typeof out !== 'number' || !isFinite(out)) throw new Error('NON_FINITE');
+  return out;
+}
+// ══ M2 辅助：对「已证无解」结论的独立抽样反驳（证明器不许只信自己）═════════════
+// 动机（2026-09-03 实测抓到的真缺陷）：若把非法域形态（如数组而非对象）透传给求解器，
+// 引擎会在它理解的退化域上返回 empty(无解)，而 empty ⇒ verified，于是「安全已被数学证明」
+// 凭空产生。修法有两层：① 入口严格校验域形态（下方 certifySafetyInvariant）；
+// ② 本函数——即便引擎说无解，也在域内确定性网格上回代 h，一旦发现 h<0 就判矛盾。
+// 这是廉价但极硬的一道防线：它让「无解」这个不可证伪的结论重新变得可证伪。
+// 确定性红线：只用固定网格 + 固定种子 LCG，绝不用 Math.random。
+function _m2SampleRefute(hExpr, vars, dom, opts) {
+  opts = opts || {};
+  var GRID = 5, EXTRA = 64, pts = [], i, k;
+  var lo = {}, hi = {};
+  for (i = 0; i < vars.length; i++) { lo[vars[i]] = dom[vars[i]][0]; hi[vars[i]] = dom[vars[i]][1]; }
+  // ① 确定性网格（每维 GRID 等分点，维数 ≤4 ⇒ 最多 625 点）
+  var idx = new Array(vars.length); for (i = 0; i < vars.length; i++) idx[i] = 0;
+  for (;;) {
+    var p = {};
+    for (i = 0; i < vars.length; i++) {
+      var t = (GRID === 1) ? 0.5 : idx[i] / (GRID - 1);
+      p[vars[i]] = lo[vars[i]] + t * (hi[vars[i]] - lo[vars[i]]);
+    }
+    pts.push(p);
+    for (k = vars.length - 1; k >= 0; k--) { if (++idx[k] < GRID) break; idx[k] = 0; }
+    if (k < 0) break;
+  }
+  // ② 固定种子 LCG 补采（同一输入永得同一点集 ⇒ 可复现、可审计）
+  var seed = 1103515245;
+  function rnd() { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+  for (i = 0; i < EXTRA; i++) {
+    var q = {};
+    for (k = 0; k < vars.length; k++) q[vars[k]] = lo[vars[k]] + rnd() * (hi[vars[k]] - lo[vars[k]]);
+    pts.push(q);
+  }
+  var evaluated = 0, worst = null, worstAt = null, evalErr = null;
+  for (i = 0; i < pts.length; i++) {
+    var val;
+    try { val = _m2Eval(hExpr, pts[i]); } catch (e) { evalErr = e.message; continue; }
+    evaluated++;
+    if (worst === null || val < worst) { worst = val; worstAt = pts[i]; }
+  }
+  if (!evaluated) return { usable:false, reason:'表达式无法在任何采样点求值：' + (evalErr || 'unknown'),
+                           evalError: evalErr, sampled: pts.length };
+  return { usable:true, sampled: pts.length, evaluated: evaluated,
+           minValue: worst, minAt: worstAt, refuted: (worst < 0), evalError: evalErr };
+}
 function certifySafetyInvariant(args){
   args = args || {};
   var hExpr  = args.hExpr;                                        // 不变式表达式字符串，如 "1 - (x^2 + y^2)"
@@ -1641,8 +2221,52 @@ function certifySafetyInvariant(args){
       reason:'状态维数 ' + vars.length + ' + 2 个辅助变量(s,w) = ' + (vars.length + 2) + ' > 灵数上限 6 ⇒ 工程边界，本证书不适用。',
       note:'高维不变式需降维或另用 SOS/区间工具；本函数不假装能做。' };
   }
-
+  // ── 域形态严格校验（fail-closed）─────────────────────────────────────────
+  // 2026-09-03 实测缺陷：domain 传数组 [[-2,2],[-2,2]] 时，JSON 深拷贝后仍是数组，
+  // 挂上 _sv/_wv 属性交给引擎 ⇒ 引擎解析不出任何变量域 ⇒ 在退化域上返回 empty(无解)
+  // ⇒ 上层判 verified ⇒ 假证明。安全模块的假阳性是最危险的一类缺陷，故此处只拒不猜。
   var s = '_sv', w = '_wv';
+  if (domain !== null && (Array.isArray(domain) || typeof domain !== 'object')) {
+    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
+      reason:'domain 形态非法：必须是以变量名为键的对象，如 {"x":[-1,1],"y":[-1,1]}；收到 ' +
+             (Array.isArray(domain) ? 'Array' : typeof domain) + '。',
+      note:'fail-closed：形态非法一律拒判，绝不把引擎在退化域上的 empty 当成「已证安全」。' };
+  }
+  var domErr = [];
+  if (domain) {
+    Object.keys(domain).forEach(function (k) {
+      if (vars.indexOf(k) < 0 && k !== s && k !== w) { domErr.push('未知变量键 "' + k + '"'); return; }
+      var iv = domain[k];
+      if (!Array.isArray(iv) || iv.length !== 2) { domErr.push('"' + k + '" 区间须为 [lo,hi]'); return; }
+      if (typeof iv[0] !== 'number' || typeof iv[1] !== 'number' ||
+          !isFinite(iv[0]) || !isFinite(iv[1])) { domErr.push('"' + k + '" 区间端点须为有限数'); return; }
+      if (!(iv[0] < iv[1])) domErr.push('"' + k + '" 须满足 lo < hi（收到 [' + iv[0] + ',' + iv[1] + ']）');
+    });
+  }
+  if (domErr.length) {
+    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
+      reason:'domain 校验失败：' + domErr.join('；'),
+      note:'fail-closed：域不合规不做认证。域错了，「域内恒成立」这句话本身就没有意义。' };
+  }
+  var missingDom = vars.filter(function (v) { return !domain || !domain[v]; });
+
+  // ── 表达式语义歧义检测（fail-closed）─────────────────────────────────────
+  // 2026-09-03 实测：灵数求解器把 "-3^2" 解释为 (-3)^2 = 9；数学惯例（及本内核 _m2Eval）
+  // 解释为 -(3^2) = -9。同一字符串在【求解侧】与【复核侧】含义不同 ⇒ 两者结论不可比：
+  // 独立复核会产生假矛盾，或反过来漏掉真实违反点。
+  // 处理原则：语义不确定就不签发证书，也不擅自选一种解释。要求调用方显式加括号消歧。
+  // （灵数与本求值器在 "2^-3"=0.125、"2^3^2"=512 上一致，仅 "-a^b" 这一形态分歧。）
+  // 只针对【一元】位置的正负号：即其左侧是字符串开头 / '(' / ',' / 另一个运算符。
+  // 若左侧是数字、标识符或 ')'，那是【二元】减号（如 "4 - x^2" = 4-(x^2)），两种解析一致，无歧义。
+  var AMBIG = /(?:^|[(,+\-*\/^])\s*[-+]\s*(?:\d+(?:\.\d+)?|[A-Za-z_]\w*)\s*\^/;
+  if (AMBIG.test(hExpr)) {
+    return { verdict:'unverified', tier:'ambiguous-expression', layer:'engineering',
+      reason:'hExpr 含语义歧义形态「一元正负号直接作用于幂」，如 -x^2：求解引擎按 (-x)^2 解释，' +
+             '数学惯例按 -(x^2) 解释，两种解释下结论不可比。',
+      fix:'请显式加括号消歧：写成 (-x)^2 或 -(x^2)。',
+      note:'fail-closed：语义不确定一律不签发证书，也不替调用方挑一种解释。' };
+  }
+
   var eqs = [ '(' + hExpr + ') + ' + s + '^2 = 0', s + ' * ' + w + ' = 1' ];
   var allVars = vars.concat([s, w]);
   var dom = domain ? JSON.parse(JSON.stringify(domain)) : {};
@@ -1658,11 +2282,29 @@ function certifySafetyInvariant(args){
       detail: r.note || null, provenNoSolution:false, certified:false, equations: eqs };
   }
   if (r.provenNoSolution) {
+    // 独立防线：引擎说"无解"，仍在域内确定性回代 h，一旦找到 h<0 即判矛盾（宁可不出证书，也不出假证书）
+    var refuteDom = {};
+    vars.forEach(function (v) { refuteDom[v] = (domain && domain[v]) ? domain[v] : [-BOUND, BOUND]; });
+    var chk = _m2SampleRefute(hExpr, vars, refuteDom, {});
+    if (chk.usable && chk.refuted) {
+      return { verdict:'contradiction', tier:'engine-result-refuted', layer:'computation',
+        reason:'引擎返回「无解」，但独立回代在域内找到 h < 0 的点 ⇒ 二者矛盾，拒绝签发证书。',
+        counterexample: chk.minAt, hAtCounterexample: chk.minValue,
+        sampled: chk.sampled, engine: r.engine, equations: eqs, domainUsed: dom,
+        note:'fail-closed：证明器与事实冲突时一律不出证书。请检查域形态/表达式，或视为引擎缺陷上报。' };
+    }
     return { verdict:'verified', tier:'certified-krawczyk', layer:'computation',
-      meaning:'严格证明：域内不存在使 h<0 的状态 ⇒ 安全不变式 h ≥ 0 在该盒式域内恒成立。',
+      meaning:'证明：域内不存在使 h < -1/B² 的违反点 ⇒ 安全不变式 h ≥ -1/B² 在该盒式域内恒成立（默认 B=1e6 ⇒ 容差 1e-12；浅层违反 (-1/B², 0) 不在此证书射程内）。',
+      provenBound: -1 / (BOUND * BOUND),
       provenNoSolution:true, certified:true, engine:r.engine, equations: eqs,
       detectionGranularity: 1 / (BOUND * BOUND),
-      note:'灵数「证明无实数解」—— 单点浮点判定永远做不到这一点。' };
+      domainUsed: dom,
+      defaultedDomains: missingDom,                 // 未给域的状态变量：实际用了 ±bound，须让调用方看见
+      independentRecheck: chk.usable
+        ? { done:true, sampled: chk.sampled, minValue: chk.minValue, refuted:false }
+        : { done:false, reason: chk.reason },
+      note:'灵数「证明无实数解」—— 单点浮点判定永远做不到这一点。' +
+           (missingDom.length ? ' 注意：变量 ' + missingDom.join(',') + ' 未给定域，实际按 ±' + BOUND + ' 认证。' : '') };
   }
   var sol = r.recommended;
   if (sol && Array.isArray(sol.values) && sol.values.length >= vars.length) {
@@ -1678,12 +2320,13 @@ function certifySafetyInvariant(args){
     reason:'灵数既未证无解、也未给出可用反例（可能截断或预算耗尽）⇒ 计算边界，诚实判 unverified。',
     resultTypeName: r.resultTypeName, solutionCount: r.solutionCount, equations: eqs };
 }
-// ⑥ 三层次裁决引擎（M3 · 对应形式化体系的「验证层次分离定理」）
-//    把任一安全声明的结果归因到【逻辑层 / 计算层 / 工程层】，并按层给出降级策略：
+// ⑥ 三层次裁决表达层（M3 · 不是「证明模块」，是把调用方证言按层归口的路由器）
+//    把任一安全声明的【调用方提供的层事实】归因到【逻辑层 / 计算层 / 工程层】，按层给出降级策略：
 //      逻辑层不可判定   → boundary(logic)       ⇒ 拒绝执行（算力无法弥补逻辑不可判定）
 //      计算层超时/截断  → boundary(computation) ⇒ 降级到保守策略或申请更多预算
 //      工程层不支持     → boundary(engineering) ⇒ 记为系统能力边界
-//    诚实关键：unverified ≠ unsafe。证不了就停（fail-closed），但绝不把"证不了"说成"已证安全"。
+//    诚实关键（去"证明模块"包装）：M3 本身不做任何证明，所有判定依据来自调用方传来的布尔；
+//    它的价值是「清晰归口 + 不把 unverified 说成 unsafe」，不是「自己证出 verified」。unverified ≠ unsafe。
 function verdictThreeLayer(claim){
   claim = claim || {};
   if (claim.logicDecidable === false) {
@@ -1698,8 +2341,9 @@ function verdictThreeLayer(claim){
     return { verdict:'boundary', layer:'engineering', strategy:'record-capability-limit', safe:false, proven:false,
       reason:'当前工程实现不支持该验证 ⇒ 工程边界。记为系统能力边界：不是「不安全」，是「证不了」。' };
   }
-  return { verdict:'verified', layer:'computation', strategy:'proceed', safe:true, proven:true,
-    reason:'逻辑可判定 ∧ 计算完成 ∧ 工程支持 ⇒ 三层均通过。' };
+  return { role:'verdict-expression-layer', provesNothing:true,
+    verdict:'verified', layer:'computation', strategy:'proceed', safe:true, proven:true,
+    reason:'三层裁决表达层仅路由调用方证言：逻辑可判定 ∧ 计算完成 ∧ 工程支持 ⇒ 三层均通过。M3 本身不做任何证明。' };
 }
 // ══ M1 能力/意图门控证明（Gate Chain Proof）═══════════════════════════════════
 // 动机：越狱攻击面不在抽象状态空间 Γ，而在 execute() 的能力执行层——「谁被放行、何时被拦」。
@@ -6459,6 +7103,19 @@ async function execute(plan, bodyAdapter, opts) {
       if (rt > asl && !opts.humanApproved) {
         halted = true; haltReason = 'HUMAN-IN-THE-LOOP ' + step.cap + '(风险等级 ' + rt + ' > 自主等级 ' + asl + '，需人类授权)'; break;
       }
+      // 审计归因（修复 #245）：humanApproved 是调用方自证布尔（最薄一环，无任何独立身份凭据）。
+      // 即便身份不可信，也须把「高风险动作被调用方授权放行」写入签名审计账本，使事后可追查谁放行了什么。
+      // 调用方可附 opts.approvedBy 作为自述身份；缺省标 selfAsserted，明确"无人背书的放行"。
+      if (rt > asl && opts.humanApproved === true) {
+        try {
+          LingNaoAuditLedger.auditEvent('AUTHZ', {
+            type: 'human-approved-bypass', cap: step.cap, riskTier: rt, autonomyLevel: asl,
+            approvedBy: (opts.approvedBy != null ? String(opts.approvedBy) : null),
+            selfAsserted: (opts.approvedBy == null),
+            note: '高风险动作（风险等级 ' + rt + '）经调用方 humanApproved:true 放行；该布尔为调用方自证，无独立身份凭据'
+          });
+        } catch (e) {}
+      }
     }
     // 端到端不确定性决策（P0）：对不可逆/高风险步骤，若稳健可达包络落风险带且阈值未达 ⟹ decideImprecise 判 UNKNOWN → SAFE-STOP
     // 默认不启用（opts.useImprecise 未开且未传 goalFn）：沿用原 IRREVERSIBLE-HALT 行为；调用方传 opts 开启端到端不确定性闸门。
@@ -6494,6 +7151,17 @@ async function execute(plan, bodyAdapter, opts) {
       const rp = planTask(opts.goalFn, opts);
       if (rp.ok) { remaining = rp.plan; i = 0; replans++; continue; }
       halted = true; haltReason = 'no-plan-after-pre-violation'; break;
+    }
+    // ── M4 完全中介：物理效应亦须经效应闸（唯一物理出口 bodyAdapter 的前置中介）──
+    // 作用：① 把 cap/params 真正写进签名账本（此前 execute-ok/halt 只记汇总，法医级"谁做了什么"缺失）
+    //       ② 让物理面与网络/存储面共用同一条轨迹，完备性判定才有统一口径
+    // 注意：这不重复 M1 的门控判定（M1 已在前置守卫与循环内判过），此处只做中介登记 + 策略级拒绝。
+    const _eff = EffectGate.mediate(
+      { kind: 'PHYSICAL', target: step.cap, meta: { step: i, params: step.params, autonomy: opts.autonomyLevel != null ? String(opts.autonomyLevel) : 'default' } },
+      { purpose: 'execute-plan-step', caller: 'execute' }
+    );
+    if (!_eff.allowed) {
+      halted = true; haltReason = 'EFFECT-GATE-DENIED ' + step.cap + ' (' + _eff.reason + ')'; break;
     }
     let obs = null;
     try { obs = await bodyAdapter(step.cap, step.params); } catch (e) { obs = { ok: false, error: 'body-error:' + e.message }; }
@@ -7007,7 +7675,14 @@ CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REA
  *   2) 条目认证（防冒名） entry_i.sig = HMAC-SHA256(h, K)，K 为内核密钥（单写者认证）
  *   3) 诚实残余风险：K 泄露 => 可伪造；仅把"无 K 下篡改/冒名"压缩为可计算检测。
  * 约束：纯 JS、同步、零依赖、零学习、零 NN；可被逐行审计。
+ *
+ * M4 边界说明：本模块属**可信计算基 TCB**，不被 EffectGate 中介。
+ *   理由（非借口，是结构性约束）：写审计需过闸 ⇒ 过闸需写审计 ⇒ 循环依赖。
+ *   参考监视器自身与其日志必须在中介之外，其可信度来自 Anderson 第③条
+ *   「小到可验证」+ 哈希链自校验，而非来自被自己中介。此为诚实残余。
+ *   故此区间内允许 require('crypto') / require('fs')，由证明器 C6 白名单放行。
  */
+// ==TCB-AUDIT-LEDGER-BEGIN==
 (function (root) {
   'use strict';
 
@@ -7230,8 +7905,18 @@ CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REA
       throw new Error('AUDIT_LEDGER_BROKEN: ' + JSON.stringify({ at: v.at, reason: v.reason }) +
         ' -- audit ledger integrity violated (tamper/impersonation); kernel refuses to boot (fail-closed)');
     }
+    // fail-closed（修复 #246）：未注入签名密钥且未显式 opt-in insecureAudit ⇒ 拒绝以可伪造密钥启动。
+    // 签名密钥是审计账本安全性的唯一根；缺失即任何人（含本进程控制者）可伪造条目，等于没有账本。
+    // 部署层必须注入 opts.secret / __LINGNAO_AUDIT_SECRET / env LINGNAO_AUDIT_KEY，或显式传 insecureAudit:true
+    // 主动接受「开发期不安全模式」（仍打印告警，但不静默放行）。
+    if (led._insecureFallback && !opts.insecureAudit) {
+      throw new Error('AUDIT_LEDGER_INSECURE: 未注入签名密钥（opts.secret / __LINGNAO_AUDIT_SECRET / env LINGNAO_AUDIT_KEY 均缺失）' +
+        '且未显式 opt-in insecureAudit:true。内核拒绝以每启动随机、可被本进程控制者伪造的密钥启动（fail-closed）。' +
+        '生产部署须注入部署密钥；开发/自检确需不安全模式时显式传 { insecureAudit:true }。');
+    }
     if (led._insecureFallback) {
-      var w = '[AUDIT-LEDGER] WARNING: 未注入签名密钥（opts.secret / __LINGNAO_AUDIT_SECRET / env LINGNAO_AUDIT_KEY 均缺失）。账本使用每启动随机密钥，本进程控制者可伪造。生产部署前必须注入部署密钥。';
+      var w = '[AUDIT-LEDGER] WARNING: 未注入签名密钥，已按 insecureAudit:true 以每启动随机密钥启动（开发期不安全模式）。' +
+        '本进程控制者可伪造账本条目。生产部署前必须注入部署密钥。';
       if (typeof console !== 'undefined' && console.warn) console.warn(w);
       else if (typeof process !== 'undefined') try { process.stderr.write(w + '\n'); } catch (e) {}
     }
@@ -7299,6 +7984,7 @@ CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REA
   if (root) root.LingNaoAuditLedger = API;
 
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+// ==TCB-AUDIT-LEDGER-END==
 
 // ══ 审计账本内联副本结束 ══
 
@@ -7332,7 +8018,11 @@ CAPABILITY_THEOREMS.uncertainty = ['THM_UNCERTAINTY_PROPAGATED', 'THM_ROBUST_REA
   // 跨重启持久化：部署方可注入 globalThis.__LINGNAO_AUDIT_STORE（同步 kv 存储，如 LingNaoAuditLedger.fileStore(path)）；
   // 未注入则内存单例（重启即丢，退化但可用）。与密钥同机制——部署层注入，密钥/store 不入源码。
   var _auditStore = (typeof __LINGNAO_AUDIT_STORE !== 'undefined' && __LINGNAO_AUDIT_STORE) ? __LINGNAO_AUDIT_STORE : null;
-  var led = LingNaoAuditLedger.bootAuditLedger((_auditSecret || _auditStore) ? { secret: _auditSecret, store: _auditStore } : {});
+  // 内核自检启动：有密钥 ⇒ 安全启动；无密钥 ⇒ 显式以 insecureAudit:true 启动（开发期不安全模式，
+  // 行为可见、有告警，而非静默 fail-open）。生产部署应通过注入密钥使其走安全路径。
+  var led = LingNaoAuditLedger.bootAuditLedger((_auditSecret || _auditStore)
+    ? { secret: _auditSecret, store: _auditStore }
+    : { insecureAudit: true });
   MathKernel.auditLedger = led;
   led.ok = led.verify().ok; // 修复 LEDGER-OK-TRAP：auditLedger.ok 现为真实完整性状态
   LingNaoAuditLedger.AuditLedger.install(led);
@@ -7357,7 +8047,7 @@ MathKernel.thinking = LingNaoThinking;
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
   globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, disconnectLLM, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, certifySafetyInvariant, verdictThreeLayer, proveGateChain, GATE_SPEC, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
+    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, certifySafetyInvariant, _m2Eval, _m2SampleRefute, verdictThreeLayer, proveGateChain, GATE_SPEC, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     safetyLayersReport,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
@@ -7395,6 +8085,8 @@ if(typeof globalThis!=='undefined'){
     kernelFoundation, kernelProve, kernelConjectures,
     // 八元组 𝔹=(X,h,b,f,U,V,Inv,M) 数学形态（2026-08-31 落地）
     auditLedgerModule: (typeof LingNaoAuditLedger !== 'undefined' ? LingNaoAuditLedger : null),
+    // M4 完全中介参考监视器（Anderson 1972 / Saltzer-Schroeder 1975 / 对象能力模型）
+    EffectGate, EFFECT_KINDS, proveCompleteMediation,
     BrainTuple};
 }
 
@@ -7405,10 +8097,12 @@ const $ = id=>document.getElementById(id);
 async function bootBrain(){
   const btn=$('btnBoot'); if(btn){ btn.disabled=true; btn.textContent='接入中…'; }
   const log=[];
-  // 1) 加载 IMA 数学库（真消费的知识底座；file:// 本地打开时 fetch 受限，可手动加载）
+  // 1) 加载 IMA 数学库（真消费的知识底座；file:// 本地打开时受限，可手动加载）
+  //    M4：经效应闸申请网络能力（原先直接 fetch 属旁路）
   try{
-    const r=await fetch('ima_knowledge.json');
-    if(r.ok){ const j=await r.json(); const res=loadIMAKB(j); log.push('IMA 数学库已吸收 '+res.total+' 条 / '+res.modules+' 模块 / '+res.types+' 类型'); }
+    const r=await EffectGate.net.getJson('ima_knowledge.json', { purpose:'load-ima-kb', caller:'bootBrain' });
+    if(r.ok && r.json){ const res=loadIMAKB(r.json); log.push('IMA 数学库已吸收 '+res.total+' 条 / '+res.modules+' 模块 / '+res.types+' 类型'); }
+    else if(r.denied) log.push('IMA：网络效应被策略拒绝（'+r.error+'）');
     else log.push('IMA：同目录未找到 ima_knowledge.json（可在下方调试台手动加载）');
   }catch(e){ log.push('IMA：本地 file:// 打开无法自动读取（可用调试台文件选择/粘贴加载）'); }
   // 2) 核心算法自测（真消费验证）
@@ -7554,9 +8248,10 @@ function loadWorld(){
 // ⑧ IMA 数学库 UI：加载知识壳 + 检索
 async function autoLoadIMA(){
   try{
-    const r = await fetch('ima_knowledge.json');
-    if(!r.ok){ $('imaLoadOut').innerHTML='<span class="warn">同目录未找到 ima_knowledge.json（用文件选择或粘贴）</span>'; return; }
-    const j = await r.json(); const res = loadIMAKB(j);
+    // M4：经效应闸申请网络能力（原先直接 fetch 属旁路）
+    const r = await EffectGate.net.getJson('ima_knowledge.json', { purpose:'load-ima-kb', caller:'autoLoadIMA' });
+    if(!r.ok){ $('imaLoadOut').innerHTML='<span class="warn">'+(r.denied?('网络效应被策略拒绝：'+r.error):'同目录未找到 ima_knowledge.json（用文件选择或粘贴）')+'</span>'; return; }
+    const j = r.json; const res = loadIMAKB(j);
     $('imaLoadOut').innerHTML='<span class="ok">已加载 '+res.total+' 条 / '+res.modules+' 模块 / '+res.types+' 类型</span>';
   }catch(e){ $('imaLoadOut').innerHTML='<span class="bad">自动加载失败：'+e.message+'</span>'; }
 }

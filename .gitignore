@@ -14,3 +14,9 @@ npm-debug.log*
 *.tgz
 lingjing-mcp-*.tgz
 refactor-lingjing.js
+
+# 不入库：临时调试探针（正式验证一律固化进 test-*.js）
+_probe_*.js
+_mcp_verify*.js
+_kernel_load.js
+*.jsonl
