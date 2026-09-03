@@ -3,60 +3,224 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>灵脑 LingNao 在线试用</title>
+<title>灵脑 LingNao 在线试用 · 校验层演示</title>
 <style>
   :root { color-scheme: light; }
-  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 860px; margin: 24px auto; padding: 0 16px; color: #1a1a1a; line-height: 1.6; }
-  h1 { font-size: 22px; margin-bottom: 4px; }
-  .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
-  h2 { font-size: 16px; margin-top: 28px; border-left: 4px solid #2b6cb0; padding-left: 8px; }
-  textarea { width: 100%; height: 160px; box-sizing: border-box; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
-  button { margin: 8px 8px 0 0; padding: 8px 16px; font-size: 14px; border: none; border-radius: 6px; background: #2b6cb0; color: #fff; cursor: pointer; }
-  button.alt { background: #718096; }
-  pre { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; overflow: auto; font-size: 12px; max-height: 360px; }
-  .tag { display: inline-block; background: #ebf8ff; color: #2b6cb0; border-radius: 4px; padding: 1px 6px; font-size: 12px; margin-left: 6px; }
-  .warn { color: #c53030; font-size: 12px; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 940px; margin: 24px auto; padding: 0 16px; color: #1a202c; line-height: 1.6; }
+  h1 { font-size: 22px; margin-bottom: 2px; }
+  .sub { color: #718096; font-size: 13px; margin-bottom: 18px; }
+  h2 { font-size: 15px; margin-top: 26px; border-left: 4px solid #2b6cb0; padding-left: 8px; }
+  .tag { display:inline-block; background:#ebf8ff; color:#2b6cb0; border-radius:4px; padding:1px 6px; font-size:12px; margin-left:6px; }
+  .topo { display:flex; align-items:stretch; gap:0; flex-wrap:wrap; margin:14px 0; }
+  .node { flex:1 1 150px; border:1px solid #cbd5e0; border-radius:10px; padding:12px; text-align:center; background:#fff; }
+  .node .n { font-weight:600; font-size:14px; }
+  .node .d { font-size:11px; color:#718096; margin-top:3px; }
+  .node.on { border-color:#38a169; background:#f0fff4; }
+  .node.off { border-color:#e2e8f0; opacity:.5; }
+  .node button { margin-top:8px; font-size:12px; padding:4px 10px; border:none; border-radius:5px; background:#edf2f7; cursor:pointer; }
+  .node.on button { background:#e6fffa; color:#285e61; }
+  .arrow { align-self:center; padding:0 6px; color:#a0aec0; font-size:18px; }
+  .flow-state { font-size:13px; padding:8px 12px; border-radius:6px; margin:6px 0; }
+  .flow-ok { background:#f0fff4; color:#22543d; border:1px solid #9ae6b4; }
+  .flow-bad { background:#fff5f5; color:#742a2a; border:1px solid #feb2b2; }
+  textarea { width:100%; height:120px; box-sizing:border-box; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; padding:8px; border:1px solid #cbd5e0; border-radius:6px; }
+  button.act { margin:8px 8px 0 0; padding:9px 18px; font-size:14px; border:none; border-radius:6px; background:#2b6cb0; color:#fff; cursor:pointer; }
+  button.act.alt { background:#718096; }
+  button.act.warn { background:#dd6b20; }
+  pre { background:#f7fafc; border:1px solid #e2e8f0; border-radius:6px; padding:12px; overflow:auto; font-size:12px; max-height:320px; }
+  .verdict { font-size:15px; font-weight:600; padding:10px 12px; border-radius:6px; margin:10px 0; }
+  .v-pass { background:#f0fff4; color:#22543d; border:1px solid #9ae6b4; }
+  .v-refuse { background:#fff5f5; color:#742a2a; border:1px solid #feb2b2; }
+  table { width:100%; border-collapse:collapse; font-size:12px; margin:6px 0; }
+  th,td { border:1px solid #e2e8f0; padding:4px 6px; text-align:left; }
+  th { background:#edf2f7; }
+  .p-ok { color:#22543d; } .p-no { color:#742a2a; }
+  .warn-line { color:#c05621; font-size:12px; margin-top:18px; }
+  .chain { font-size:11px; }
+  .chain .e { border:1px solid #e2e8f0; border-radius:5px; padding:5px 8px; margin:4px 0; background:#fff; word-break:break-all; }
+  .chain .h { color:#2b6cb0; }
 </style>
 </head>
 <body>
 <h1>灵脑 LingNao 在线试用 <span class="tag" id="ver">加载中…</span></h1>
-<div class="sub">确定性推理引擎（非 LLM、不幻觉）· 可审计、可复现的安全验证体系 · 纯前端运行，数据不出浏览器</div>
+<div class="sub">可验证物理 AI 的<b>校验层</b>——模型/智能体与世界之间可机器检验的中枢 · 纯前端运行，数据不出浏览器</div>
 
-<h2>M4 完全中介参考监视器（proveCompleteMediation）</h2>
-<p class="sub">粘贴一段 Agent 代码，检测是否被 <code>Function()</code> / <code>setTimeout('字符串')</code> / <code>with</code> 等逃逸构造绕过。这是语法层完全中介检查。</p>
-<textarea id="code">// 示例：含三处逃逸构造
-const f = new Function('return secret');
-setTimeout('doSomething(evState)');
-with (globalScope) { act() }</textarea>
-<button onclick="runM4()">运行完全中介检测</button>
-<pre id="out">点击上方按钮运行。</pre>
+<h2>① 接入拓扑（大模型 → 智能体 → 灵脑 → 物理机器）</h2>
+<div class="topo">
+  <div class="node on" id="n-llm"><div class="n">大模型</div><div class="d">理解层</div><button onclick="toggle('llm')">断开</button></div>
+  <div class="arrow">→</div>
+  <div class="node on" id="n-agent"><div class="n">智能体</div><div class="d">决策层</div><button onclick="toggle('agent')">断开</button></div>
+  <div class="arrow">→</div>
+  <div class="node on" id="n-brain"><div class="n">灵脑</div><div class="d">校验层</div><button onclick="toggle('brain')">断开</button></div>
+  <div class="arrow">→</div>
+  <div class="node on" id="n-robot"><div class="n">物理机器</div><div class="d">执行层</div><button onclick="toggle('robot')">断开</button></div>
+</div>
+<div id="flow" class="flow-state flow-ok">链路完整：大模型 → 智能体 → <b>灵脑校验</b> → 物理机器</div>
+<button class="act warn" onclick="disconnectAll()">断开连接（全部）</button>
 
-<h2>全部导出符号</h2>
-<button class="alt" onclick="listExports()">列出 window.LingNao 全部导出</button>
-<pre id="exports">点击上方按钮列出。</pre>
+<h2>② 智能体动作提案（M1 门控链校验对象）</h2>
+<p class="sub">智能体给出一段执行计划（能力步骤）。灵脑在“下发物理机器前”跑门控链证明，判定哪些能力被放行、会不会产生副作用。</p>
+<p class="sub" style="color:#c05621">提示：本浏览器构建未预注册任何能力 ⇒ 灵脑默认<b>零信任</b>，门控链在 G1（未知能力）即拦截、零释放。完整 MCP/npm 部署会注册能力清单，届时放行裁决落到 G2–G4。</p>
+<textarea id="plan">[
+  { "cap": "robot.move", "irreversible": true,  "perceived": false, "mayHallucinate": false },
+  { "cap": "sensor.read", "irreversible": false, "perceived": false }
+]</textarea>
+<div>
+  <button class="act alt" onclick="loadSafe()">载入示例（未注册能力）</button>
+  <button class="act alt" onclick="loadDanger()">载入示例（越权+幻觉）</button>
+  <button class="act" onclick="runGate()">经灵脑校验动作</button>
+</div>
+<div id="gateV" class="verdict" style="display:none"></div>
+<div id="gateD"></div>
 
-<p class="warn" style="margin-top:28px">诚实边界：本页运行的是确定性内核（M1–M4 形式化证明模块 + 审计账本）。M2 数值安全证书为 h≥−1/B² 辅助域松弛，非无松弛纯数学证明；M1/M4 为证明语言包装的静态/语法层检查。详见仓库 LICENSE 与 RELEASE-NOTES。</p>
+<h2>③ 内核自证（M4 完全中介 · 证明「源码自身」无旁路）</h2>
+<p class="sub">M4 证明一段源码的所有副作用出口必经效应闸。需 ≥1000 字符源码（内核自身即此对象）。下方样本为一段<b>未中介的普通代码</b>，含逃逸构造 ⇒ 如实报 incomplete。</p>
+<textarea id="code">// agent-controller.js —— 一段未接入效应闸的普通智能体源码（演示用，>1000字符）
+// 真实部署中，灵脑内核自身会带 ==EFFECT-GATE-BEGIN== 区间哨兵并经 EffectGate.mediate 包裹物理出口；
+// 下面这段“外面世界的代码”没有任何中介结构，用来演示 M4 如何如实抓出未中介出口。
+function plan(steps){
+  const out = [];
+  for (let i = 0; i < steps.length; i++) { out.push(steps[i]); }
+  return out;
+}
+async function runAgent(world){
+  const ctx = { name: 'demo', version: 1 };
+  const f = new Function('return world.secret');          // C5: Function 构造器逃逸
+  setTimeout('act(world.state)');                          // C5: 字符串 setTimeout 逃逸
+  with (world.external) { ctx.leak = bypass(); }            // C5: with 语句逃逸
+  const fetch = globalThis.fetch;                          // C3: 闸外重绑真实原语
+  const data = await fetch('/api/act', { method: 'POST', body: JSON.stringify(ctx) });
+  return data;
+}
+function cleanup(){ try { globalThis.localStorage.removeItem('agent.lock'); } catch (e) {} }
+module.exports = { plan, runAgent, cleanup };
+// 注意：此处没有 ==EFFECT-GATE-BEGIN== 区间哨兵，也没有 EffectGate.mediate 包裹物理出口，
+// 因此 M4 会判定为 incomplete（存在 unmediated 出口），这正是完全中介要拦的东西。</textarea>
+<div>
+  <button class="act" onclick="runM4()">运行 M4 自证</button>
+</div>
+<div id="m4V" class="verdict" style="display:none"></div>
+<div id="m4D"></div>
+
+<h2>④ 审计账本（浏览器内 SHA-256 哈希链 · 演示内核签名账本机制）</h2>
+<p class="sub">每次校验追加一条不可篡改记录；任一条被改，后续哈希全部断裂。内核部署版为带部署密钥的 HMAC 单写者签名账本（无密钥默认拒启，fail-closed）。</p>
+<div id="chain" class="chain"><div class="e">（暂无记录）</div></div>
+
+<p class="warn-line">诚实边界：本页运行确定性内核 <b>M1（真实）</b> 与 <b>M4（真实）</b>。M2 数值安全证书需「灵数求解器」作可选依赖，本页未加载 ⇒ 诚实降级 unverified（不会谎称已证）。M1 证明门控链静态可判定部分、M4 证明语法层完全中介，二者均非“已形式化证明全部安全”。</p>
 
 <script src="lingnao.umd.js"></script>
 <script>
-  var L = window.LingNao;
-  document.getElementById('ver').textContent = (L && L.ALGO_VERSION) ? ('v' + L.ALGO_VERSION) : '已加载';
-  function runM4() {
-    try {
-      var r = L.proveCompleteMediation(document.getElementById('code').value);
-      document.getElementById('out').textContent = JSON.stringify(r, null, 2);
-    } catch (e) {
-      document.getElementById('out').textContent = 'ERR: ' + e;
-    }
+var L = window.LingNao;
+document.getElementById('ver').textContent = (L && L.ALGO_VERSION) ? ('v' + L.ALGO_VERSION) : '已加载';
+var state = { llm:true, agent:true, brain:true, robot:true };
+var chainHash = '0'.repeat(64), chainLen = 0;
+
+function render(){
+  ['llm','agent','brain','robot'].forEach(function(k){
+    var el = document.getElementById('n-'+k);
+    el.className = 'node ' + (state[k] ? 'on' : 'off');
+    el.querySelector('button').textContent = state[k] ? '断开' : '接入';
+  });
+  var f = document.getElementById('flow');
+  if (!state.brain){ f.className='flow-state flow-bad'; f.innerHTML='⚠️ 未接入灵脑 ⇒ 智能体动作<b>未经校验直接下发物理机器</b>（这正是灵脑要堵的缺口）'; }
+  else if (!state.agent || !state.robot){ f.className='flow-state flow-bad'; f.innerHTML='链路断开：智能体与物理机器需接入，动作才能到达。'; }
+  else { f.className='flow-state flow-ok'; f.innerHTML='链路完整：大模型 → 智能体 → <b>灵脑校验</b> → 物理机器'; }
+}
+function toggle(k){ state[k]=!state[k]; render(); }
+function disconnectAll(){ state={llm:false,agent:false,brain:false,robot:false}; render(); }
+
+function loadSafe(){
+  document.getElementById('plan').value =
+    '[\n  { "cap": "sensor.read", "irreversible": false, "perceived": false },\n  { "cap": "robot.move",  "irreversible": false, "perceived": false, "humanApproved": true }\n]';
+}
+function loadDanger(){
+  document.getElementById('plan').value =
+    '[\n  { "cap": "robot.move", "irreversible": true, "perceived": false, "mayHallucinate": true }\n]';
+}
+
+async function sha256(s){
+  var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+function appendChain(kind, summary){
+  chainLen++;
+  var entry = { seq:chainLen, ts:new Date().toISOString(), kind:kind, summary:summary, prev:chainHash };
+  return sha256(JSON.stringify(entry)+'|'+chainHash).then(function(h){
+    entry.hash=h; chainHash=h;
+    var c=document.getElementById('chain');
+    if (chainLen===1) c.innerHTML='';
+    var div=document.createElement('div'); div.className='e';
+    div.innerHTML='<b>#' + entry.seq + ' ' + kind + '</b> · ' + entry.ts +
+      '<br>'+summary+'<br><span class="h">hash: '+entry.hash.slice(0,32)+'…</span> · prev: '+entry.prev.slice(0,12)+'…';
+    c.insertBefore(div, c.firstChild);
+  });
+}
+
+function runGate(){
+  var v=document.getElementById('gateV'); v.style.display='none';
+  var d=document.getElementById('gateD'); d.innerHTML='';
+  if (!state.brain){ alert('未接入灵脑：动作将不经校验直接下发。请先“接入灵脑”演示校验价值。'); return; }
+  if (!state.agent || !state.robot){ alert('链路未完整：智能体与物理机器均需接入。'); return; }
+  var plan; try { plan=JSON.parse(document.getElementById('plan').value); } catch(e){ alert('计划 JSON 解析失败：'+e); return; }
+
+  var m1 = L.proveGateChain(plan, { humanInTheLoop:false, autonomyLevel:0, allowIrreversible:false });
+  var blocked = /block|refuse/.test(m1.verdict||'');
+  var pass = !blocked;
+
+  v.style.display='block';
+  v.className='verdict '+(pass?'v-pass':'v-refuse');
+  v.textContent = pass ? '✓ 门控链通过 — 动作可下发物理机器（G5..G8 运行时依赖项见下表“运行时”列）'
+                       : '✗ 门控链拦截 — 已阻止下发（零释放定理适用，见证明）';
+
+  var html='';
+  html+='<div>判定：<b>'+(m1.verdict||'?')+'</b> · 证明：'+(m1.proof||'?')+
+         ' · 预测停机原因：'+(m1.haltReasonPredicted||'无')+
+         ' · 释放指令预测：'+(m1.releasedPredicted!=null?m1.releasedPredicted:'运行时依赖')+'</div>';
+  if (Array.isArray(m1.gates)){
+    html+='<table><tr><th>步</th><th>能力</th><th>G1 已注册</th><th>G2 非感知</th><th>G3 可逆</th><th>G4 自主</th><th>G5–G8</th></tr>';
+    m1.gates.forEach(function(g){
+      function cell(r){ return r==null?'<td>运行时</td>':'<td class="'+(r?'p-ok':'p-no')+'">'+(r?'✓':'✗')+'</td>'; }
+      var m={}; g.row.forEach(function(x){ m[x.id]=x.holds; });
+      html+='<tr><td>'+g.i+'</td><td>'+(g.cap||'-')+'</td>'+cell(m['G1.registered'])+cell(m['G2.notPerception'])+cell(m['G3.irreversible'])+cell(m['G4.autonomy'])+'<td>运行时依赖</td></tr>';
+    });
+    html+='</table>';
   }
-  function listExports() {
-    try {
-      var ks = Object.keys(L);
-      document.getElementById('exports').textContent = '导出符号数：' + ks.length + '\n\n' + ks.join(', ');
-    } catch (e) {
-      document.getElementById('exports').textContent = 'ERR: ' + e;
-    }
+  html+='<div class="sub" style="margin-top:6px">'+esc(m1.note||'')+'</div>';
+  // M2 / M3 信息（诚实）
+  var m2usable=false; try{ var m2=L.certifySafetyInvariant({hExpr:'1-(x^2+y^2)',vars:['x','y'],domain:{'x':[-1,1],'y':[-1,1]}}); m2usable=(m2&&m2.verdict!=='unverified'); }catch(e){}
+  html+='<h2 style="border-color:#718096">M2 数值安全证书</h2><div>'+(m2usable?'可用，已尝试认证。':'未加载灵数求解器 ⇒ <b>诚实降级 unverified</b>（npm/MCP 完整版含此依赖时可出 Krawczyk 证书）。')+'</div>';
+  html+='<h2 style="border-color:#718096">M3 三层裁决（verdictThreeLayer，表达层，本身不做证明）</h2>';
+  html+='<pre>'+esc(JSON.stringify(L.verdictThreeLayer({logicDecidable:true,computeCompleted:m2usable,engineeringSupported:true}),null,2))+'</pre>';
+  d.innerHTML=html;
+  appendChain('M1', (pass?'PASS':'REFUSE')+' · '+m1.verdict);
+}
+
+function runM4(){
+  var v=document.getElementById('m4V'); v.style.display='none';
+  var d=document.getElementById('m4D'); d.innerHTML='';
+  var src=document.getElementById('code').value;
+  var r=L.proveCompleteMediation(src);
+  v.style.display='block';
+  v.className='verdict '+(r.ok?'v-pass':'v-refuse');
+  v.textContent = (r.ok?'✓ 完全中介已证（complete-mediation-proved）':'✗ 不完全中介（incomplete）— 存在 '+((r.unmediated||[]).length)+' 处未中介出口');
+  var html='';
+  html+='<div class="sub">'+esc(r.scope||'')+'</div>';
+  if (Array.isArray(r.checks)){
+    html+='<table><tr><th>检查</th><th>名称</th><th>结果</th></tr>';
+    r.checks.forEach(function(c){ html+='<tr><td>'+esc(c.id)+'</td><td>'+esc(c.name)+'</td><td class="'+(c.pass?'p-ok':'p-no')+'">'+(c.pass?'✓ 通过':'✗ 失败')+'</td></tr>'; });
+    html+='</table>';
   }
+  if (Array.isArray(r.unmediated) && r.unmediated.length){
+    html+='<div style="margin-top:6px"><b>未中介出口清单（unmediated）：</b></div><pre>'+esc(JSON.stringify(r.unmediated.slice(0,12),null,2))+'</pre>';
+  }
+  html+='<div class="sub" style="margin-top:6px">M4 仅证<b>语法层</b>完全中介；不证语义层 noninterference、放行决策正确性（M1 射程）、隐蔽信道、TCB 内部正确性。详见返回 notProved 字段。</div>';
+  d.innerHTML=html;
+  appendChain('M4', (r.ok?'PROVED':'INCOMPLETE')+' · unmediated='+((r.unmediated||[]).length));
+}
+
+function esc(s){ return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+render();
 </script>
 </body>
 </html>
