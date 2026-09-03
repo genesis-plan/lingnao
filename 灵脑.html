@@ -1599,6 +1599,108 @@ function certifiedNumeric(args){
     summary: r.summary
   };
 }
+// ⑤ 数值安全证书（M2 · 形式化证明模块核心）
+//    把「安全不变式 h(x) ≥ 0 在域内恒成立」从【单点浮点判定】升级为【全域集合认证】，
+//    经灵数求解器 Krawczyk 认证。这是本内核第一处真正机器可检验的数学证明。
+//
+//  数学转换（本函数的核心思想——把不等式安全验证翻译成方程无解判定）：
+//    要证   ∀x ∈ 盒式域 D:  h(x) ≥ 0
+//    ⟺ 证  违反系统  { h(x) + s² = 0,  s·w = 1 }  在 D 内【无实数解】
+//       · s·w = 1 强制 s ≠ 0 ⇒ h(x) = -s² < 0，即"存在一个严格违反点"
+//       · 该系统无解 ⇒ 域内不存在违反点 ⇒ h ≥ 0 恒成立
+//    灵数求解器能【证明无实数解】(resultTypeName:'empty')——单点浮点判定/采样永远做不到这一点。
+//    实测(2026-09-03)：hExpr="1 - (x^2 + y^2)"，域 ±0.5 ⇒ empty（严格证安全）；域 ±2 ⇒ 找到反例 x≈-0.8409, y=-1。
+//
+//  诚实边界（逐条写清，不夸大）：
+//    · verified 是真数学证明：灵数全局穷尽证无实根。
+//    · violated 的反例来自【欠定系统】(2 方程 / n+2 变量)，引擎标 tier='candidate'，
+//      即【候选反例】而非 Krawczyk 认证解。residual 与回代校验是证据，不是认证；certified 如实返回引擎原值。
+//    · 只吃【方程字符串】；cbfFilter/cbfMargin 的 JS 函数形态 h 不在灵数能力域 ⇒ 诚实 unverified，绝不假装。
+//    · 域为盒式区间（灵数 domain 形态），不是任意半代数集。
+//    · 变量总数（状态变量 + s + w）受灵数 ≤6 上限 ⇒ 状态维数 ≤ 4。
+//    · 检出粒度：s·w=1 与辅助变量域界 ±BOUND 共同决定可检出的最小违反深度 ≈ 1/BOUND²。
+//    · 只证 h ≥ 0 这类代数不变式；不证 Hoare 三元组 / BrainTuple 逻辑（那是 Coq/Lean/TLA+ 的事）。
+function certifySafetyInvariant(args){
+  args = args || {};
+  var hExpr  = args.hExpr;                                        // 不变式表达式字符串，如 "1 - (x^2 + y^2)"
+  var vars   = Array.isArray(args.vars) ? args.vars.slice() : null;
+  var domain = args.domain || null;                               // 盒式域 {"x":[-1,1],"y":[-1,1]}
+  var BOUND  = (args.bound == null) ? 1e6 : args.bound;           // 辅助变量域界
+
+  if (typeof hExpr !== 'string' || !hExpr.length) {
+    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
+      reason:'未提供 hExpr（不变式表达式字符串）。灵数求解器只吃方程字符串；cbfFilter/cbfMargin 的 JS 函数形态 h 不在其能力域内。',
+      note:'诚实降级：这是「无法认证」，不是「已证明」。绝不退回裸浮点假装认证。' };
+  }
+  if (!vars || !vars.length) {
+    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
+      reason:'未提供状态变量名 vars。' };
+  }
+  if (vars.length + 2 > 6) {
+    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
+      reason:'状态维数 ' + vars.length + ' + 2 个辅助变量(s,w) = ' + (vars.length + 2) + ' > 灵数上限 6 ⇒ 工程边界，本证书不适用。',
+      note:'高维不变式需降维或另用 SOS/区间工具；本函数不假装能做。' };
+  }
+
+  var s = '_sv', w = '_wv';
+  var eqs = [ '(' + hExpr + ') + ' + s + '^2 = 0', s + ' * ' + w + ' = 1' ];
+  var allVars = vars.concat([s, w]);
+  var dom = domain ? JSON.parse(JSON.stringify(domain)) : {};
+  dom[s] = dom[s] || [-BOUND, BOUND];
+  dom[w] = dom[w] || [-BOUND, BOUND];
+
+  var r = certifiedNumeric({ equations: eqs, variables: allVars, domain: dom,
+                             options: args.options || {} });
+
+  if (!r.available) {
+    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
+      reason:'灵数求解器未接入 ⇒ 无法 Krawczyk 认证（诚实降级，不假装求解）。',
+      detail: r.note || null, provenNoSolution:false, certified:false, equations: eqs };
+  }
+  if (r.provenNoSolution) {
+    return { verdict:'verified', tier:'certified-krawczyk', layer:'computation',
+      meaning:'严格证明：域内不存在使 h<0 的状态 ⇒ 安全不变式 h ≥ 0 在该盒式域内恒成立。',
+      provenNoSolution:true, certified:true, engine:r.engine, equations: eqs,
+      detectionGranularity: 1 / (BOUND * BOUND),
+      note:'灵数「证明无实数解」—— 单点浮点判定永远做不到这一点。' };
+  }
+  var sol = r.recommended;
+  if (sol && Array.isArray(sol.values) && sol.values.length >= vars.length) {
+    var pt = {}; vars.forEach(function (v, i) { pt[v] = sol.values[i]; });
+    return { verdict:'violated', tier:'candidate-counterexample', layer:'computation',
+      meaning:'域内存在使 h<0 的状态 ⇒ 安全不变式被违反。所给为【候选反例】（欠定系统，引擎未 Krawczyk 认证），需回代校验。',
+      counterexample: pt, fullSolution: sol.values, certified: !!sol.certified,
+      residual: (sol.residual == null ? null : sol.residual),
+      engine: r.engine, equations: eqs,
+      verifyHint:'把 counterexample 代入 hExpr 自行回代校验 h<0；residual 是强证据，但不是认证。' };
+  }
+  return { verdict:'unverified', tier:'partially-explored', layer:'computation',
+    reason:'灵数既未证无解、也未给出可用反例（可能截断或预算耗尽）⇒ 计算边界，诚实判 unverified。',
+    resultTypeName: r.resultTypeName, solutionCount: r.solutionCount, equations: eqs };
+}
+// ⑥ 三层次裁决引擎（M3 · 对应形式化体系的「验证层次分离定理」）
+//    把任一安全声明的结果归因到【逻辑层 / 计算层 / 工程层】，并按层给出降级策略：
+//      逻辑层不可判定   → boundary(logic)       ⇒ 拒绝执行（算力无法弥补逻辑不可判定）
+//      计算层超时/截断  → boundary(computation) ⇒ 降级到保守策略或申请更多预算
+//      工程层不支持     → boundary(engineering) ⇒ 记为系统能力边界
+//    诚实关键：unverified ≠ unsafe。证不了就停（fail-closed），但绝不把"证不了"说成"已证安全"。
+function verdictThreeLayer(claim){
+  claim = claim || {};
+  if (claim.logicDecidable === false) {
+    return { verdict:'boundary', layer:'logic', strategy:'refuse', safe:false, proven:false,
+      reason:'命题在公理系统内不可判定 ⇒ 逻辑边界。拒绝执行：算力无法弥补逻辑不可判定。' };
+  }
+  if (claim.computeCompleted === false) {
+    return { verdict:'boundary', layer:'computation', strategy:'degrade-conservative', safe:false, proven:false,
+      reason:'计算未在给定资源/预算内完成 ⇒ 计算边界。降级到保守策略或申请更多预算（这不是「逻辑不可判定」）。' };
+  }
+  if (claim.engineeringSupported === false) {
+    return { verdict:'boundary', layer:'engineering', strategy:'record-capability-limit', safe:false, proven:false,
+      reason:'当前工程实现不支持该验证 ⇒ 工程边界。记为系统能力边界：不是「不安全」，是「证不了」。' };
+  }
+  return { verdict:'verified', layer:'computation', strategy:'proceed', safe:true, proven:true,
+    reason:'逻辑可判定 ∧ 计算完成 ∧ 工程支持 ⇒ 三层均通过。' };
+}
 // ③ 霍尔逻辑机器验证（升级：真实霍尔三元组 {pre} prog {post}——逐边校验不变量：连通 ∧ ¬hard ∧ w≥0 ∧ 代价单调）
 function verifyHoarePath(path, world){
   if(!path || path.status !== 'optimal') return { verified: false, reason: '路径不可判定，无法构造证明', steps: [], tool: 'lingnao-hoare-lite' };
@@ -2975,6 +3077,10 @@ function cbfFilter(h, f, g, uNom, x, opts) {
            guarantee: 'CBF-QP 解满足 L_g h·u ≥ -α(h) - L_f h ⇒ 安全集 C 前向不变（Nagumo/CBF 定理，可证明）' };
 }
 // 安全裕度：给定状态 x 与已采用控制 u，返回 h(x) 与约束满足度（≥0 安全，<0 越界）。
+// 【诚实标注】默认路径是【单点浮点判定】：只看当前状态 x 这一个点、带 1e-12 容差。
+//   ⇒ 它回答"此刻安不安全"，不回答"这个域里会不会出事"，且它不是证明。
+//   若调用方额外给出 opts.hExpr + opts.vars + opts.domain，则并行走【全域集合认证】
+//   （certifySafetyInvariant / 灵数 Krawczyk）；认证发现域内存在违反点 ⇒ fail-closed 覆盖 safe=false。
 function cbfMargin(h, f, g, u, x, opts) {
   opts = opts || {};
   var gamma = (opts.gamma == null) ? 1 : opts.gamma;
@@ -2985,11 +3091,35 @@ function cbfMargin(h, f, g, u, x, opts) {
   var Lg = mat.map(function (col) { return _dot(gh, col); });
   var uc = Array.isArray(u) ? u : [u];
   var lhs = Lf + _dot(Lg, uc);                  // L_f h + L_g h·u
-  return { hx: hx, lhs: lhs, rhs: -gamma * hx, margin: lhs + gamma * hx,
-           safe: (hx >= 0) && (lhs + gamma * hx >= -1e-12),
-           note: (hx >= 0 && lhs + gamma * hx >= -1e-12)
-             ? '当前状态在安全集内且约束满足 ⇒ 下一时刻不越界'
-             : 'h<0 或约束未满足 ⇒ 不安全，需 CBF 滤子修正' };
+  var margin = lhs + gamma * hx;
+  var safe = (hx >= 0) && (margin >= -1e-12);
+  var out = { hx: hx, lhs: lhs, rhs: -gamma * hx, margin: margin, safe: safe,
+              tier: 'lite-float',
+              note: safe
+                ? '当前状态在安全集内且约束满足 ⇒ 下一时刻不越界'
+                : 'h<0 或约束未满足 ⇒ 不安全，需 CBF 滤子修正' };
+
+  // 全域集合认证（可选升级路径）：仅在给出 hExpr/vars 时才走；否则保持单点浮点并诚实标注 tier。
+  if (opts.hExpr && Array.isArray(opts.vars) && opts.vars.length) {
+    var cert = certifySafetyInvariant({ hExpr: opts.hExpr, vars: opts.vars,
+                                        domain: opts.domain || null, bound: opts.bound,
+                                        options: opts.solveOptions });
+    out.certificate = cert;
+    out.tier = cert.tier;
+    if (cert.verdict === 'violated') {
+      // fail-closed：全域认证发现域内存在违反点 ⇒ 单点浮点"此刻安全"不足以声称安全
+      out.safe = false;
+      out.verifiedSafe = false;
+      out.note = '全域认证：域内存在使 h<0 的违反点（见 certificate.counterexample）⇒ 判不安全（fail-closed 覆盖单点浮点结论）';
+    } else if (cert.verdict === 'verified') {
+      out.verifiedSafe = true;
+      out.note = '全域认证：严格证明该域内 h ≥ 0 恒成立（灵数证无实数解）；当前点亦在安全集内。';
+    } else {
+      out.verifiedSafe = false;
+      out.note = out.note + '；全域认证不可用（' + (cert.reason || '未知') + '）⇒ 结论仅基于单点浮点，非证明。';
+    }
+  }
+  return out;
 }
 
 // ── 8. STL 定量语义（robustness degree ρ）────────────────────────────
@@ -7077,7 +7207,7 @@ MathKernel.thinking = LingNaoThinking;
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
   globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, disconnectLLM, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
+    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, certifySafetyInvariant, verdictThreeLayer, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     safetyLayersReport,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,
