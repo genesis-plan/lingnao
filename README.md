@@ -67,6 +67,20 @@ node lingnao-mcp.js --selftest      # 零依赖内核自检（含 grounding 不�
 
 ---
 
+## 物理接入模块（连接真实机器 / 设备）
+
+把任意机器/设备用「标准语义优先 + 拓扑结构识别 + 最小锚定兜底」统一接进灵脑，产出一层**翻译壳**（灵脑只懂规范语义，对方内部实现不碰、不复制）。**无硬件也能用**：识别 / 标准导入 / 字节解码三条软件路径当天可跑；只有真连活设备才需硬件驱动。
+
+- 统一入口：`const A = require('./lingnao-access.js')`
+- 无硬件可跑示例：`node demo-access.js`
+- 真实驱动契约（硬件拥有者照抄）：`connector-template.js`
+- 使用文档：`ACCESS-MODULE-GUIDE.md` · 设备目录：`lingnao-machine-catalog.md`
+- 验证：全套测试 `156/0`（`for t in test-*.js; do node "$t"; done`）
+
+> 诚实边界：`A.connectorStatus()` 标驱动状态——`ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余协议仅建档（需硬件），不谎称能连真机。
+
+---
+
 ## 工具接口（MCP）
 
 | 能力 | 工具 | 说明 |

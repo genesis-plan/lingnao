@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>灵脑 LingNao · 接入</title>
 <style>
-  :root{ --bg:#0b1220; --panel:#111c30; --line:#243a5e; --txt:#e6eefb; --mut:#94a8c6; --acc:#38bdf8; --ok:#22c55e; --err:#ef4444; }
+  :root{ --bg:#0b1220; --panel:#111c30; --line:#243a5e; --txt:#e6eefb; --mut:#94a8c6; --acc:#38bdf8; --ok:#22c55e; --err:#ef4444; --warn:#f59e0b; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif}
   .wrap{max-width:760px;margin:0 auto;padding:20px 16px 48px}
@@ -21,8 +21,15 @@
   button.sm{padding:5px 11px;font-size:12px}
   .row{display:flex;gap:8px;align-items:center}
   .status{margin-top:8px;font-size:12.5px;min-height:16px}
-  .ok{color:var(--ok)} .err{color:var(--err)} .mut{color:var(--mut)}
+  .ok{color:var(--ok)} .err{color:var(--err)} .mut{color:var(--mut)} .warn{color:var(--warn)}
   pre.cfg{background:#0a1424;border:1px solid var(--line);border-radius:7px;padding:11px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#cfe3ff;white-space:pre-wrap;word-break:break-word;margin:10px 0}
+  .kv{font-size:12.5px;line-height:1.7}
+  .kv b{color:var(--acc);font-weight:600}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;margin-left:6px}
+  .pill.ok{background:rgba(34,197,94,.16);color:#4ade80}
+  .pill.warn{background:rgba(245,158,11,.16);color:#fbbf24}
+  .rank{font-size:12px;color:var(--mut);margin:2px 0}
+  .box{background:#0a1424;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:10px}
 </style>
 </head>
 <body>
@@ -60,32 +67,69 @@
 
   <section class="card" id="v-robot">
     <h3>③ 接入真实物理机器</h3>
-    <label>身体配置</label>
-    <textarea id="bodyJson">{
-  "name": "仓储搬运臂",
-  "state": { "location": "CHARGE" },
-  "hard": []
-}</textarea>
-    <div class="row" style="margin-top:8px"><button id="btnBody">连接身体</button></div>
-    <div class="status" id="stBody"></div>
-    <label style="margin-top:10px">真实身体地址（可选）</label>
-    <div class="row">
-      <input id="wsUrl" placeholder="ws://localhost:8787" value="ws://localhost:8787" style="flex:1;min-width:140px">
-      <button id="btnConnect" class="ghost">连接真实身体</button>
-      <button class="ghost" id="btnBridgeOff">断开</button>
+    <div class="mut" style="font-size:12px;margin-bottom:6px">
+      面对世界上任意机器：给地址（或变量清单），灵脑自动<b style="color:var(--acc)">探测协议 → 摄入信息模型 → 自动识类 → 标定𝝓</b>。
+      标准协议/常见类可零填写接入；覆盖不到才请你锚定 1 个语义槽（或导入厂家标准语义文件）。
     </div>
-    <div class="status" id="stBridge"></div>
+
+    <label>机器地址（自动识别协议，不用选类型）</label>
+    <div class="row">
+      <input id="devAddr" placeholder="ws://localhost:8787  或  192.168.1.10:8787" value="ws://localhost:8787" style="flex:1;min-width:160px">
+      <button id="btnProbe">自动探测并识别</button>
+    </div>
+    <div class="status" id="stProbe"></div>
+
+    <!-- 非 ws 协议：浏览器无法直连，粘贴变量清单走识类引擎 -->
+    <div id="manualBox" style="display:none;margin-top:8px">
+      <label>该协议浏览器无法直连（需 Node 驱动桥）。先粘贴设备变量清单，看灵脑能否识类：</label>
+      <textarea id="varList" placeholder='{"40001":"number","40002":"number","battery":"number"}'></textarea>
+      <div class="row" style="margin-top:6px"><button class="ghost" id="btnListClassify">用清单识类</button></div>
+    </div>
+
+    <!-- 识类结果 -->
+    <div id="clsResult" style="display:none;margin-top:10px"></div>
+
+    <!-- 覆盖不到：锚定通道 -->
+    <div id="anchorBox" style="display:none;margin-top:8px">
+      <label>灵脑识别不了它属于哪一类——请锚定 <b style="color:var(--acc)">1 个</b>语义槽（格式：变量名 = 语义槽，如 <code>40001 = x</code>）</label>
+      <div class="row">
+        <input id="anchorInput" placeholder="40001 = x" style="flex:1;min-width:160px">
+        <button class="ghost" id="btnAnchor">用锚定重试</button>
+      </div>
+      <div class="mut" style="font-size:11px;margin-top:6px">或导入厂家标准语义文件（AAS / OPC-UA Companion Spec / MTConnect）。本版仅锚定演示，文件导入通道待补。</div>
+    </div>
+
+    <!-- 实时连接（ws 直连 / 经 Node 桥） -->
+    <div id="liveBox" style="display:none;margin-top:10px">
+      <div class="row">
+        <button id="btnLive">连接身体（实时）</button>
+        <button class="ghost" id="btnLiveOff">断开</button>
+      </div>
+      <div class="status" id="stLive"></div>
+    </div>
+    <!-- 经 Node 桥发命令（modbus/mqtt） -->
+    <div id="bridgeCmdBox" style="display:none;margin-top:8px">
+      <label>经 Node 桥向设备发命令（Modbus：寄存器+值；MQTT：填值即发到 cmd 主题）</label>
+      <div class="row">
+        <input id="cmdReg" placeholder="寄存器(如 3)" style="width:96px">
+        <input id="cmdVal" placeholder="值(如 4242)" style="width:96px">
+        <button class="ghost" id="btnBridgeCmd">发送命令</button>
+      </div>
+    </div>
   </section>
 </div>
 
 <script src="lingnao.umd.js"></script>
 <script src="lingnao-body-bridge.js"></script>
+<script src="lingnao-body-library.js"></script>
 <script>
 (function(){
   "use strict";
   const L = window.LingNao;
+  const LIB = window.LingNaoBodyLibrary;
   const brain = document.getElementById('brainState');
   if(!L){ brain.textContent='❌ 未找到 lingnao.umd.js（与本页放同一目录）'; return; }
+  if(!LIB){ brain.textContent='❌ 未找到 lingnao-body-library.js'; return; }
 
   const CAPS_DEFAULT = [
     {id:'step_CHARGE_A', pre:s=>s.location==='CHARGE', eff:s=>{s.location='A';}, cost:1},
@@ -105,16 +149,199 @@
       {from:'C',to:'D',w:1},{from:'D',to:'C',w:1}
     ]};
   let bridge = null;
+  let lastObserved = null;   // 最近一次摄入 {protocol, variables, actions}
+  let lastUrl = null;
+  let lastSession = null;    // Node 桥 sessionId（modbus/mqtt 经桥）
+  let pollTimer = null;
+  const BRIDGE = 'http://localhost:8799';  // 物理接入 Node 驱动桥（lingnao-body-bridge-node.js）
 
-  document.getElementById('btnBody').onclick = function(){
-    const st = document.getElementById('stBody');
+  // ── 协议探测：从 scheme / 端口推断，不要求用户选类型 ──────────────
+  function detectProtocol(addr){
+    addr = (addr||'').trim();
+    if(/^wss?:\/\//i.test(addr)) return {proto:'ws', url:addr};
+    const m = addr.match(/^(.+?)(?::(\d+))?\/?$/);
+    if(!m) return {proto:null};
+    const host = m[1]; const port = m[2] ? +m[2] : null;
+    const portMap = {502:'modbus-tcp', 1883:'mqtt', 4840:'opc-ua', 8787:'ws'};
+    const proto = port ? portMap[port] : null;
+    if(proto === 'ws') return {proto:'ws', url:'ws://'+host+':'+port};
+    return {proto:proto, host:host, port:port};
+  }
+
+  function setProbe(st, cls){ const e=document.getElementById('stProbe'); e.className='status '+(cls||'mut'); e.textContent=st; }
+  function show(id, on){ document.getElementById(id).style.display = on ? 'block' : 'none'; }
+
+  function renderResult(res, d){
+    const box = document.getElementById('clsResult');
+    show('clsResult', true);
+    if(res.matched){
+      const b = res.best;
+      let html = '<div class="box">';
+      html += '<div class="kv"><b>识别结果</b><span class="pill ok">已自动识类</span></div>';
+      html += '<div class="kv">协议：<b>'+escapeHtml(d.proto||'未知')+'</b>（'+(LIB.PROTOCOLS[d.proto]?LIB.PROTOCOLS[d.proto].label:d.proto)+'）</div>';
+      html += '<div class="kv">机器类：<b>'+escapeHtml(b.label)+'</b></div>';
+      html += '<div class="kv">状态空间：<b>'+escapeHtml(b.group)+'</b></div>';
+      html += '<div class="kv">置信度：<b>'+res.confidence+'</b>　残差：'+(res.residual)+'　（'+(res.residual<0.5?'结构吻合，可零填写接入':'残差偏高，建议锚定 1 语义槽复核')+'）</div>';
+      html += '<div class="kv">内部依据：槽位满足 '+b.slotRatio+' / 能力匹配 '+b.capRatio+'</div>';
+      if(res.ranked && res.ranked.length>1){
+        html += '<div style="margin-top:6px">候选（Top3）：</div>';
+        res.ranked.forEach(function(r){ html += '<div class="rank">· '+escapeHtml(r.label)+'　score='+r.score+'</div>'; });
+      }
+      html += '<div class="mut" style="font-size:11px;margin-top:6px">φ 标定：浏览器直连仅 ws 可实时学物理包络；其余协议经 Node 驱动桥摄入后同理（复用身体桥 updateCalibration，从观测反推量程/变化率）。</div>';
+      html += '</div>';
+      box.innerHTML = html;
+      // ws + 已匹配 → 开放实时连接；仅 AGV 有规划能力可演示执行
+      show('liveBox', d.proto === 'ws');
+      show('anchorBox', false);
+      show('manualBox', false);
+    } else {
+      let html = '<div class="box">';
+      html += '<div class="kv"><b>识别结果</b><span class="pill warn">覆盖不到</span></div>';
+      html += '<div class="kv">协议：<b>'+escapeHtml(d.proto||'未知')+'</b></div>';
+      html += '<div class="mut" style="font-size:12px;margin-top:4px">'+escapeHtml(res.note||'未匹配任何规范模型')+'</div>';
+      html += '</div>';
+      box.innerHTML = html;
+      show('anchorBox', true);
+      show('liveBox', false);
+    }
+  }
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+
+  // ── 主流程：自动探测 + 摄入 + 识类 ────────────────────────────────
+  document.getElementById('btnProbe').onclick = async function(){
+    const addr = document.getElementById('devAddr').value.trim();
+    const d = detectProtocol(addr);
+    if(!d.proto){
+      setProbe('❌ 无法从地址/端口识别协议（支持 ws / modbus-tcp:502 / mqtt:1883 / opc-ua:4840 / ws:8787）', 'err');
+      return;
+    }
+    if(d.proto === 'ws'){
+      setProbe('① 探测协议 ws … ② 摄入信息模型 …', 'mut');
+      try{
+        const obs = await LIB.discoverWs(d.url, {timeout:5000, actions:[]});
+        lastObserved = {protocol:'ws', variables:obs.variables, actions:obs.actions||[]};
+        lastUrl = d.url;
+        setProbe('✅ 已摄入信息模型（'+Object.keys(obs.variables).length+' 个变量）', 'ok');
+        const res = LIB.classify(lastObserved, {});
+        renderResult(res, d);
+      }catch(e){
+        setProbe('❌ ws 摄入失败：'+e.message+'（确认仿真身体/设备已起服务，或改用变量清单识类）', 'err');
+        show('manualBox', false);
+      }
+    } else {
+      // 非 ws：浏览器无法直连裸 TCP → 经 Node 桥跑真实驱动（Modbus/MQTT/…）
+      setProbe('① 探协议 '+d.proto+' … ② 经 Node 桥连驱动 + 摄入 + 识类 …', 'mut');
+      try {
+        const r = await fetch(BRIDGE + '/connect', { method: 'POST',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: addr }) });
+        if (!r.ok) throw new Error('桥返回 ' + r.status);
+        const data = await r.json();
+        if (!data.ok) throw new Error(data.error || '桥失败');
+        lastObserved = { protocol: data.protocol, variables: data.sample || {}, actions: [] };
+        lastSession = (data.sessionId != null) ? data.sessionId : null;
+        setProbe('✅ 经 Node 桥已连：协议 ' + data.protocol + '（介质 ' + (data.medium || '?') + '）· ' + (data.note || ''), 'ok');
+        renderResult(data.match, { proto: data.protocol, medium: data.medium });
+        if (data.sessionId) { show('liveBox', true); show('bridgeCmdBox', true); startBridgePoll(data.sessionId); }
+        show('manualBox', false);
+      } catch (e) {
+        // 桥未起 → 诚实降级 + 引导粘贴清单
+        setProbe('✅ 灵脑识别协议为「' + d.proto + '」，但浏览器无法直连工业协议，且未检测到本地 Node 桥（' + e.message + '）。请先运行 node lingnao-body-bridge-node.js，或粘贴变量清单识类。', 'ok');
+        show('manualBox', true); show('clsResult', false); show('anchorBox', false); show('liveBox', false);
+      }
+    }
+  };
+
+  // ── 非 ws：用粘贴的变量清单识类 ──────────────────────────────────
+  document.getElementById('btnListClassify').onclick = function(){
+    const raw = document.getElementById('varList').value.trim();
+    if(!raw){ setProbe('❌ 请先粘贴变量清单', 'err'); return; }
+    let obj;
+    try{ obj = JSON.parse(raw); }catch(e){ setProbe('❌ 清单不是合法 JSON：'+e.message, 'err'); return; }
+    if(typeof obj !== 'object' || Array.isArray(obj)){ setProbe('❌ 清单应为 {变量名:类型} 对象', 'err'); return; }
+    const proto = (detectProtocol(document.getElementById('devAddr').value).proto) || 'unknown';
+    lastObserved = {protocol:proto, variables:obj, actions:[]};
+    setProbe('已读取清单（'+Object.keys(obj).length+' 个变量），运行识类引擎…', 'ok');
+    const res = LIB.classify(lastObserved, {});
+    renderResult(res, {proto:proto});
+  };
+
+  // ── 覆盖不到：人锚 1 语义槽后重试 ────────────────────────────────
+  document.getElementById('btnAnchor').onclick = function(){
+    if(!lastObserved){ setProbe('❌ 先做一次探测/清单识类再锚定', 'err'); return; }
+    const a = document.getElementById('anchorInput').value.trim();
+    const m = a.match(/^(.+?)\s*=\s*(.+)$/);
+    if(!m){ setProbe('❌ 格式应为「变量名 = 语义槽」，如 40001 = x', 'err'); return; }
+    const varName = m[1].trim(), slot = m[2].trim().toLowerCase();
+    // 把锚定变量加进观测：变量名提示追加该语义槽词，使 matchName 命中规范槽
+    const anchored = Object.assign({}, lastObserved.variables);
+    // 改造：给该变量名加一个带语义槽的下划线别名，让匹配器认出
+    anchored[varName + '_' + slot] = anchored[varName] !== undefined ? anchored[varName] : 'number';
+    const obs2 = {protocol:lastObserved.protocol, variables:anchored, actions:lastObserved.actions};
+    const res = LIB.classify(obs2, {});
+    renderResult(res, {proto:lastObserved.protocol});
+    if(res.matched) setProbe('✅ 锚定「'+varName+' = '+slot+'」后成功识类：'+res.best.label, 'ok');
+    else setProbe('⚠️ 仍识别不了，需再锚定更多语义槽或补规范卡', 'warn');
+  };
+
+  // ── 实时连接（ws + 已匹配 AGV 可演示执行）────────────────────────
+  document.getElementById('btnLive').onclick = async function(){
+    const st = document.getElementById('stLive');
+    if(lastSession!=null){ st.className='status ok'; st.textContent='已通过 Node 桥连接设备，状态每 2s 刷新（见上方样本）'; return; }
+    if(!lastUrl){ st.className='status err'; st.textContent='❌ 请先「自动探测并识别」成功'; return; }
+    if(typeof LingNaoBridge === 'undefined'){ st.className='status err'; st.textContent='❌ 未找到 lingnao-body-bridge.js'; return; }
+    st.className='status mut'; st.textContent='实时连接中…';
+    if(bridge){ try{bridge.disconnect();}catch(e){} bridge=null; }
+    bridge = LingNaoBridge.createBodyBridge(lastUrl, {timeout:5000, onLog:function(){},
+      onState:function(s){ st.className='status ok'; st.textContent='🔌 真身体在线 · '+(s&&s.location?s.location:JSON.stringify(s)); },
+      onClose:function(){ st.className='status mut'; st.textContent='⚠️ 已断开'; }});
     try{
-      const cfg = JSON.parse(document.getElementById('bodyJson').value);
-      L.setWorld(WORLD);
-      const r = L.attachBody({name:cfg.name||'body', state:cfg.state||{location:'CHARGE'}, hard:Array.isArray(cfg.hard)?cfg.hard:[], capabilities:CAPS_DEFAULT});
-      st.className='status ok'; st.textContent='✅ 身体「'+r.body+'」已登记：'+r.capabilities.length+' 个能力';
+      await bridge.connect();
+      // 登记到大脑：仅 AGV 类有规划能力可演示执行；其余类诚实标注
+      if(lastObserved && lastObserved.protocol==='ws'){
+        L.setWorld(WORLD);
+        const r = L.attachBody({name:'自动识别机器', state:{location:'CHARGE'}, hard:[], capabilities:CAPS_DEFAULT});
+        st.className='status ok';
+        st.textContent='✅ 已连接并登记到大脑：'+r.body+'（'+r.capabilities.length+' 能力）· 发「去 C 点」即可自主规划执行';
+      }
+    }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; bridge=null; }
+  };
+  document.getElementById('btnLiveOff').onclick = function(){
+    const st = document.getElementById('stLive');
+    if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+    if(lastSession!=null){ lastSession=null; show('bridgeCmdBox', false); st.className='status mut'; st.textContent='已断开 Node 桥连接'; return; }
+    if(!bridge){ st.className='status mut'; st.textContent='未连接真实身体'; return; }
+    try{ bridge.disconnect(); }catch(e){}
+    bridge = null;
+    st.className='status mut'; st.textContent='已断开真实身体';
+  };
+  document.getElementById('btnBridgeCmd').onclick = async function(){
+    const st = document.getElementById('stLive');
+    if(lastSession==null){ st.className='status err'; st.textContent='❌ 当前非 Node 桥会话'; return; }
+    const reg = parseInt(document.getElementById('cmdReg').value,10);
+    const val = parseInt(document.getElementById('cmdVal').value,10);
+    try{
+      const r = await fetch(BRIDGE + '/command', { method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ session: lastSession, register: isNaN(reg)?0:reg, value: isNaN(val)?0:val }) });
+      const d = await r.json();
+      if(d.ok){ st.className='status ok'; st.textContent='✅ 经桥写寄存器 '+d.wrote.register+' = '+d.wrote.value; }
+      else { st.className='status err'; st.textContent='❌ '+d.error; }
     }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; }
   };
+  // 经桥轮询状态 + 链路新鲜度（过期即提示触发 SAFE-STOP 语义）
+  function startBridgePoll(session){
+    if(pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async function(){
+      try{
+        const r = await fetch(BRIDGE + '/state?session=' + session); const d = await r.json();
+        if(d.ok && d.quality){ const st = document.getElementById('stLive');
+          const fresh = d.quality.stale ? '⚠️ 链路过期（触发 SAFE-STOP 语义）' : '🔌 接口在线';
+          st.className = 'status ' + (d.quality.stale ? 'warn' : 'ok');
+          st.textContent = fresh + ' · RTT=' + (d.quality.rttMs!=null ? d.quality.rttMs+'ms' : '—') + ' · 样本=' + JSON.stringify(d.sample).slice(0,90);
+        }
+      }catch(e){}
+    }, 2000);
+  }
 
   document.getElementById('btnLLM').onclick = function(){
     const st = document.getElementById('stLLM');
@@ -138,31 +365,6 @@
     const ok = r && r.status==='optimal' && Array.isArray(r.path) && r.path[0]==='CHARGE';
     brain.textContent = ok ? '✅ 大脑已接入' : '⚠️ 自检未全过';
   }catch(e){ brain.textContent='❌ 自检失败：'+e.message; }
-
-  document.getElementById('btnConnect').onclick = async function(){
-    const st = document.getElementById('stBridge');
-    const url = document.getElementById('wsUrl').value.trim();
-    if (!url) { st.className='status err'; st.textContent='❌ 请填地址'; return; }
-    if (typeof LingNaoBridge === 'undefined') { st.className='status err'; st.textContent='❌ 未找到 lingnao-body-bridge.js'; return; }
-    st.className='status mut'; st.textContent='连接中…';
-    if (bridge) { try{ bridge.disconnect(); }catch(e){} bridge = null; }
-    bridge = LingNaoBridge.createBodyBridge(url, {timeout:5000, onLog:function(){},
-      onState:function(s){ st.className='status ok'; st.textContent='🔌 真身体在线 · '+(s&&s.location?s.location:JSON.stringify(s)); },
-      onClose:function(){ st.className='status mut'; st.textContent='⚠️ 已断开'; }});
-    try{
-      await bridge.connect();
-      const cfg = JSON.parse(document.getElementById('bodyJson').value || '{}');
-      try { await bridge.send({ type:'reset', state: cfg.state || {location:'CHARGE'} }); } catch(e){}
-      st.className='status ok'; st.textContent='✅ 已连接 '+url;
-    }catch(e){ st.className='status err'; st.textContent='❌ '+e.message; bridge=null; }
-  };
-  document.getElementById('btnBridgeOff').onclick = function(){
-    const st = document.getElementById('stBridge');
-    if(!bridge){ st.className='status mut'; st.textContent='未连接真实身体'; return; }
-    try{ bridge.disconnect(); }catch(e){}
-    bridge = null;
-    st.className='status mut'; st.textContent='已断开真实身体';
-  };
 
   document.getElementById('btnGenAgent').onclick = function(){
     const cfg = { mcpServers: { lingnao: {
