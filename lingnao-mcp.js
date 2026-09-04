@@ -594,7 +594,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'knowledge_query', description: '查询经验库（状态→行动→结果的置信度/样本类记录）。  / EN: Query the experience base (state → action → result confidence / sample-class records).',
+    name: 'knowledge_query', description: '查询经验库（状态→行动→结果的置信度/样本类记录）。  / EN: Query the experience base (state → action → result confidence / sample-class records). 【需接入 KB 知识库：当前未接入，调用恒返 available:false，属已知未实现能力；接入 KB 后可用】',
     inputSchema: {
       type: 'object',
       properties: {
@@ -605,7 +605,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'knowledge_add', description: '向经验库手工添加一条转移经验（带置信度、样本类与来源）。  / EN: Manually add one transition experience to the experience base (with confidence, sample class, and source).',
+    name: 'knowledge_add', description: '向经验库手工添加一条转移经验（带置信度、样本类与来源）。  / EN: Manually add one transition experience to the experience base (with confidence, sample class, and source). 【需接入 KB 知识库：当前未接入，调用恒返 available:false，属已知未实现能力；接入 KB 后可用】',
     inputSchema: {
       type: 'object',
       properties: {
@@ -645,7 +645,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'knowledge_ann', description: 'LSH 近似最近邻检索（SimHash 投影），从经验库找最相似转移。  / EN: LSH approximate nearest-neighbor retrieval (SimHash projection) to find the most similar transition in the experience base.',
+    name: 'knowledge_ann', description: 'LSH 近似最近邻检索（SimHash 投影），从经验库找最相似转移。  / EN: LSH approximate nearest-neighbor retrieval (SimHash projection) to find the most similar transition in the experience base. 【需接入 KB 知识库：当前未接入，调用恒返 available:false，属已知未实现能力；接入 KB 后可用】',
     inputSchema: {
       type: 'object',
       properties: {
@@ -656,7 +656,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'knowledge_distill', description: '规则蒸馏（FP-Growth 风格频繁项集→关联规则）。  / EN: Rule distillation (FP-Growth-style frequent itemsets → association rules).',
+    name: 'knowledge_distill', description: '规则蒸馏（FP-Growth 风格频繁项集→关联规则）。  / EN: Rule distillation (FP-Growth-style frequent itemsets → association rules). 【需接入 KB 知识库：当前未接入，调用恒返 available:false，属已知未实现能力；接入 KB 后可用】',
     inputSchema: {
       type: 'object',
       properties: { minSupport: { type: 'number', description: '最小支持度，默认 0.4' } },
@@ -664,7 +664,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'cog_graph', description: '认知图谱：由经验库构建概念节点+语义关系有向图。  / EN: Cognitive graph: build a concept-node + semantic-relation directed graph from the experience base.',
+    name: 'cog_graph', description: '认知图谱：由经验库构建概念节点+语义关系有向图。  / EN: Cognitive graph: build a concept-node + semantic-relation directed graph from the experience base. 【需接入 KB 知识库：当前未接入，调用恒返 available:false，属已知未实现能力；接入 KB 后可用】',
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
   {
@@ -1420,7 +1420,7 @@ function handle(msg) {
   const { id, method, params } = msg;
   try {
     if (method === 'initialize') {
-      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.1.0' } } });
+      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.1.1' } } });
     } else if (method === 'tools/list') {
       send({ jsonrpc: '2.0', id, result: { tools: TOOLS } });
     } else if (method === 'tools/call') {
@@ -1496,7 +1496,20 @@ function selftest() {
   // degraded：因**可选依赖缺失**而诚实降级的项。这不是内核缺陷，
   // 绝不能让它污染整条自测——否则用户全新安装（未装可选依赖）就会看到 FAIL。
   const degraded = [];
+  // unimpl：诚实标注的「已知未实现能力」。这些 MCP 工具在 KB 未接入时恒返 available:false，
+  // 属能力缺口而非内核缺陷；旧版把它们断言为"通过"混入绿色（假绿），既不诚实也不准确。
+  // 这里单独披露：契约成立（如实返 available:false）→ 进 unimpl；契约破坏（谎称可用/抛错）→ 进 bad（真缺陷）。
+  const unimpl = [];
   const T = (name, cond, extra) => (cond ? ok : bad).push(name + (extra ? ' :: ' + extra : ''));
+  // 已知未实现能力的诚实标注：先校验"降级契约"（KB 未接入须如实返 available:false），
+  // 契约破坏=真实缺陷→进 bad；契约成立=已知未实现→进 unimpl（不计入绿色通过，消除假绿）。
+  const noteUnimpl = (name, res) => {
+    if (res && res.available === false && /未暴露/.test(res.reason || '')) {
+      unimpl.push(name + ' :: 知识库 KB 未接入，恒返 available:false（已知未实现能力，不计入绿色通过）');
+    } else {
+      bad.push(name + ' :: KB 降级契约被破坏（应恒返 available:false，实得 ' + JSON.stringify(res) + '）');
+    }
+  };
   try {
     T('world_info', worldInfo().nodes.length === 4);
     const led = K.MathKernel.verifyLedger();
@@ -1538,14 +1551,14 @@ function selftest() {
     T('carrier-hard', cr && typeof cr.battery === 'number' && Array.isArray(cr.hard) && cr.hard.length === 0, 'hard=' + JSON.stringify(cr.hard) + ' battery=' + cr.battery);
     const lr = learnLogic(['S', 'T'], true);
     T('learn', lr.updated.length === 1 && lr.updated[0].confidence > 0.9, 'conf=' + lr.updated[0].confidence);
-    T('kb-summary', lr.knowledgeBase && lr.knowledgeBase.available === false && /未暴露/.test(lr.knowledgeBase.reason || ''), 'kb=' + JSON.stringify(lr.knowledgeBase));
+    noteUnimpl('kb-summary', lr.knowledgeBase);
     const au = auditLogic('S', 'T', [], []);
     T('audit-7sec', au.summary && au.details && au.evidence && au.constraints && 'unknown' in au && au.proof && au.reproducible && au.uncertainty, 'status=' + au.status);
     T('audit-proof', au.proof.verified === true && typeof au.proof.hoare === 'string' && au.proof.hoare.length > 0, 'hoare=' + au.proof.hoare);
     const q = knowledgeQueryLogic('S', 'T');
-    T('knowledge_query', q && q.available === false && /未暴露/.test(q.reason || ''), 'q=' + JSON.stringify(q));
+    noteUnimpl('knowledge_query', q);
     const a = knowledgeAddLogic('X', 'Y', true, 0.7, 'selftest', 'boundary');
-    T('knowledge_add', a && a.available === false && /未暴露/.test(a.reason || ''), 'a=' + JSON.stringify(a));
+    noteUnimpl('knowledge_add', a);
     const mt = metaLogic('CHARGE', 'C', [], []);
     T('meta-layer5', mt.layer === 5 && typeof mt.uncertainty.entropyH === 'number' && mt.uncertainty.consistencyC >= 0 && Array.isArray(mt.knowledgeGaps) && /explore|exploit/.test(mt.decision.exploreExploit), 'mode=' + mt.decision.exploreExploit + ' C=' + mt.uncertainty.consistencyC);
     // 还原默认灭蚊器世界（set_world 测试改了 WORLD），供后续依赖 CHARGE/A/B/C 的断言
@@ -1554,11 +1567,11 @@ function selftest() {
     const pb = perceiveBeliefLogic({ CHARGE: 0.5, A: 0.5 }, { likelihood: { CHARGE: 0.6, A: 0.9 } });
     T('perceive-banach', pb && typeof pb.converged === 'boolean' && typeof pb.contractionL === 'number', 'L=' + pb.contractionL + ' conv=' + pb.converged);
     const ann = annLogic('{"from":"CHARGE","to":"A"}', 3);
-    T('knowledge-ann', ann && ann.available === false && /未暴露/.test(ann.reason || ''), 'ann=' + JSON.stringify(ann));
+    noteUnimpl('knowledge-ann', ann);
     const distill = distillLogic(0.3);
-    T('knowledge-distill', distill && distill.available === false && /未暴露/.test(distill.reason || ''), 'distill=' + JSON.stringify(distill));
+    noteUnimpl('knowledge-distill', distill);
     const cg = cogGraphLogic();
-    T('cog-graph', cg && cg.available === false && /未暴露/.test(cg.reason || ''), 'cg=' + JSON.stringify(cg));
+    noteUnimpl('cog-graph', cg);
     const sv = symbolicVerifyLogic('CHARGE', 'C', [], []);
     T('symbolic-verify', sv && sv.verified === true && sv.tool === 'lingnao-hoare-lite', 'steps=' + (sv.steps && sv.steps.length));
     // 真引擎委派：灵数求解器解 x^2+y^2=25, x+y=7 → 2 解且全部 Krawczyk 认证
@@ -1704,11 +1717,20 @@ function selftest() {
       bad.forEach(b => console.log('  ✗ ' + b));
       process.exit(1);
     }
-    console.log('SELFTEST OK — 全部 ' + ok.length + ' 项工具验证通过：');
+    console.log('SELFTEST OK — 核心 ' + ok.length + ' 项工具验证通过：');
     ok.forEach(o => console.log('  ✓ ' + o));
     if (degraded.length) {
       console.log('诚实降级 ' + degraded.length + ' 项（可选依赖缺失，非内核缺陷，安装后即恢复）：');
       degraded.forEach(d => console.log('  – ' + d));
+    }
+    // 修1（2026-09-04）：消除"假绿"。旧版把 unimpl 数组静默丢弃、仍打印"全部 X 项通过"并 exit(0)，
+    // 致 6 个 KB 未接入能力被谎称已绿。现如实披露，不再以"全绿"暗示产品能力完整。
+    if (unimpl.length) {
+      console.log('已知未实现能力 ' + unimpl.length + ' 项（KB 知识库未接入，属能力缺口而非内核缺陷；' +
+        '不计入绿色通过，如实披露；接入 KB 后才可用）：');
+      unimpl.forEach(u => console.log('  ○ ' + u));
+      console.log('注：上述 ' + unimpl.length + ' 项为"已知未实现"能力，selftest 不谎称其已可用；' +
+        '产品对外"62 工具"清单中含这些项时须同步标注"需接入 KB"。');
     }
     process.exit(0);
   }
