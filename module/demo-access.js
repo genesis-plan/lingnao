@@ -72,4 +72,4 @@ console.log('协议驱动状态(诚实: supported=false 需硬件):');
 A.connectorStatus().forEach(function (p) {
   console.log('  - ' + p.id + ': ' + (p.supported ? '驱动已实装' : '仅建档(需硬件驱动)'));
 });
-console.log('\n✅ 以上全部为软件路径，无需硬件即可运行。真实驱动见 connector-template.js / ACCESS-MODULE-GUIDE.md');
+console.log('\n✅ 以上全部为软件路径，无需硬件即可运行。真实驱动见 connector-template.js / ../docs/04-技术参考.md');

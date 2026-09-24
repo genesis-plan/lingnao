@@ -11,7 +11,7 @@
  * 需要【硬件/网络】的是【实时路径】connect()（要真连 Modbus/MQTT/WS）。
  *
  * 跑示例： node demo-access.js
- * 看文档：  ACCESS-MODULE-GUIDE.md
+ * 看文档：  ../docs/04-技术参考.md
  * 接真机：  connector-template.js（硬件拥有者照抄）
  */
 'use strict';

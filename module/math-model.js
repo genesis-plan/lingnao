@@ -5,7 +5,7 @@
 //   注：升序代价贪心对一般运输问题不保证最优（反例 c=[[1,2],[2,100]] 贪心101 vs 最优4），已弃用。
 // 内核真源：lingnao.umd.js（UMD）。本模块仅用已验证签名 + 自实现可审计求解器（不依赖外部求解器）。
 const { VirtualWorld } = require('./virtual-world.js');
-const L = require('./lingnao.umd.js');
+const L = require('../lingnao.umd.js');
 const G = L.GROUNDING || { KERNEL: 'KERNEL', PROOF: 'PROOF' };
 const line = (s = '') => console.log(s);
 

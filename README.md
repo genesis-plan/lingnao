@@ -1,147 +1,118 @@
-# 灵脑 LingNao（世界通用大脑）— 可审计确定性推理引擎
+# 灵脑 LingNao · 可审计确定性推理内核
 
-> **本地确定性、可审计的推理大脑，不是概率生成式 LLM，不幻觉。**
-> 单文件内核 `灵脑.html` 把「世界图 → A\* 可审计推理 → 物理载体执行 → 审计」封装为单一引擎，对外以 **MCP stdio / 网页演示 / UMD** 三种接口暴露。
-> 零依赖 · 零服务器 · 非商业免费（含非商业 AI Agent），商业须授权。
+[![License](https://img.shields.io/badge/license-非商业免费%20%2F%20商业须书面授权-blue)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io)
+[![Deterministic](https://img.shields.io/badge/core-deterministic%20%2F%20non--LLM-green)](docs/03-设计思想.md)
+[![npm](https://img.shields.io/npm/v/lingnao-mcp)](https://www.npmjs.com/package/lingnao-mcp)
 
-- 仓库：`genesis-plan/lingnao` · npm：`lingnao-mcp` · 在线试用：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html>
+> **本地确定性、可审计的推理内核 —— 不是概率生成式大模型，不幻觉。**
+> 单文件内核 `灵脑.html` 把「世界图 → A\* 可审计推理 → 物理载体执行 → 审计」封装为单一引擎，
+> 对外以 **MCP stdio / 网页 / UMD 库**三种接口暴露。
+> 零依赖 · 零服务器 · 可离线 · 非商业免费（含非商业 AI Agent），商业须授权。
 
-> **两个独立产品，勿混淆**
-> | 产品 | 是什么 | 仓库 | npm |
-> |---|---|---|---|
-> | **灵脑 LingNao**（本仓库） | **大脑**：感知/规划/审计/具身裁决 | `genesis-plan/lingnao` | `lingnao-mcp` |
-> | **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk 认证） | `genesis-plan/lingshu-solver` | `lingshu-solver` |
->
-> 灵脑不重写求解逻辑：`algebraic_solve` **委派**给灵数真引擎。灵数是**可选依赖**——不装它，灵脑其余能力照常运行，仅该项诚实降级。
+- 仓库：`genesis-plan/lingnao` · npm：`lingnao-mcp` · 在线试用：[playground](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html) ／ [控制台](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html)
 
----
-
-## 它是什么 / 不做什么（诚实边界）
-
-**能做什么**
-- 在任意「世界图」上做**最优且可审计**的决策（A\* + 硬/软约束 + RSG 推理状态图 + 系统1 高置信快答）
-- 每步推理给出**依据链**与**七段审计报告**（概要/轨迹/证据/约束/𝕌/证明证书/可复现），量化认知+偶然不确定性，凡不可判定诚实标 $\mathbb{U}$
-- 用**免费 LLM** 把自然语言理解成结构化目标（NL→JSON），无 key 可手动降级
-- 接收**物理载体**上报（电量、区域密度）→ 生成硬/软约束 → 下发指令 → 执行回报 → 学习闭环（正/负/边界样本）
-- **量纲分析**（物理正确性）、**声明式能力契约**、**观测契约可区分性**、**具身层**（A\* 状态空间规划 + SAFE-STOP + 任意物理身体能力契约）、**安全栈**（CBF-QP + 组合 CBF + STL + Zonotope 可达集 + 混合自动机×自动微分）、**最优分配**（匈牙利 + LP 对偶证书）、**抽象解释**（区间格 + widening/narrowing）
-
-**不做什么（诚实边界）**
-- 不生成文本、不编造事实；推理结果可复现、可审计、不幻觉
-- **轻量替代标注（手写 lite 版、非工业级外部求解器，均可运行、均确定性、均不虚构）**：符号验证=自写约束求解器（非真实 Z3）；霍尔证明=结构化逐边验证（非 Coq 机器证明）；因果发现=PC-lite 离散近似（非真实 PC/FCI）；LSH=SimHash 投影（非 Milvus）；世界模型/反事实=线性 SEM + Pearl 反事实三步法（确定性可审计，非 VAE）
-- **仍不称"数学上不可越狱"**：内核已登记不完备性定理（`THM_GODEL_INCOMPLETENESS`），任何系统同理存在理论边界
+| | 说明 |
+|---|---|
+| **是** | 在世界图上做**最优且可审计**决策的内核；每步给依据链 + 七段审计报告；不可判定时诚实返回 𝕌 |
+| **不是** | 语言模型（不生成文本、无世界知识）、符号 CAS、"绝对安全"的证明器，也不是"保证不漏"的完备判定器 |
 
 ---
 
-## 为什么不幻觉（神经符号边界）
+## 30 秒上手
 
-| 档位 | 来源 | 会幻觉吗 | 能否作为依据 |
-|---|---|---|---|
-| `PERCEPTION`（UNVERIFIED_LLM） | 免费 LLM 把人话转成结构化目标 | **会**（显式标 `mayHallucinate=true`） | 否，绝不进入证明链 |
-| `KERNEL`（DETERMINISTIC） | 内核 A\* / 知识库计算 | 不会，可复现 | 是 |
-| `PROOF`（AUDITED） | 七段审计 + 霍尔证明证书 | 不会，可机器验证 | 是（最高保证） |
-
-`askBrain` / `audit` / `reason` 返回值都携带 `grounding` 字段与 `disclaimer`；LLM 解释文本显式标注"可能幻觉，不计入证明或决策依据"。由 `node lingnao-mcp.js --selftest` 持续验证。
-
----
-
-## 快速接入
-
-```bash
-git clone https://github.com/genesis-plan/lingnao && cd lingnao
-node lingnao-mcp.js --selftest      # 零依赖内核自检（含 grounding 不幻觉分层 + 具身层）
-# 灵数求解器真引擎以 npm 依赖 lingshu-solver 接入（genesis-plan/lingshu-solver，独立仓库）
-```
-
-任何支持 MCP 的客户端（Claude Desktop / Cursor / Cline 等）复制 `mcp.example.json` 即可接入，**不用开网页、不用服务器、不用本地装包**：
+**① MCP 接入（推荐，给 AI 客户端用）** —— 不用开网页、不用服务器、不用本地装包：
 
 ```json
 {
   "mcpServers": {
-    "lingnao": { "command": "npx", "args": ["github:genesis-plan/lingnao"], "env": { "OPENROUTER_API_KEY": "填你的免费Key(可留空)" } }
+    "lingnao": {
+      "command": "npx",
+      "args": ["github:genesis-plan/lingnao"],
+      "env": { "OPENROUTER_API_KEY": "填你的免费Key（可留空）" }
+    }
   }
 }
 ```
 
-- **开发者 / 前端零安装**：`<script src="https://cdn.jsdelivr.net/gh/genesis-plan/lingnao/lingnao.umd.js"></script>` 然后 `const L = window.LingNao`（浏览器/Node 通用 UMD，零依赖）；或 `const K = require('./lingnao-mcp')` 直接调内核。
-- **非技术零安装**：双击 `playground.html` 看「规划路径 + 七段审计 + 不幻觉分层」，离线可用；或 `lingnao-console.html` 三步接入「身体 / 大模型 / 大脑」后「开始干活」。
+npm 稳定版同款：`{ "command": "npx", "args": ["-y", "lingnao-mcp"] }`（见 [`mcp.json`](mcp.json) ／ [`mcp.example.json`](mcp.example.json)）
 
----
+**② 零安装网页** —— 双击 [`playground.html`](playground.html)（规划路径 + 七段审计 + 不幻觉分层，离线可用），
+或 [`lingnao-console.html`](lingnao-console.html)（三步接入「身体 / 大模型 / 大脑」后开始干活）。
 
-## 物理接入模块（连接真实机器 / 设备）
+**③ 开发者**
 
-把任意机器/设备用「标准语义优先 + 拓扑结构识别 + 最小锚定兜底」统一接进灵脑，产出一层**翻译壳**（灵脑只懂规范语义，对方内部实现不碰、不复制）。**无硬件也能用**：识别 / 标准导入 / 字节解码三条软件路径当天可跑；只有真连活设备才需硬件驱动。
-
-- 统一入口：`const A = require('./lingnao-access.js')`
-- 无硬件可跑示例：`node demo-access.js`
-- 真实驱动契约（硬件拥有者照抄）：`connector-template.js`
-- 使用文档：`ACCESS-MODULE-GUIDE.md` · 设备目录：`lingnao-machine-catalog.md`
-- 验证：核心自测 `npm test`（`node lingnao-mcp.js --selftest`，零依赖内核自检全绿）；设备/协议专项验证脚本已移出首页归档，不占根目录。
-
-> 诚实边界：`A.connectorStatus()` 标驱动状态——`ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余协议仅建档（需硬件），不谎称能连真机。
-
----
-
-## 工具接口（MCP）
-
-| 能力 | 工具 | 说明 |
-|---|---|---|
-| 免费 LLM 感知 | `perceive` / `perceive_belief` | 自然语言→结构化感知（需 OpenRouter Key）；贝叶斯信念收敛 |
-| 场景 | `world_info` / `set_world` | 看世界图，或导入你自己的场景 |
-| 可审计推理 | `reason` / `audit` | 系统1 快答 + 系统2 A\* 最优 + 七段审计（含证明证书） |
-| 符号验证 | `symbolic_verify` | 霍尔机器验证 A\* 路径满足不变量（Z3-lite 等价） |
-| **代数方程求解** | `algebraic_solve` | **委派真引擎「灵数求解器」**：区间收缩 + Krawczyk 认证，离线确定性、可复现 |
-| 分支探索 | `dmcts` | D-MCTS 并行分支探索 |
-| 知识 / 因果 | `knowledge_*` / `causal` / `causal_effect` | LSH 检索 / FP-Growth 蒸馏 / PC-lite 因果 + do 演算（后门/前门准则） |
-| 世界模型 | `world_model` / `counterfactual` | 线性 SEM 前向模拟 + Pearl 反事实三步法 |
-| 学习 | `learn` / `knowledge_query` / `knowledge_add` / `sl_*` | 正/负/边界样本闭环，置信度更新 |
-| 物理载体 | `attach_body` / `capabilities` / `get_state` / `set_state` / `check_hard` / `plan_task` / `execute_task` / `positioning` | 注册任意物理身体（能力契约）→ A\* 状态空间最优规划 → 逐步执行（SAFE-STOP）→ 确定性重规划 |
-| 端到端 | `ask` / `explain` / `goal_directed` / `lingnao` | 感知→推理→审计→不幻觉分层一体；`lingnao` 内核自检 |
-
----
-
-## 把它当机器人大脑（最小调用序列）
-
-```
-1. world_info()                 → 了解场景节点
-2. set_world(我的场景)           → （可选）换成你的物理载体/任务图
-3. carrier_report(电量,目标,密度) → 载体上报，拿硬/软约束
-4. reason(起点,目标,硬,软)        → 可审计最优路径
-5. 载体按 path 执行
-6. learn(执行路径, 成功?)        → 置信度更新，越用越准
+```bash
+git clone https://github.com/genesis-plan/lingnao && cd lingnao
+node lingnao-mcp.js --selftest      # 零依赖内核自检
+node build-umd.js                   # 从内核真源重建 UMD（导出 250）
 ```
 
-真实机器人链路为四层：`灵脑大脑(软件) → 身体适配器(软件) → 现场总线(CAN/RS-485/EtherCAT) → 传感器·执行器(物理)`。大脑比对主版本，不符或无握手将**拒绝连接**（fail-closed）。先把 `lingnao-body-sim-server.js` 起一个仿真 AGV（`node lingnao-body-sim-server.js`），再用 `lingnao-console.html`「真实身体(WebSocket)」填 `ws://localhost:8787` 即可端到端试通。
+- Node 库：`const K = require('./lingnao-mcp')`（直接调内核，不自启服务）
+- 浏览器：`<script src="https://cdn.jsdelivr.net/gh/genesis-plan/lingnao/lingnao.umd.js"></script>` → `window.LingNao`
 
 ---
 
-## 文件清单
+## 能力边界（诚实声明）
 
-| 文件 | 作用 |
+| 维度 | 说明 |
 |---|---|
-| `lingnao-mcp.js` | MCP 服务本体（stdio，零依赖，手写 JSON-RPC 2.0 分帧） |
-| `灵脑.html` | 单文件内核（MCP / UMD / 控制台从此抽取复用，单一真源） |
-| `lingnao-audit-ledger.js` | 签名审计账本（SHA-256 哈希链 + HMAC 单写者签名，内核内联副本） |
-| `lingshu-bridge.js` | 灵数求解器桥接（注入 `globalThis.__LINGSHU__` 后 `algebraic_solve` 调真引擎，否则诚实降级） |
-| `lingnao.umd.js` / `build-umd.js` | 零安装 UMD 构建（从 `灵脑.html` 抽同一份内核） |
-| `playground.html` / `lingnao-console.html` | 零安装网页演示 / 「开始干活」控制台 |
-| `lingnao-body-bridge.js` / `lingnao-body-sim-server.js` | 真实身体 WebSocket 桥 / 零依赖仿真服务端 |
-| `math-model.js` | 数学模型模块 |
-| `mcp.json` / `mcp.example.json` / `smithery.yaml` / `glama.json` | MCP 市场一键配置 |
-| `openai-tools.json` / `anthropic-tools.json` / `llms.txt` | 62 工具 function-calling 清单 / LLM 发现文档 |
-| `ima_index.json` / `ima_knowledge.json` / `ima_lingnao_map.json` | 第三方 IMA 知识库接入（仅参考索引，不进入证明链） |
-| `package.json` / `LICENSE` / `README.md` | 可安装包定义 / 商业授权许可 / 本说明 |
+| 决策 | A\* 最优路径 + 硬/软约束 + RSG 推理状态图 + 系统 1 高置信快答，**同输入必得同输出** |
+| 审计 | 七段审计报告（概要/轨迹/证据/约束/𝕌/证明证书/可复现）+ 霍尔证明证书 + 签名审计账本（哈希链 + HMAC） |
+| 不幻觉 | LLM 只在感知（NL→JSON）与解释两端，强制标 `UNVERIFIED_LLM` + `mayHallucinate`，**绝不进入决策链与证明链** |
+| 具身 | 声明式能力契约接入任意身体；规划 → SAFE-STOP → 执行 → 有界重规划闭环 |
+| 接入设备 | 30 条协议登记（**仅 `ws`/`modbus-tcp`/`mqtt` 已实装真实驱动**）+ 17 张规范卡 + 9 类字节解码器，无硬件也能跑软件路径 |
+| 工具数 | **62**（实测 `TOOLS` 数组）；其中 5 项需接入 KB 才可用，**如实单列不计入绿色通过** |
+| 自测 | `--selftest` → **核心 52 项通过** + 如实披露 6 项已知未实现能力 |
+| 依赖 | 零第三方运行时依赖；灵数求解器为**可选**依赖（缺失时 `algebraic_solve` 单项诚实降级） |
 
-> 部署时 `lingnao-mcp.js` 与 `灵脑.html` 需同目录（或设 `LINGNAO_HTML` 环境变量）。
+**不保证**：绝对安全、绝对正确、不漏解、能连所有真机。
+M2 数值证书带 `h ≥ −1/B²` 辅助域松弛；M1/M4 为静态/语法层检查；
+**副作用面完备性经自查工具检测为"不成立"**（`proveGateChain` 的结论只对走 `execute()` 的物理动作有效）。
+这是设计上的诚实边界，不是待修缺陷 —— 详见 [04 · 技术参考](docs/04-技术参考.md) 第六节。
 
 ---
 
-## 许可与分发
+## 文档
 
-**商业授权（非开源）**。本仓库采用「灵脑商业授权许可协议」，**不是 MIT、不是开源**。
+| 文档 | 内容 |
+|---|---|
+| [01 · 产品作用](docs/01-产品作用.md) | 它是什么、解决什么问题、给谁用、能力与边界、对外口径红线 |
+| [02 · 使用指南](docs/02-使用指南.md) | 三种形态上手、MCP 配置、环境变量、物理接入用法、自测与常见问题 |
+| [03 · 设计思想](docs/03-设计思想.md) | 六条设计原则、不幻觉怎么做、fail-closed 落点、三面导出约束、有意不做的事 |
+| [04 · 技术参考](docs/04-技术参考.md) | 仓库结构、62 工具全表、接入模块技术细节、M1–M4 摘要、验证体系与已知缺陷 |
+| [05 · 应用场景](docs/05-应用场景.md) | 五类可落地场景（Agent 后端 / 具身 / 设备接入 / 合规审计 / 教学）与**不适用**场景 |
+| [06 · 商业授权与收费](docs/06-商业授权与收费.md) | 许可模型、免费范围、商业授权范围、授权要素、发票与收款、商务流程 |
+| [07 · 授权合同](docs/07-授权合同.md) | 商业授权合同模板、关键条款说明、签署流程 |
+| [08 · 版本管理](docs/08-版本管理.md) | 版本号语义、发布前一致性清单、兼容性承诺、版本历史 |
+| [09 · 项目历史](docs/09-项目历史.md) | 从"通用大脑"到可审计内核的阶段沿革与关键决策 |
+| [10 · 形式化证明规格](docs/10-形式化证明规格.md) | M1–M4 的完整规格（附录） |
+| [11 · 机器与协议目录](docs/11-机器与协议目录.md) | 设备类全集、协议标准出处、规范卡清单（附录） |
 
-- **非商业用途**（个人学习 / 研究 / 教学评测、非营利与教育机构内部使用）**免费**，须保留 LICENSE 声明。
-- **任何商业用途**均须事先取得版权方书面《商业授权协议》，未授权禁止。
-- 详情见仓库根目录 **LICENSE** 文件。
+---
+
+## 许可（摘要）
+
+**非商业免费 + 商业须书面授权**（自有《灵脑商业授权许可协议》，**不是开源协议**）：
+
+- **非商业用途免费**：个人学习 / 研究 / 教学 / 评测；非营利组织与教育机构内部使用；
+  年营收 ≤ 100 万元的团队内部评估（同时运行实例 ≤ 3 个）。须保留版权与许可声明。
+- **商业用途须事先取得书面授权**：任何以营利为目的的产品 / 服务 / 业务，SaaS / 云 / API 对外提供能力（**无论是否收费**），
+  集成嵌入商业发行物，再分发 / 转授权 / 对外托管 —— 均须《商业授权协议》。
+- 「灵脑 / LingNao」为版权方商标，本许可不授予商标使用权。
+
+完整条款见 [LICENSE](LICENSE) ｜ 授权范围见 [06 · 商业授权与收费](docs/06-商业授权与收费.md) ｜ 合同见 [07 · 授权合同](docs/07-授权合同.md)
+
+---
+
+## 两个独立产品，勿混淆
+
+| 产品 | 是什么 | 仓库 | npm |
+|---|---|---|---|
+| **灵脑 LingNao**（本仓库） | **大脑**：感知 / 规划 / 审计 / 学习 / 具身裁决 | `genesis-plan/lingnao` | `lingnao-mcp` |
+| **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk 认证） | `genesis-plan/lingshu-solver` | `lingshu-solver` |
+
+灵脑**不重写求解逻辑**：`algebraic_solve` **委派**给灵数真引擎。灵数是**可选依赖** —— 不装它，其余能力照常运行，仅该项诚实降级。
 
 ---
 
@@ -150,8 +121,13 @@ node lingnao-mcp.js --selftest      # 零依赖内核自检（含 grounding 不�
 | 渠道 | 入口 |
 |---|---|
 | GitHub（主仓） | <https://github.com/genesis-plan/lingnao> — 克隆即跑 |
-| npm | `npx -y lingnao-mcp`（自测全绿） |
-| MCP 市场（Smithery / Glama / mcp.so） | 搜索 `lingnao-mcp` 或粘贴仓库 URL |
-| 在线试用 | 控制台：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html> ／ Playground：<https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html> |
+| npm | `npx -y lingnao-mcp` |
+| MCP 市场 | Smithery / Glama / mcp.so 搜索 `lingnao-mcp`，或粘贴仓库 URL |
+| 在线试用 | [控制台](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html) ／ [Playground](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html) |
 
-**跑通自测（你也能验证不幻觉）**：`node lingnao-mcp.js --selftest`。
+---
+
+## 联系
+
+- 商务 / 授权 / 反馈：553420544@qq.com（亦可用仓库 Issues）
+- 版权方：广州市红尘灵境数字科技有限公司

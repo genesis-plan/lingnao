@@ -27,8 +27,8 @@
 LingNao reimplements no solving logic: `algebraic_solve` **delegates** to LingShu.
 LingShu is an **optional dependency** — without it LingNao still works, that one tool degrades honestly.
 
-## Tools (46 total)
-`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`
+## Tools (62 total)
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`
 
 ### Recommended call sequence (plain reasoning)
 1. `world_info` — inspect the world graph
@@ -77,16 +77,22 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 灵脑不重写求解逻辑：`algebraic_solve` 委派给灵数真引擎。灵数是**可选依赖**，
 不装它灵脑其余能力照常运行，仅该项诚实降级。
 
-## 工具（共 46 个）
-`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`
+## 工具（共 62 个）
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`
 
 ## 诚实边界
 - 无世界知识、无开放域语言能力；离线时感知降级
 - 世界模型为 lite（线性 SEM）、因果为 PC-lite、规划基于有限图
 - 8 类数学尚未实装（MPC、SOS/SDP 障碍证书、一般 LP 求解器、一般非线性可达集等）
 
+## 诚实注记（Honest notes）
+- 62 项中 `knowledge_query` / `knowledge_add` / `knowledge_ann` / `knowledge_distill` / `cog_graph` 需接入 KB 知识库，
+  未接入时恒返 `available:false`；自测中如实单列为「已知未实现能力」，不计入绿色通过。
+- 物理接入模块 30 条协议中仅 `ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余为「仅建档、需硬件」。
+- 本内核为确定性、可审计系统，不声称「绝对安全」；M2 数值证书带 h ≥ −1/B² 辅助域松弛。
+
 ## 更多
 - 项目说明: ./README.md
-- 形式化证明模块规格: ./FORMAL-PROOF-MODULE-SPEC.md
-- 物理接入模块指南: ./ACCESS-MODULE-GUIDE.md
-- 设备目录: ./lingnao-machine-catalog.md
+- 形式化证明规格: ./docs/10-形式化证明规格.md
+- 技术参考（含物理接入模块）: ./docs/04-技术参考.md
+- 机器与协议目录: ./docs/11-机器与协议目录.md

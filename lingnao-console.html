@@ -119,8 +119,8 @@
 </div>
 
 <script src="lingnao.umd.js"></script>
-<script src="lingnao-body-bridge.js"></script>
-<script src="lingnao-body-library.js"></script>
+<script src="module/lingnao-body-bridge.js"></script>
+<script src="module/lingnao-body-library.js"></script>
 <script>
 (function(){
   "use strict";
@@ -128,7 +128,7 @@
   const LIB = window.LingNaoBodyLibrary;
   const brain = document.getElementById('brainState');
   if(!L){ brain.textContent='❌ 未找到 lingnao.umd.js（与本页放同一目录）'; return; }
-  if(!LIB){ brain.textContent='❌ 未找到 lingnao-body-library.js'; return; }
+  if(!LIB){ brain.textContent='❌ 未找到 module/lingnao-body-library.js'; return; }
 
   const CAPS_DEFAULT = [
     {id:'step_CHARGE_A', pre:s=>s.location==='CHARGE', eff:s=>{s.location='A';}, cost:1},
@@ -245,7 +245,7 @@
         show('manualBox', false);
       } catch (e) {
         // 桥未起 → 诚实降级 + 引导粘贴清单
-        setProbe('✅ 灵脑识别协议为「' + d.proto + '」，但浏览器无法直连工业协议，且未检测到本地 Node 桥（' + e.message + '）。请先运行 node lingnao-body-bridge-node.js，或粘贴变量清单识类。', 'ok');
+        setProbe('✅ 灵脑识别协议为「' + d.proto + '」，但浏览器无法直连工业协议，且未检测到本地 Node 桥（' + e.message + '）。请先运行 node module/lingnao-body-bridge-node.js，或粘贴变量清单识类。', 'ok');
         show('manualBox', true); show('clsResult', false); show('anchorBox', false); show('liveBox', false);
       }
     }
@@ -288,7 +288,7 @@
     const st = document.getElementById('stLive');
     if(lastSession!=null){ st.className='status ok'; st.textContent='已通过 Node 桥连接设备，状态每 2s 刷新（见上方样本）'; return; }
     if(!lastUrl){ st.className='status err'; st.textContent='❌ 请先「自动探测并识别」成功'; return; }
-    if(typeof LingNaoBridge === 'undefined'){ st.className='status err'; st.textContent='❌ 未找到 lingnao-body-bridge.js'; return; }
+    if(typeof LingNaoBridge === 'undefined'){ st.className='status err'; st.textContent='❌ 未找到 module/lingnao-body-bridge.js'; return; }
     st.className='status mut'; st.textContent='实时连接中…';
     if(bridge){ try{bridge.disconnect();}catch(e){} bridge=null; }
     bridge = LingNaoBridge.createBodyBridge(lastUrl, {timeout:5000, onLog:function(){},

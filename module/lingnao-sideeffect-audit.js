@@ -23,7 +23,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const KERNEL = path.join(__dirname, '灵脑.html');
+const KERNEL = path.join(__dirname, '..', '灵脑.html');
 if (!fs.existsSync(KERNEL)) { console.error('找不到内核 灵脑.html'); process.exit(1); }
 
 const src = fs.readFileSync(KERNEL, 'utf8');

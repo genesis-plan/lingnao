@@ -4,7 +4,7 @@
 name: lingnao
 displayName: 灵脑 LingNao（可审计·不幻觉通用大脑）
 description: >-
-  本地确定性、可审计的推理大模型（非概率生成式 LLM）。对外以 MCP stdio 暴露 46 个工具：
+  本地确定性、可审计的推理大模型（非概率生成式 LLM）。对外以 MCP stdio 暴露 62 个工具：
   免费 LLM 感知(NL→JSON) / 世界图 / A* 可审计推理 / 七段审计+霍尔证明 / 代数方程求解(委派灵数求解器) /
   因果 do 演算 / 元认知 / 具身层(规划-执行-安全停车-重规划闭环)。零依赖、零安装、不幻觉。
 startCommand:
