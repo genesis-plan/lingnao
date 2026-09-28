@@ -12,9 +12,24 @@
  *
  * 零依赖：仅用 Node 内置 vm / fs / path。内核从 HTML 抽取复用，单一真源。
  */
+
+/**
+ * ── 信任架构铁律（de Bruijn 准则的灵脑版本）──
+ * 本文件中的 `certifyDecisionLogic` 与其调用的七类确定性验证器 `V_c`
+ * （_auditOneAlgebraic / _auditOneConstraint / _auditOneNumericSafety /
+ *  _auditOnePath / _auditOneAuthorized / _auditOneCausal / _auditOneConformal）是灵脑**唯一可信内核**。
+ * 其中 `_auditOneCausal` 用 do-calculus（后门/前门准则）判定因果效应可识别性，
+ * `_auditOneConformal` 用 split conformal 分位数引理把「无知弃权 𝕌」升级为「带量化风险界 α 的诚实弃权」。
+ * 其上层（MCP 网关、任何 LLM / 智能体经 `claimedProperties` 传入的声明）
+ * 一律**不可信**，其产物必须且只经该内核核验，不得被直接采信。
+ * 任何代码路径都不得绕过 `certifyDecisionLogic` 直接产出 `trusted` 裁决
+ * （对应 Coq/Lean 的「内核必须自己拒绝坏项，不能靠上层自觉」；
+ *  见 Lean 内核 soundness bug #14576 的旁路教训）。
+ */
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const crypto = require('crypto');
 
 const HTML = process.env.LINGNAO_HTML || process.env.LINGJING_HTML || path.join(__dirname, '灵脑.html');
 const SELFTEST = process.argv.includes('--selftest');
@@ -1230,7 +1245,61 @@ const TOOLS = [
       required: [],
     },
   },
+  {
+    name: 'audit_evidence',
+    description: '【灵脑面向智能体的旗舰能力】合规证据批审（AI Agent 审计场景，先智能体落地的首个交付场景）：对一批被审声明逐条委派确定性内核验证，无法确定性验证的一律 𝕌 诚实弃权、绝不假装核过。kind=algebraic→灵数求解器（区间收缩+Krawczyk 认证）独立复算并比对声明值；kind=constraint→紧致性陷阱检约束族全局矛盾（THM_COMPACTNESS）；kind=numeric_safety→M2 全域安全不变式证书；kind=path→A* 重算比对声明路径与代价；其他 kind→unverified(𝕌)。输出审计师可直接使用的证据报告：确定性 reportId（sha256，同输入同内核版本可离线重算）、逐条 verdict（verified/refuted/unverified）+证明引用、汇总、AIUC-1 D 域(Reliability)控制项参考映射（仅为映射，非认证声明）。  / EN: LingNao flagship capability for agents. Compliance evidence batch audit for AI-agent claims: each item is delegated to a deterministic kernel verifier (algebraic → lingshu-solver interval/Krawczyk re-derivation and claim matching; constraint → compactness trap THM_COMPACTNESS; numeric_safety → M2 global safety-invariant certificate; path → A* re-derivation vs claimed path/cost); anything else honestly abstains (𝕌). Emits an auditor-ready evidence report with deterministic reproducible reportId (sha256), per-item verdicts + proof references, summary, and an AIUC-1 Domain-D reference mapping (a mapping, NOT a certification).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          description: '待核声明列表（≤200 条）。每项 {id?, kind, text?, …载荷}。载荷按 kind：algebraic→{equations:string[], variables?, domain?, claimed?:{变量名:数值}}；constraint→{constraints:[{id?, interval:[lo,hi]}]}（≥2 项才有紧致性意义）；numeric_safety→{hExpr, vars:string[], domain?:{变量:[lo,hi]}, bound?}；path→{start, goal, claimedPath?:string[], claimedCost?:number, hard?, soft?}。text 为人类可读的声明原文，仅入档展示、不参与判定。',
+        },
+        caseLabel: { type: 'string', description: '（可选）案卷标注（被审 Agent 名称/批次号）。仅展示用，不参与 reportId 计算' },
+      },
+      required: ['items'],
+    },
+  },
+  {
+    name: 'certify_decision',
+    description: '【灵脑裁判层旗舰能力 · 产品重新定位为"证明决策"而来】对智能体提出的**一个具体决策**做可信裁判：接收结构化决策记录 {action, context, claimedProperties:[{property, class, payload}]}，把每个声明 class 委派给确定性内核验证器（algebraic→灵数 Krawczyk 区间认证；constraint→紧致性陷阱 THM_COMPACTNESS；numeric_safety→M2 全域安全不变式证书；path→A* 重算比对；authorized→M4 EffectGate 授权闸），输出 DecisionCertificate：decisionVerdict(trusted / untrusted / abstain) + 逐属性 proofObject(定理 id + 证明步骤) + 防篡改 reportId(sha256)。灵脑**只裁判、不提议**——运动员(智能体)生成动作，裁判(灵脑)判定动作是否安全/正确/授权，职责分离（运动员不能同时是裁判）。任何不可确定性验证的声明一律 𝕌 诚实弃权，绝不输出"大概没错"。  / EN: LingNao referee-layer flagship (repositioned to "prove decisions"): certify one concrete agent decision. Receives {action, context, claimedProperties:[{property, class, payload}]}, delegates each claim class to a deterministic kernel verifier, emits a DecisionCertificate with decisionVerdict(trusted/untrusted/abstain) + per-property proofObject + tamper-evident reportId(sha256). LingNao judges only — it never proposes actions (referee ≠ athlete).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        decisionId: { type: 'string', description: '（可选）调用方决策 id；缺省由 sha256(决策) 派生' },
+        action: { type: 'string', description: '智能体决定执行的动作（自由文本，仅入档；裁判不生成动作）' },
+        context: { type: 'object', description: '（可选）决策前状态 / 世界快照，仅入档' },
+        claimedProperties: {
+          type: 'array',
+          description: '智能体对本次决策声明的属性列表（≤200）。每项 {property, class, payload}。class∈{algebraic, constraint, numeric_safety, path, authorized}；payload 同 audit_evidence 对应 kind 的载荷（algebraic→{equations,variables?,domain?,claimed?}；constraint→{constraints:[{id?,interval:[lo,hi]}]}；numeric_safety→{hExpr,vars,domain?,bound?}；path→{start,goal,claimedPath?,claimedCost?,hard?,soft?}；authorized→{effectKind}）。',
+        },
+      },
+      required: ['claimedProperties'],
+    },
+  },
 ];
+
+// ── 单一入口网关（2026-09-24 用户拍板：对外只暴露 1 个工具，62 个能力全部收进 op 参数）──
+// 内核与 62 个能力零改动；仅 MCP 暴露面收敛为「一道门」，与 M4 完全中介思想自洽。
+const GATEWAY = (() => {
+  const index = TOOLS.map(t => {
+    const d = String(t.description || '').split(/[；。;]/)[0].replace(/\s+/g, ' ').slice(0, 56);
+    return t.name + '=' + d;
+  }).join('；');
+  return {
+    name: 'lingnao',
+    description: '灵脑 LingNao 可审计推理内核 · 唯一入口。用 op 指定能力（下方能力索引的键名），args 传该能力的参数。'
+      + '能力索引：' + index,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        op: { type: 'string', description: '能力名（原工具名）', enum: TOOLS.map(t => t.name) },
+        args: { type: 'object', description: '该能力的参数（同原工具 inputSchema）', additionalProperties: true },
+      },
+      required: ['op'],
+    },
+  };
+})();
 
 // ---------- 2b. Layer 2 确定性安全陷阱层 + CLF-CBF 统一 QP（2026-09-02 MCP 暴露）----------
 function bertrandTrapLogic(N) { return K.bertrandTrap(N); }
@@ -1330,6 +1399,527 @@ function safetyAuditLogic(args) {
   return K.safetyLayersReport(control);
 }
 
+// ---------- 3b. 合规证据批审 audit_evidence（灵脑面向智能体的旗舰能力；先智能体落地的首个交付场景）----------
+// 原则（与灵脑三铁律一致）：
+//   ① 只认确定性内核结果——验证器说话，声明文本不参与判定；
+//   ② 无法确定性验证 ⇒ 一律 unverified(𝕌) 诚实弃权，绝不冒充通过（fail-closed）；
+//   ③ 报告可复现——reportId = sha256(稳定序列化(items) + ALGO_VERSION + SEED)，
+//      同输入同内核版本可离线重算，审计师无需重跑模型即可核对报告未被篡改。
+function _stableStringify(v) {
+  if (Array.isArray(v)) return '[' + v.map(_stableStringify).join(',') + ']';
+  if (v && typeof v === 'object') {
+    return '{' + Object.keys(v).sort().map(function (k) { return JSON.stringify(k) + ':' + _stableStringify(v[k]); }).join(',') + '}';
+  }
+  return JSON.stringify(v);
+}
+function _numEq(a, b, tol) {
+  return typeof a === 'number' && typeof b === 'number' && isFinite(a) && isFinite(b) && Math.abs(a - b) <= (tol || 1e-6) * Math.max(1, Math.abs(a), Math.abs(b));
+}
+/**
+ * ── 决策版反射证明（proof by reflection, decision edition）──
+ * 下列五个 _auditOne* 与 Coq 的 `ring` 战术**结构同构**：
+ *   1) reify（反射）：把智能体的声明属性 pᵢ 反射成可计算的语法对象（payload）；
+ *   2) 正确性定理：底层数学定理（Krawczyk / Helly / CBF / A* / 完全中介）
+ *      保证「判定即真」；
+ *   3) 计算闭合：跑确定性计算（区间算术 / 两两求交 / A* 重算 / EffectGate 查表）
+ *      直接得出 verified / refuted / 𝕌。
+ * 逻辑有效性在此被降解为可离线复算的符号计算——这正是灵脑高效、可审计的根因。
+ */
+function _auditOneAlgebraic(it) {
+  const claimed = it.claimed && typeof it.claimed === 'object' ? it.claimed : null;
+  if (!Array.isArray(it.equations) || !it.equations.length) {
+    return { verdict: 'unverified', U: true, reason: 'algebraic 载荷缺 equations（非空字符串数组）⇒ 无可复核对象 ⇒ 𝕌', engine: null };
+  }
+  const aso = K.algebraicSolve({ equations: it.equations, variables: it.variables, domain: it.domain });
+  if (!aso || aso.available !== true) {
+    return { verdict: 'unverified', U: true, reason: '灵数求解器不可用 ⇒ 无法独立复算（fail-closed，不假装通过）', engine: null, detail: aso && aso.error };
+  }
+  const evidence = { engine: aso.engine, resultTypeName: aso.resultTypeName, solutionCount: aso.solutionCount, certified: !!aso.certified, solutions: aso.solutions };
+  if (!claimed) {
+    return { verdict: 'unverified', U: true, reason: '未提供 claimed（被审声明值）⇒ 解出了真解集但无可比对对象 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
+  }
+  if (aso.resultTypeName === 'empty') {
+    return { verdict: 'refuted', U: false, reason: '灵数严格证明该方程组无实数解 ⇒ 声明的任何取值组合均不可能成立（engine: ' + aso.engine + '）', engine: aso.engine, evidence: evidence, theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'no-real-root', proof: ['Krawczyk 认证：X∩K(X)=∅ ⇒ 方程组无实数解', '声明假定存在实数解组合 ⇒ 与认证空集矛盾 ⇒ 被证伪'] };
+  }
+  if (!aso.certified) {
+    return { verdict: 'unverified', U: true, reason: '解集未全部通过 Krawczyk 认证（tier 非 proven）⇒ 不足以支撑 verified 或 refuted（fail-closed）', engine: aso.engine, evidence: evidence };
+  }
+  // 逐变量比对：claimed 中每个变量名须在某个认证解里取值一致（相对容差 1e-6）
+  const varNames = Array.isArray(aso.varNames) && aso.varNames.length ? aso.varNames : (aso.solutions[0] ? aso.solutions[0].text.split(',').map(s => s.split('=')[0].trim()) : []);
+  const missing = Object.keys(claimed).filter(cn => varNames.indexOf(cn) < 0);
+  if (missing.length) {
+    return { verdict: 'unverified', U: true, reason: 'claimed 含解集变量之外的键：' + missing.join(',') + '（解集变量：' + varNames.join(',') + '）⇒ 比对无意义 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
+  }
+  let matched = null;
+  for (const sol of aso.solutions) {
+    let ok = true;
+    for (const cn of Object.keys(claimed)) {
+      const vi = varNames.indexOf(cn);
+      if (!_numEq(sol.values[vi], claimed[cn])) { ok = false; break; }
+    }
+    if (ok) { matched = sol; break; }
+  }
+  if (matched) {
+    return { verdict: 'verified', U: false, reason: '灵数独立复算（区间收缩+Krawczyk 认证）得到认证解集，声明值与其中一解一致（' + matched.text + '）', engine: aso.engine, evidence: evidence, theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'no-real-root', proof: ['灵数对方程组做区间收缩 + Krawczyk 算子认证', '得到 certified=true 的认证解集（逐解 residual 通过）', '声明值与认证解集中某一解逐变量一致(容差 1e-6) ⇒ 声明被确认'] };
+  }
+  return { verdict: 'refuted', U: false, reason: '灵数独立复算得到认证解集，但其中不含声明值组合 ⇒ 声明被确定性证伪', engine: aso.engine, evidence: evidence, theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'no-real-root', proof: ['灵数独立复算得到认证解集', '其中不含声明值组合 ⇒ 声明被确定性证伪'] };
+}
+function _auditOneConstraint(it) {
+  const cs = Array.isArray(it.constraints) ? it.constraints : null;
+  if (!cs || cs.length < 2) {
+    return { verdict: 'unverified', U: true, reason: 'constraint 载荷需 ≥2 项约束（紧致性论证的前提）⇒ 𝕌', engine: null };
+  }
+  const r = K.compactnessTrap(cs);
+  if (r.verdict === 'unsafe') {
+    return { verdict: 'refuted', U: false, reason: '紧致性陷阱检出矛盾约束对 ⇒ 声明「可同时满足」被定理级证伪（' + r.theorem + '）', engine: 'lingnao-kernel ' + r.theorem, evidence: r, theorem: 'THM_COMPACTNESS', certKind: 'constraint-feasibility', proof: ['逐对区间求交，检出矛盾约束对', '有限子集已不可满足 ⇒ 由紧致性(逆否)全局更不可满足', '声明「可同时满足」被定理级证伪'] };
+  }
+  if (r.verdict === 'safe') {
+    return { verdict: 'verified', U: false, reason: '约束族两两一致 ⇒ 紧逻辑下全局可满足、无隐藏全局矛盾（' + r.theorem + '；' + r.checkedPairs + ' 对）', engine: 'lingnao-kernel ' + r.theorem, evidence: r, theorem: 'THM_HELLY_R1', certKind: 'constraint-feasibility', proof: ['全部约束对两两求交非空', 'R¹ 区间族由 Helly 定理(d=1)两两一致⇒全体一致 ⇒ 全局可满足、无隐藏全局矛盾'] };
+  }
+  return { verdict: 'unverified', U: true, reason: r.reason || '紧致性陷阱无法判定 ⇒ 𝕌', engine: 'lingnao-kernel ' + r.theorem, evidence: r };
+}
+function _auditOneNumericSafety(it) {
+  if (typeof it.hExpr !== 'string' || !Array.isArray(it.vars) || !it.vars.length) {
+    return { verdict: 'unverified', U: true, reason: 'numeric_safety 载荷需 hExpr（表达式字符串）与 vars（变量名数组）⇒ 𝕌', engine: null };
+  }
+  const r = K.certifySafetyInvariant({ hExpr: it.hExpr, vars: it.vars, domain: it.domain, bound: it.bound, dynamics: it.dynamics });
+  if (r.verdict === 'verified') {
+    const fi = r.forwardInvariant ? ' 已追加验证前向不变性（barrier certificate / CBF 条件 ∇h·f+α(h)≥0，Nagumo 1942 / Ames 2016）⇒ 真安全证书。' : '';
+    return { verdict: 'verified', U: false, forwardInvariant: !!r.forwardInvariant, reason: 'M2 全域安全证书：' + (r.meaning || '域内恒成立') + fi, engine: 'lingnao-M2 certifySafetyInvariant', evidence: r, theorem: (r.theorem || 'THM_KRAWCZYK_CERTIFY'), certKind: 'safety-invariant', proof: r.forwardInvariant ? ['Krawczyk 认证：盒式域内 h≥-1/B² 恒成立', 'CBF 条件 ∇h·f+α(h)≥0 经同一 Krawczyk 机理独立认证(Nagumo 1942 / Ames 2016)', '安全集 C={h≥0} 对给定动力学前向不变 ⇒ 真安全证书'] : ['Krawczyk 认证：盒式域内 h≥-1/B² 恒成立(默认 B=1e6 ⇒ 容差 1e-12)', '未提供动力学 ⇒ 仅证「集合非负」，非「轨迹留内」'] };
+  }
+  if (r.verdict === 'violated') {
+    return { verdict: 'refuted', U: false, reason: 'M2 给出域内违反点（候选反例，residual 为强证据）：声明「恒满足」不应被采信。' + (r.verifyHint || ''), engine: 'lingnao-M2 certifySafetyInvariant', evidence: r, theorem: null, certKind: 'safety-invariant', proof: ['灵数给出候选反例(域内 h<0 点)', 'residual 为强证据但非认证 ⇒ 需回代校验', '声明「恒满足」不应被采信'] };
+  }
+  return { verdict: 'unverified', U: true, reason: 'M2 未签发证书：' + (r.reason || r.tier || '计算边界') + ' ⇒ 𝕌（诚实降级，非不安全）', engine: 'lingnao-M2 certifySafetyInvariant', evidence: r };
+}
+function _auditOnePath(it) {
+  if (typeof it.start !== 'string' || typeof it.goal !== 'string') {
+    return { verdict: 'unverified', U: true, reason: 'path 载荷需 start/goal（世界图节点名）⇒ 𝕌', engine: null };
+  }
+  const r = K.reason(it.start, it.goal, { hard: it.hard || [], soft: it.soft || [] });
+  if (r.status !== 'optimal') {
+    return { verdict: 'unverified', U: true, reason: 'A* 无法在当前世界图判定该起终点（' + (r.U ? '不可判定区域 𝕌' : r.status) + '）⇒ 声明无法核验 ⇒ 𝕌', engine: 'lingnao-A*', evidence: { status: r.status } };
+  }
+  const evidence = { optimalPath: r.path, cost: r.cost, usedSystem: r.system || r.usedSystem };
+  if (!Array.isArray(it.claimedPath) && typeof it.claimedCost !== 'number') {
+    return { verdict: 'unverified', U: true, reason: 'A* 已重算出最优路径（cost=' + r.cost + '），但声明未含 claimedPath/claimedCost ⇒ 无可比对对象 ⇒ 𝕌', engine: 'lingnao-A*', evidence: evidence };
+  }
+  const pathOk = !Array.isArray(it.claimedPath) || (it.claimedPath.length === r.path.length && it.claimedPath.every((n, i) => n === r.path[i]));
+  const costOk = typeof it.claimedCost !== 'number' || _numEq(it.claimedCost, r.cost, 1e-6);
+  if (pathOk && costOk) {
+    return { verdict: 'verified', U: false, reason: 'A* 重算与声明一致（path=' + r.path.join('→') + '，cost=' + r.cost + '）。A* 最优性的载荷前提：引擎启发式须可采纳(admissible)且一致(consistent)，否则 optimal 标签不成立（Hart–Nilsson–Raphael 1968）。本判定信任内核 reason() 的一致性启发式。', engine: 'lingnao-A*', evidence: evidence, theorem: 'THM_ASTAR_OPTIMAL', certKind: 'optimal-path', proof: ['A* 在有限世界图重算最优路径(cost=' + r.cost + ')', '声明 path/cost 与重算一致', 'A* 最优性前提：启发式可采纳(admissible)+一致(consistent)(Hart–Nilsson–Raphael 1968)'] };
+  }
+  return { verdict: 'refuted', U: false, reason: 'A* 重算与声明不符（真实最优 path=' + r.path.join('→') + ' cost=' + r.cost + '）⇒ 声明被确定性证伪', engine: 'lingnao-A*', evidence: evidence, theorem: 'THM_ASTAR_OPTIMAL', certKind: 'optimal-path', proof: ['A* 重算真实最优 path=' + r.path.join('→') + ' cost=' + r.cost, '声明与之不符 ⇒ 确定性证伪'] };
+}
+function _auditOneAuthorized(it) {
+  // 授权判定（M4 EffectGate 机制）：动作效应类别是否被当前策略放行
+  const effKind = (it && (it.effectKind || (it.payload && it.payload.effectKind))) || null;
+  if (!effKind) return { verdict: 'unverified', U: true, reason: 'authorized 载荷需 effectKind（动作效应类别，如 read / emit / process / eval）⇒ 𝕌', engine: null };
+  if (!K.EffectGate) return { verdict: 'unverified', U: true, reason: 'M4 EffectGate 未导出 ⇒ 无法核授权 ⇒ 𝕌（fail-closed）', engine: null };
+  const hardDeny = ['PROCESS', 'EVAL']; // 内核恒定硬拒绝，不可经配置放行
+  if (hardDeny.indexOf(effKind) >= 0) {
+    return { verdict: 'refuted', U: false, reason: '效应类别 "' + effKind + '" 属 M4 硬拒绝（PROCESS/EVAL 不可经配置放行）⇒ 该动作无授权、授权声明被确定性证伪', engine: 'lingnao-M4 EffectGate', evidence: { effKind: effKind }, theorem: null, certKind: 'authorization', proof: ['M4 EffectGate 恒定硬拒绝 PROCESS/EVAL', '声明该动作被授权 ⇒ 与硬拒绝矛盾 ⇒ 确定性证伪'] };
+  }
+  const snap = (typeof K.EffectGate.policySnapshot === 'function') ? K.EffectGate.policySnapshot() : null;
+  const allowed = snap && Array.isArray(snap.allowedKinds) ? snap.allowedKinds : ((K.EFFECT_KINDS && K.EFFECT_KINDS.allowed) ? K.EFFECT_KINDS.allowed : null);
+  if (Array.isArray(allowed)) {
+    if (allowed.indexOf(effKind) >= 0) return { verdict: 'verified', U: false, reason: '效应类别 "' + effKind + '" 在当前策略放行表内 ⇒ 授权声明被确认', engine: 'lingnao-M4 EffectGate', evidence: { effKind: effKind, snapshot: snap }, theorem: 'THM_COMPLETE_MEDIATION', certKind: 'authorization', proof: ['EffectGate 策略放行表含 "' + effKind + '"', 'M4 完整中介保证副作用出口经此闸 ⇒ 授权声明被确认'] };
+    return { verdict: 'refuted', U: false, reason: '效应类别 "' + effKind + '" 不在当前策略放行表 ⇒ 未授权、授权声明被确定性证伪', engine: 'lingnao-M4 EffectGate', evidence: { effKind: effKind, snapshot: snap }, theorem: null, certKind: 'authorization', proof: ['EffectGate 策略放行表不含 "' + effKind + '"', '未放行 ⇒ 授权声明被确定性证伪'] };
+  }
+  return { verdict: 'unverified', U: true, reason: 'EffectGate 策略无明确放行表（仅硬拒绝 PROCESS/EVAL 可判）⇒ 授权不可判定 ⇒ 𝕌', engine: 'lingnao-M4 EffectGate', evidence: { effKind: effKind, snapshot: snap } };
+}
+
+// ============================================================================
+//  因果可识别性裁判（class='causal'）与 conformal 风险界裁判（class='conformal'）
+//  数学根基（#381/#382/#383/#384 落点，用户指令"用数学原理创造性的解决"）：
+//   · causal  —— Pearl 1995 do-calculus；后门准则(Pearl 1993)/前门准则(Pearl 1995)；
+//                Tian&Pearl 2002 可识别性的充分必要识别条件（"无双向路径连接 X 与其子孙"）；
+//                Shpitser&Pearl 2006 ID 算法 sound&complete 的精神。
+//                灵脑裁判层**只做图结构可识别性判定**（给定因果图，效应能否从观测分布识别），
+//                不做数值 ACE 估计（那需数据，超出确定性内核范畴）；不可识别则诚实 𝕌(provably_unidentifiable)。
+//   · conformal —— Angelopoulos&Bates 2021 (arXiv:2107.07511) Lemma 1 split conformal 分位数引理：
+//                q̂ = Quantile({s_i}∪{∞}, ⌈(n+1)(1−α)⌉/(n+1)) ⇒ 边际覆盖 P(Y∈C(X)) ≥ 1−α（分布自由、仅需 exchangeability）。
+//                把"无知弃权 𝕌"升级为"带量化风险界 α 的诚实弃权"：若决策因 conformal 不可判而 abstain，
+//                其残留误信风险被 α 上限约束（对应用户"abstain 带 α 注解"要求）。
+// ============================================================================
+
+// ---------- do-calculus 图结构辅助（确定性、离线、可重算）----------
+function _causalWithStruct(nodes, edges, unobserved) {
+  const parents = {}; const children = {};
+  nodes.forEach(function (n) { parents[n] = []; children[n] = []; });
+  edges.forEach(function (e) { const u = e[0], v = e[1]; if (children[u]) children[u].push(v); if (parents[v]) parents[v].push(u); });
+  return { nodes: nodes.slice(), edges: edges, unobserved: unobserved.slice(), parents: parents, children: children };
+}
+function _causalBuildDAG(graph) {
+  const nodes = (Array.isArray(graph.nodes) ? graph.nodes : []).map(String);
+  const edges = (Array.isArray(graph.edges) ? graph.edges : []).map(function (e) { return Array.isArray(e) ? [String(e[0]), String(e[1])] : null; }).filter(Boolean);
+  const unobserved = (Array.isArray(graph.unobserved) ? graph.unobserved : []).map(String);
+  return _causalWithStruct(nodes, edges, unobserved);
+}
+function _causalStripOut(G, src) {
+  return _causalWithStruct(G.nodes, G.edges.filter(function (e) { return e[0] !== src; }), G.unobserved);
+}
+function _causalDescendants(G, x) {
+  const seen = {}; const stack = [x];
+  while (stack.length) { const u = stack.pop(); (G.children[u] || []).forEach(function (v) { if (!seen[v]) { seen[v] = true; stack.push(v); } }); }
+  return seen;
+}
+// d-分离（Pearl 1988）：直接枚举骨架上所有简单路径，逐三元组判阻。小因果图（treatment/outcome + 少量调整/中介节点）代价可忽略，且结果无歧义。
+function _causalPaths(G, a, b) {
+  const adj = {}; G.nodes.forEach(function (n) { adj[n] = []; });
+  G.edges.forEach(function (e) { adj[e[0]].push(e[1]); adj[e[1]].push(e[0]); });
+  const out = []; const path = [a]; const seen = {}; seen[a] = true;
+  (function dfs(u) {
+    if (u === b) { out.push(path.slice()); return; }
+    adj[u].forEach(function (v) { if (!seen[v]) { seen[v] = true; path.push(v); dfs(v); path.pop(); seen[v] = false; } });
+  })(a);
+  return out;
+}
+function _causalIsCollider(G, u, v, w) {
+  return G.parents[v].indexOf(u) >= 0 && G.parents[v].indexOf(w) >= 0; // u→v←w
+}
+function _causalDsep(G, a, b, Z) {
+  if (a === b) return false;
+  const zset = {}; Z.forEach(function (z) { zset[z] = true; });
+  const descInZ = {};
+  Object.keys(zset).forEach(function (z) { const d = _causalDescendants(G, z); Object.keys(d).forEach(function (k) { descInZ[k] = true; }); });
+  const paths = _causalPaths(G, a, b);
+  if (!paths.length) return true; // 无路径 ⇒ 平凡 d-分离
+  for (let p = 0; p < paths.length; p++) {
+    let blocked = false;
+    for (let i = 1; i < paths[p].length - 1; i++) {
+      const v = paths[p][i];
+      const isColl = _causalIsCollider(G, paths[p][i - 1], v, paths[p][i + 1]);
+      if (isColl) {
+        if (!(zset[v] || descInZ[v])) { blocked = true; break; } // 碰撞器未解阻塞 ⇒ 该三元组阻断路径
+      } else {
+        if (zset[v]) { blocked = true; break; } // 链/叉的中点被观测 ⇒ 阻断
+      }
+    }
+    if (!blocked) return false; // 存在一条开放路径 ⇒ d-connected ⇒ 不分离
+  }
+  return true; // 所有路径均被阻断 ⇒ d-分离
+}
+// 后门准则：Z 满足 ⇔ (i) Z 不含 X 的后代；(ii) 在删去 X 出边的图 G_α 中 Z d-分离 X 与 Y
+function _causalBackdoorOk(G, X, Y, Z) {
+  const dX = _causalDescendants(G, X);
+  for (let i = 0; i < Z.length; i++) if (dX[Z[i]]) return { ok: false, why: '调整集含 X 的后代「' + Z[i] + '」（违反后门准则条件一）' };
+  const Galpha = _causalStripOut(G, X);
+  return { ok: _causalDsep(Galpha, X, Y, Z), why: _causalDsep(Galpha, X, Y, Z) ? '后门路径被 Z 阻断' : '后门路径未被 Z 阻断' };
+}
+// 前门准则：X→Z→Y，Z 阻断所有指向 Y 的有向路径、X 与 Z 无未测混杂、X 阻断 Z→Y 后门
+function _causalFrontdoorOk(G, X, Y, Zm) {
+  const inZ = {}; Zm.forEach(function (z) { inZ[z] = true; });
+  // (i) 无避开中介 Z 的有向路径 X→Y
+  const seen = {}; const stack = [X]; let avoidsZ = false;
+  while (stack.length) { const u = stack.pop(); if (u === Y) { avoidsZ = true; break; } (G.children[u] || []).forEach(function (v) { if (!seen[v] && !inZ[v]) { seen[v] = true; stack.push(v); } }); }
+  if (avoidsZ) return { ok: false, why: '存在避开中介 Z 的有向路径 X→Y（前门(i)失败）' };
+  // (ii) X 与 Z 间无未测混杂：在 G_α（删 X 出边）中 X _||_ Z | ∅
+  if (!_causalDsep(_causalStripOut(G, X), X, Zm[0], [])) return { ok: false, why: 'X 与中介 Z 间存在未阻断后门（前门(ii)失败：未测混杂）' };
+  // (iii) X 阻断 Z→Y 后门：在 G_β（删 Z 出边）中 Z _||_ Y | {X}
+  if (!_causalDsep(_causalStripOut(G, Zm[0]), Zm[0], Y, [X])) return { ok: false, why: 'Z 到 Y 的后门路径未被 X 阻断（前门(iii)失败）' };
+  return { ok: true, why: '前门三条件成立' };
+}
+// 确定性枚举子集（size≤k，字典序），供后门调整集自动搜索
+function _subsetsUpTo(arr, k) {
+  const out = [[]];
+  for (let size = 1; size <= Math.min(k, arr.length); size++) {
+    const idx = new Array(size); for (let i = 0; i < size; i++) idx[i] = i;
+    while (true) {
+      out.push(idx.map(function (i) { return arr[i]; }));
+      let i = size - 1;
+      while (i >= 0 && idx[i] === arr.length - size + i) i--;
+      if (i < 0) break;
+      idx[i]++; for (let j = i + 1; j < size; j++) idx[j] = idx[j - 1] + 1;
+    }
+  }
+  return out;
+}
+// split conformal 分位数（含 ∞ 增广集的第 ⌈(n+1)(1−α)⌉ 个）
+function _quantileSortedAsc(sortedAsc, p) {
+  if (p <= 0) return sortedAsc[0];
+  if (p >= 1) return sortedAsc[sortedAsc.length - 1];
+  const i = Math.ceil(p * sortedAsc.length) - 1;
+  return sortedAsc[Math.max(0, Math.min(sortedAsc.length - 1, i))];
+}
+
+// ---------- 因果可识别性裁判（do-calculus）----------
+function _auditOneCausal(it) {
+  const g = it.graph;
+  if (!g || !Array.isArray(g.nodes) || !g.nodes.length) {
+    return { verdict: 'unverified', U: true, reason: 'causal 载荷需 graph（{nodes, edges, unobserved?}）⇒ 无因果图则无法做可识别性判定 ⇒ 𝕌', engine: null };
+  }
+  const G = _causalBuildDAG(g);
+  const X = String(it.treatment), Y = String(it.outcome);
+  if (!X || G.nodes.indexOf(X) < 0 || !Y || G.nodes.indexOf(Y) < 0) {
+    return { verdict: 'unverified', U: true, reason: 'causal 载荷需 treatment/outcome 均为 graph 内节点名 ⇒ 𝕌', engine: 'lingnao-do-calculus' };
+  }
+  // 0) 智能体显式给出调整集 ⇒ 内核重验（Sledgehammer 重建：声明仅当 oracle，内核独立复核）
+  if (Array.isArray(it.adjustmentSet) && it.adjustmentSet.length) {
+    const Z = it.adjustmentSet.map(String);
+    const bd = _causalBackdoorOk(G, X, Y, Z);
+    if (bd.ok) {
+      return { verdict: 'verified', U: false, reason: 'do-calculus 后门准则成立（按智能体所给调整集 Z={' + Z.join(',') + '} 复核）：① 不含 X 后代；② 阻断所有指向 X 的后门路径。效应可识别：P(y|do(x)) = Σ_z P(y|x,z)·P(z)（Pearl 1993 后门准则；Tian&Pearl 2002 识别条件）。', engine: 'lingnao-do-calculus', theorem: 'THM_CAUSAL_BACKDOOR', certKind: 'causal-identifiability', proof: ['内核独立复核智能体所给调整集 Z', 'Z 不含 X 后代 且 阻断后门路径 ⇒ 后门准则成立', '识别公式 P(y|do(x))=Σ_z P(y|x,z)P(z)'], evidence: { adjustmentSet: Z, criterion: 'back-door' } };
+    }
+    return { verdict: 'refuted', U: false, reason: '智能体所给调整集 Z={' + Z.join(',') + '} 不满足后门准则（' + bd.why + '）⇒ 「经此后门识别」的声明被确定性证伪', engine: 'lingnao-do-calculus', theorem: null, certKind: 'causal-identifiability', proof: ['内核独立复核 Z', '后门准则未成立（' + bd.why + '）⇒ 识别声明被证伪'] };
+  }
+  // 1) 后门自动搜索：在「观测 ∩ 非 X 后代」节点中确定性穷举子集（size≤4）找满足后门准则的调整集
+  const observed = G.nodes.filter(function (n) { return G.unobserved.indexOf(n) < 0; });
+  const candZ = observed.filter(function (n) { return n !== X && n !== Y && !_causalDescendants(G, X)[n]; });
+  const subsets = _subsetsUpTo(candZ, 4);
+  for (let s = 0; s < subsets.length; s++) {
+    if (_causalBackdoorOk(G, X, Y, subsets[s]).ok) {
+      const Zstr = subsets[s].length ? subsets[s].join(',') : '∅（X,Y 已天然 d-分离，无需调整）';
+      return { verdict: 'verified', U: false, reason: 'do-calculus 后门准则成立：调整集 Z={' + Zstr + '} 满足（① 不含 X 后代；② 阻断所有指向 X 的后门路径）。效应可识别：P(y|do(x)) = Σ_z P(y|x,z)·P(z)（Pearl 1993 后门准则；Tian&Pearl 2002 识别条件）。', engine: 'lingnao-do-calculus', theorem: 'THM_CAUSAL_BACKDOOR', certKind: 'causal-identifiability', proof: ['构建因果 DAG 并标定观测/未观测节点', '在观测非 X-后代节点中确定性穷举调整集（size≤4）', '命中满足后门准则的 Z ⇒ 效应可识别', '识别公式 P(y|do(x))=Σ_z P(y|x,z)P(z)'], evidence: { adjustmentSet: subsets[s], criterion: 'back-door' } };
+    }
+  }
+  // 2) 前门：智能体提供中介 Zm（须非 X,Y、非未观测）
+  const Zm = it.mediator ? (Array.isArray(it.mediator) ? it.mediator.map(String) : [String(it.mediator)]) : null;
+  if (Zm && Zm.length) {
+    if (Zm.indexOf(X) >= 0 || Zm.indexOf(Y) >= 0) {
+      return { verdict: 'refuted', U: false, reason: '中介集含 treatment/outcome（' + Zm.join(',') + '）⇒ 前门准则退化 ⇒ 声明被确定性证伪', engine: 'lingnao-do-calculus', theorem: null, certKind: 'causal-identifiability', proof: ['前门中介须为 X→Y 之间的中间变量，不能是 X 或 Y', '退化 ⇒ 证伪'] };
+    }
+    const fd = _causalFrontdoorOk(G, X, Y, Zm);
+    if (fd.ok) {
+      return { verdict: 'verified', U: false, reason: 'do-calculus 前门准则成立：X→Z→Y，Z 阻断所有指向 Y 的有向路径、X 与 Z 无未测混杂、X 阻断 Z→Y 后门。效应可识别：P(y|do(x)) = Σ_z P(z|x)·Σ_{x′} P(y|x′,z)·P(x′)（Pearl 1995 前门准则；即便存在未观测 X-Y 混杂亦可识别）。', engine: 'lingnao-do-calculus', theorem: 'THM_CAUSAL_FRONTDOOR', certKind: 'causal-identifiability', proof: ['前门(i)：无避开中介 Z 的有向路径 X→Y', '前门(ii)：X 与 Z 间后门被阻断（无未测混杂）', '前门(iii)：X 阻断 Z→Y 后门', '识别公式 P(y|do(x))=Σ_z P(z|x)Σ_{x′}P(y|x′,z)P(x′)'], evidence: { mediator: Zm, criterion: 'front-door' } };
+    }
+    return { verdict: 'refuted', U: false, reason: '提供了中介 ' + Zm.join(',') + ' 但前门准则不成立（' + fd.why + '）⇒ 「经前门识别」的声明被确定性证伪', engine: 'lingnao-do-calculus', theorem: null, certKind: 'causal-identifiability', proof: ['内核独立复核前门三条件', '未全部满足（' + fd.why + '）⇒ 识别声明被证伪'] };
+  }
+  // 3) 均不可识别：诚实 𝕌，标注 provably_unidentifiable（do-calculus ID 算法失败 ⇒ 效应在观测分布下不可识别；灵脑无数据，无法核验具体数值）
+  return { verdict: 'unverified', U: true, reason: '给定因果图下，既无满足后门准则的调整集、也未提供满足前门准则的中介 ⇒ do-calculus 判定该因果效应在观测分布下不可识别（provably unidentifiable）。灵脑不拥有数据，无法核验具体效应数值 ⇒ 诚实弃权 𝕌（非「大概不成立」）。', engine: 'lingnao-do-calculus', theorem: null, certKind: 'causal-identifiability', proof: ['枚举后门调整集（size≤4）均不满足', '无满足前门准则的中介', 'ID 算法式失败 ⇒ 不可识别 ⇒ 𝕌'], evidence: { identifiable: false } };
+}
+
+// ---------- conformal 风险界裁判（split conformal，Angelopoulos&Bates 2021）----------
+function _auditOneConformal(it) {
+  const scores = Array.isArray(it.calibrationScores) ? it.calibrationScores : null;
+  const alpha = (typeof it.alpha === 'number') ? it.alpha : null;
+  if (!scores || scores.length < 2 || alpha == null || alpha <= 0 || alpha >= 1) {
+    return { verdict: 'unverified', U: true, reason: 'conformal 载荷需 calibrationScores（非空数值数组）与 alpha∈(0,1)（目标误覆盖上界）⇒ 𝕌', engine: null };
+  }
+  const n = scores.length;
+  // Lemma 1：q̂ = Quantile({s_i}∪{∞}, ⌈(n+1)(1−α)⌉/(n+1)) ⇒ P(Y∈C(X)) ≥ 1−α（边际、分布自由）
+  const level = Math.ceil((n + 1) * (1 - alpha)) / (n + 1);
+  const aug = scores.slice().sort(function (a, b) { return a - b; }).concat([Infinity]);
+  const qhat = _quantileSortedAsc(aug, level);
+  const riskBound = alpha; // 可保证的边际误覆盖上界
+  const claim = (typeof it.claim === 'string') ? it.claim : 'marginal-risk-bound';
+  if (claim === 'per-decision-safe') {
+    // 智能体声称「这一具体决策以 ≥1−α 概率安全」= 条件/逐点覆盖 ⇒ 超出 conformal 保证（conformal 仅边际）⇒ 过度声明/幻觉
+    return { verdict: 'refuted', U: false, reason: 'conformal 仅提供**边际**覆盖保证 P(Y∈C(X))≥1−α（交换性下、对总体），不保证「这一具体决策」以 ≥1−α 安全（条件/逐点覆盖）。智能体声称逐点安全 ⇒ 属过度声明（hallucination 风险），被确定性证伪。', engine: 'lingnao-conformal', theorem: null, certKind: 'conformal-risk', proof: ['split conformal 保证是边际的（对所有 exchangeable 样本平均）', '「本决策个体安全 ≥1−α」要求条件覆盖，conformal 不提供', '将边际保证当逐点保证 ⇒ 过度声明 ⇒ 证伪'], riskBound: riskBound, alpha: alpha, threshold: qhat };
+  }
+  if (claim === 'marginal-risk-bound') {
+    return { verdict: 'verified', U: false, reason: 'conformal 风险界成立：校准集 n=' + n + '，分位数阈值 q̂=' + qhat + '（水平 ' + level.toFixed(4) + '）⇒ 边际误覆盖 P(Y∉C(X)) ≤ α=' + alpha + ' 由 split conformal 定理保证（Angelopoulos&Bates 2021 Lemma 1；分布自由、仅需 exchangeability）。注：此乃**边际**界，非逐决策条件界。', engine: 'lingnao-conformal', theorem: 'THM_CONFORMAL_COVERAGE', certKind: 'conformal-risk', proof: ['校准分数集大小 n=' + n, 'split conformal 阈值 q̂=Quantile({s_i,∞}, ⌈(n+1)(1−α)⌉/(n+1))=' + qhat, '由引理得边际覆盖 P(Y∈C(X))≥1−α（分布自由）'], riskBound: riskBound, alpha: alpha, threshold: qhat };
+  }
+  return { verdict: 'unverified', U: true, reason: 'conformal claim 类型未知（支持 marginal-risk-bound / per-decision-safe）⇒ 𝕌', engine: 'lingnao-conformal', riskBound: riskBound, alpha: alpha, threshold: qhat };
+}
+
+var _KIND_CERTKIND = {
+  algebraic: 'no-real-root',
+  constraint: 'constraint-feasibility',
+  numeric_safety: 'safety-invariant',
+  path: 'optimal-path',
+  causal: 'causal-identifiability',
+  conformal: 'conformal-risk',
+};
+var _KIND_SCOPE = {
+  algebraic: '方程组实数解集的 Krawczyk 区间认证；覆盖所提供变量在给定盒式域内的代数(多项式/有理)约束。',
+  constraint: '约束族作为区间集合的可满足性 / 矛盾检测；仅当约束均为 1D 区间时可定判。',
+  numeric_safety: '盒式域内安全不变式 h≥-1/B² 的 Krawczyk 认证；提供动力学时追加前向不变性(CBF)认证。',
+  path: '有限世界图上 A* 最优路径的确定性重算与声明比对。',
+  causal: '给定因果图下，因果效应可识别性的 do-calculus 判定（后门/前门准则；Shpitser&Pearl 2006 ID 算法 sound&complete 的精神）；只判结构可识别，不做数值 ACE 估计。',
+  conformal: '给定校准分数集与 α 的 split conformal 边际覆盖风险界；诚实区分边际覆盖与逐点覆盖（Angelopoulos&Bates 2021）。',
+};
+var _KIND_LIMITS = {
+  algebraic: '依赖灵数求解器可用；解集未全认证(tier≠proven)时诚实弃权，不出 verified/refuted；不声称对超越/非多项式方程全局完备；比对容差 1e-6。',
+  constraint: '仅覆盖 1D 区间约束；R^d(d≥2) 一般约束 Helly 条件不足，内核 fail-closed 为 𝕌；不覆盖非线性/逻辑组合约束。',
+  numeric_safety: '维数上限 6 状态+2 辅助变量；带 -1/B² 辅助域松弛(非纯 h≥0)；未给动力学时只证「集合非负」非「轨迹留内」；候选反例需回代校验。',
+  path: '依赖内核 reason() 的可采纳+一致启发式前提(Hart–Nilsson–Raphael 1968)；非有限图/不可判定区域诚实 𝕌；仅比对声明 path/cost。',
+  causal: '只做图结构可识别性判定，需显式因果图(nodes/edges/unobserved)；调整集穷举限 size≤4（更大图可能漏判——诚实标 𝕌 而非误判）；不做数值效应估计（需数据，超出确定性内核）；未提供 mediator 时前门不触发。',
+  conformal: '保证是**边际**的（对 exchangeable 总体），非逐决策条件覆盖；需 calibrationScores 与 α∈(0,1)；阈值 q̂ 用含 ∞ 增广的 split conformal 分位数引理；n 过小时界仍成立但实用价值低。',
+};
+function auditEvidenceLogic(args) {
+  args = args || {};
+  const items = Array.isArray(args.items) ? args.items : [];
+  if (!items.length) return { ok: false, error: 'items 需为非空数组（待核声明列表；每项 {id?, kind, text?, …载荷}）' };
+  const perItem = items.slice(0, 200).map(function (it, idx) {
+    it = it || {};
+    let core;
+    try {
+      if (it.kind === 'algebraic') core = _auditOneAlgebraic(it);
+      else if (it.kind === 'constraint') core = _auditOneConstraint(it);
+      else if (it.kind === 'numeric_safety') core = _auditOneNumericSafety(it);
+      else if (it.kind === 'path') core = _auditOnePath(it);
+      else if (it.kind === 'causal') core = _auditOneCausal(it);
+      else if (it.kind === 'conformal') core = _auditOneConformal(it);
+      else core = { verdict: 'unverified', U: true, reason: 'kind="' + String(it.kind) + '" 无对应确定性验证能力 ⇒ 诚实弃权 𝕌（不假装核过；可核 kind：algebraic / constraint / numeric_safety / path / causal / conformal）', engine: null };
+    } catch (e) {
+      core = { verdict: 'unverified', U: true, reason: '验证过程异常 ⇒ fail-closed 弃权（异常已留痕）：' + (e && e.message), engine: null };
+    }
+    return {
+      idx: idx, id: it.id != null ? it.id : ('item-' + idx), kind: String(it.kind || ''), text: typeof it.text === 'string' ? it.text : null,
+      verdict: core.verdict, U: core.U === true, reason: core.reason, engine: core.engine || null, evidence: core.evidence || null,
+      proofObject: {
+        theorem: core.theorem || null,
+        certKind: core.certKind || (_KIND_CERTKIND[it.kind] || null),
+        proof: core.proof || null,
+        scope: core.scope || (_KIND_SCOPE[it.kind] || null),
+        limitations: core.limitations || (_KIND_LIMITS[it.kind] || null),
+      },
+      formalization: { inProofChain: false, scope: '声明(自然语言/业务表述) → 结构化载荷 it 的形式化由调用方负责', note: 'VPU：形式化步骤在证明链之外——内核不重新推导、亦不担保其正确性；仅对结构化载荷做确定性验证。审计师应把"声明如何变成 it"视为调用方责任，不计入内核证明。' },
+      aiucRef: core.verdict === 'verified' ? ['D-reliability: 声明经确定性验证器确认']
+        : core.verdict === 'refuted' ? ['D-reliability: 声明被确定性验证器证伪（幻觉/错误检出）']
+        : ['D-reliability: 无法确定性验证 ⇒ 如实弃权，不计入可信结论'],
+    };
+  });
+  const count = function (v) { return perItem.filter(x => x.verdict === v).length; };
+  const verified = count('verified'), refuted = count('refuted'), unverified = count('unverified');
+  // reportId 只吃「输入 + 内核版本」：同输入同内核 ⇒ 同 reportId，可离线重算防篡改
+  const ridInput = _stableStringify({ v: 1, algo: K.ALGO_VERSION, seed: K.SEED, items: items.slice(0, 200) });
+  const ridFull = crypto.createHash('sha256').update(ridInput, 'utf8').digest('hex');
+  return {
+    ok: true,
+    reportId: ridFull.slice(0, 16),
+    reportIdFull: ridFull,
+    reportCoverage: { hashedItems: Math.min(items.length, 200), totalItems: items.length, note: items.length > 200 ? 'items>200：reportId 仅覆盖前 200 条，超出部分未进入哈希（建议分批核审）' : 'reportId 覆盖全部条目，可离线重算比对' },
+    generatedAt: new Date().toISOString(), // 仅记录时刻，不参与 reportId
+    caseLabel: typeof args.caseLabel === 'string' ? args.caseLabel : null,
+    kernel: { algoVersion: K.ALGO_VERSION, seed: K.SEED, deterministic: true, offline: true },
+    summary: {
+      total: perItem.length, verified: verified, refuted: refuted, unverified: unverified,
+      hallucinationRisk: refuted > 0 ? 'detected（' + refuted + ' 条声明被确定性证伪）' : 'none-detected（未检出被证伪声明；注意：unverified ≠ 通过）',
+      honesty: '三分口径：verified=确定性验证器确认；refuted=确定性验证器证伪；unverified(𝕌)=无法确定性验证而如实弃权。无第四种「大概没错」。',
+    },
+    items: perItem,
+    aiucReference: {
+      standard: 'AIUC-1 Domain D — Reliability（工具/输出的可靠性与可审计性）',
+      mapping: {
+        'D-防幻觉（hallucination）': '声明必须经确定性验证器（灵数区间认证 / M2 证书 / A* 重算 / 紧致性定理）确认才记 verified；其余一律 𝕌 弃权，从机制上杜绝「未验证却输出结论」。',
+        'D-来源验证（source validation）': '判定只来自内核确定性结果，声明文本与人类直觉不参与判定；证据字段保留引擎名/定理名/解集/反例，可逐条追溯。',
+        'D-工具调用验证（tool call authentication）': '每条验证留痕（kind/engine/verdict/evidence）；reportId=sha256(输入+内核版本) 可离线重算 ⇒ 报告是否被改动可被第三方机械检出。',
+      },
+      disclaimer: '本映射仅说明报告的证据结构对应 AIUC-1 Reliability 域的关注点；灵脑未获 AIUC-1 认证，本报告不构成任何认证或合规结论。',
+    },
+    certificateLayer: {
+      kind: 'decision trust arbiter（智能体决策可信裁判层 / machine-checkable certificate layer）',
+      proves: 'agent decisions (safe / correct / authorized) — NOT mathematical theorems',
+      notA: '数学定理证明器（如 Coq / Lean / Isabelle）—— 它们从公理证明数学定理；灵脑证明的是智能体的具体决策，方程/区间/CBF 只是判定决策的底层手段，不为任意命题做机器证明',
+      claimClasses: {
+        'no-real-root': { theorem: 'THM_KRAWCZYK_CERTIFY', via: 'algebraic', meaning: '方程组无实数解 / 声明值属于认证解集' },
+        'constraint-feasibility': { theorem: 'THM_HELLY_R1 / THM_COMPACTNESS', via: 'constraint', meaning: '1D 区间约束族的可满足性 / 矛盾' },
+        'safety-invariant': { theorem: 'THM_KRAWCZYK_CERTIFY / THM_BARRIER_NAGUMO_CBF', via: 'numeric_safety', meaning: '盒式域内安全不变式 / 前向不变性(CBF)' },
+        'optimal-path': { theorem: 'THM_ASTAR_OPTIMAL', via: 'path', meaning: '有限图上 A* 最优路径的声明比对' },
+        'causal-identifiability': { theorem: 'THM_CAUSAL_BACKDOOR / THM_CAUSAL_FRONTDOOR', via: 'causal', meaning: '给定因果图，效应可识别性（后门/前门）' },
+        'conformal-risk': { theorem: 'THM_CONFORMAL_COVERAGE', via: 'conformal', meaning: 'conformal 边际覆盖风险界 P(误覆盖)≤α' },
+      },
+      failClosed: '不可确定性验证的声明一律诚实返回 𝕌(unverified)，绝不输出「大概没错」式结论；M1/M4 门控链、M3 三层裁决为独立证明能力，不在本批审 claim class 内。',
+    },
+    reproducible: {
+      algorithm: 'audit_evidence v1',
+      reportIdFormula: 'sha256( stableStringify({v:1, ALGO_VERSION, SEED, items[0..200]}) )',
+      note: '同输入 + 同内核版本 ⇒ 同 reportId。审计师无需重跑模型，重算哈希即可核对报告完整性。',
+    },
+  };
+}
+
+// ---------- 3c. 决策可信裁判 certify_decision（产品重新定位为"证明决策"后的一等公民；运动员提议、裁判判定）----------
+// 数学（#378 落点）：决策 D = (action, context, P)，P={p_i} 为智能体对决策的声明属性集；
+//   每 p_i 有 class c_i ∈ {algebraic, constraint, numeric_safety, path, authorized}，对应确定性验证器 V_{c_i}；
+//   V_{c_i}: payload → {verified, refuted, unverified(𝕌)} 为全纯函数（非 LLM、可离线重算）；
+//   决策 verdict Φ(D) 为结构性函数（非概率）：∃ refuted ⇒ untrusted；∀ 可判 verified 且无证伪 ⇒ trusted；否则 abstain。
+//   信任是结构性的，不是 [0,1] 置信——避免"概率化可信"陷阱。
+//   证书完整性：reportId = sha256(stableStringify(D ‖ ALGO_VERSION ‖ SEED)，同决策同内核 ⇒ 同 id，可离线重算防篡改。
+function certifyDecisionLogic(args) {
+  args = args || {};
+  const claimed = Array.isArray(args.claimedProperties) ? args.claimedProperties : [];
+  if (!claimed.length) return { ok: false, error: 'claimedProperties 需非空（智能体对其决策的声明；每项 {property, class, payload}）。灵脑只裁判、不替智能体生成决策。' };
+  const decisionId = (typeof args.decisionId === 'string' && args.decisionId)
+    ? args.decisionId
+    : ('dec-' + crypto.createHash('sha256').update(_stableStringify({ action: args.action, context: args.context, claimed: claimed })).digest('hex').slice(0, 12));
+  const perProp = claimed.slice(0, 200).map(function (it, idx) {
+    it = it || {};
+    const cls = it.class || String(it.kind || '');
+    const pl = (it.payload && typeof it.payload === 'object') ? it.payload : {};
+    let core;
+    try {
+      if (cls === 'algebraic') core = _auditOneAlgebraic(pl);
+      else if (cls === 'constraint') core = _auditOneConstraint(pl);
+      else if (cls === 'numeric_safety') core = _auditOneNumericSafety(pl);
+      else if (cls === 'path') core = _auditOnePath(pl);
+      else if (cls === 'authorized') core = _auditOneAuthorized(pl);
+      else if (cls === 'causal') core = _auditOneCausal(pl);
+      else if (cls === 'conformal') core = _auditOneConformal(pl);
+      else core = { verdict: 'unverified', U: true, reason: 'class="' + cls + '" 无对应确定性裁判能力 ⇒ 诚实弃权 𝕌（可裁判 class：algebraic / constraint / numeric_safety / path / authorized / causal / conformal）', engine: null };
+    } catch (e) {
+      core = { verdict: 'unverified', U: true, reason: '裁判异常 ⇒ fail-closed 弃权（异常已留痕）：' + (e && e.message), engine: null };
+    }
+    const certKind = core.certKind || (_KIND_CERTKIND[cls] || (cls === 'authorized' ? 'authorization' : null));
+    const scope = core.scope || (_KIND_SCOPE[cls] || (cls === 'authorized' ? '动作效应类别是否被当前 M4 EffectGate 策略放行' : null));
+    const limits = core.limitations || (_KIND_LIMITS[cls] || (cls === 'authorized' ? '仅判效应类别是否放行，不判业务层 RBAC/ABAC 语义；硬拒绝 PROCESS/EVAL 恒可判' : null));
+    return {
+      idx: idx,
+      property: (typeof it.property === 'string' && it.property) ? it.property : ('prop-' + idx),
+      class: cls,
+      verdict: core.verdict, U: core.U === true, reason: core.reason,
+      proofObject: { theorem: core.theorem || null, certKind: certKind, proof: core.proof || null, scope: scope, limitations: limits },
+      evidence: core.evidence || null,
+      riskBound: (typeof core.riskBound === 'number') ? core.riskBound : null,
+      alpha: (typeof core.alpha === 'number') ? core.alpha : null,
+    };
+  });
+  const c = function (v) { return perProp.filter(function (x) { return x.verdict === v; }).length; };
+  const verified = c('verified'), refuted = c('refuted'), unverified = c('unverified');
+  // conformal 风险界收集：若决策因 conformal 不可判而 abstain，其残留误信风险由 α 上限约束（把"无知弃权"升级为"量化风险界弃权"）
+  const _conformalBounds = perProp.filter(function (x) { return x.class === 'conformal' && typeof x.riskBound === 'number'; }).map(function (x) { return x.riskBound; });
+  const _maxRiskBound = _conformalBounds.length ? Math.max.apply(null, _conformalBounds) : null;
+  // ── 结构性裁决 Φ(D)（LCF 式：verdict 只能由此内核构造）──
+  // 运动员（智能体）经 claimedProperties 传入的声明**仅当 oracle**（Sledgehammer 重建类比）：
+  // 本函数不采信声明，而是把每条声明重算过 V_c；V_c 无法重建（无内核函数 / 不可判定）则 𝕌，绝不 trusted。
+  // ⚠️ 旁路硬化：'trusted' 在此处是**唯一**赋值点（已 audit 确认全仓仅此一处构造 trusted）；
+  //   任何新增代码路径都不得绕过本 Φ 直接 emit 'trusted'（对应 Lean #14576 的 metaprogramming 绕过内核教训）。
+  let verdict, meaning;
+  const _riskNote = (_maxRiskBound != null) ? '；本决策含 conformal 裁判：若误信，残差误覆盖风险 ≤ α=' + _maxRiskBound + '（split conformal 边际界，非逐决策条件界）' : '';
+  if (refuted > 0) { verdict = 'untrusted'; meaning = '决策含被确定性证伪的声明 ⇒ 不可采信（裁判职责：挡住错误决策）'; }
+  else if (unverified > 0 && verified === 0) { verdict = 'abstain'; meaning = '无任何声明被证伪，但亦无可确定性验证的声明 ⇒ 无法判定，诚实弃权（不自欺）' + _riskNote; }
+  else if (unverified > 0) { verdict = 'abstain'; meaning = '无声明被证伪，但存在不可确定性验证的声明 ⇒ 部分可信、部分弃权' + _riskNote; }
+  else { verdict = 'trusted'; meaning = '所有声明均经确定性验证器确认 ⇒ 决策可信（裁判职责：放行可信任决策）'; }
+  const ridInput = _stableStringify({ v: 1, algo: K.ALGO_VERSION, seed: K.SEED, decision: { action: args.action, context: args.context, claimed: claimed } });
+  const ridFull = crypto.createHash('sha256').update(ridInput, 'utf8').digest('hex');
+  return {
+    ok: true,
+    decisionId: decisionId,
+    reportId: ridFull.slice(0, 16),
+    reportIdFull: ridFull,
+    action: (typeof args.action === 'string') ? args.action : null,
+    context: args.context || null,
+    decisionVerdict: verdict,
+    decisionVerdictMeaning: meaning,
+    summary: { total: perProp.length, verified: verified, refuted: refuted, unverified: unverified, claimedBy: '智能体（运动员：本内核不替其做主、不生成动作）', certifiedBy: '灵脑（裁判：仅判定、不提议）', abstainRiskBound: (verdict === 'abstain') ? _maxRiskBound : null },
+    properties: perProp,
+    certificateLayer: {
+      kind: 'decision trust arbiter（智能体决策可信裁判层 / machine-checkable certificate layer）',
+      proves: 'agent decisions (safe / correct / authorized) — NOT mathematical theorems',
+      notA: '数学定理证明器（Coq / Lean / Isabelle）—— 它们从公理证明数学定理；灵脑证明的是智能体的具体决策，方程/区间/CBF 只是判定决策的底层手段',
+      decisionClasses: {
+        'no-real-root': { theorem: 'THM_KRAWCZYK_CERTIFY', via: 'algebraic' },
+        'constraint-feasibility': { theorem: 'THM_HELLY_R1 / THM_COMPACTNESS', via: 'constraint' },
+        'safety-invariant': { theorem: 'THM_KRAWCZYK_CERTIFY / THM_BARRIER_NAGUMO_CBF', via: 'numeric_safety' },
+        'optimal-path': { theorem: 'THM_ASTAR_OPTIMAL', via: 'path' },
+        'authorization': { theorem: 'THM_COMPLETE_MEDIATION', via: 'authorized' },
+        'causal-identifiability': { theorem: 'THM_CAUSAL_BACKDOOR / THM_CAUSAL_FRONTDOOR', via: 'causal' },
+        'conformal-risk': { theorem: 'THM_CONFORMAL_COVERAGE', via: 'conformal' },
+      },
+      verdictSemantics: { trusted: '全部声明 verified', untrusted: '任一声明 refuted', abstain: '无 refuted 但存在 𝕌（不可确定性验证）' },
+      failClosed: '不可确定性验证的声明一律诚实返回 𝕌；裁判与运动员职责分离（运动员不能同时是裁判）。',
+    },
+    reproducible: {
+      algorithm: 'certify_decision v1',
+      reportIdFormula: 'sha256( stableStringify({v:1, ALGO_VERSION, SEED, decision}) )',
+      note: '同决策 + 同内核版本 ⇒ 同 reportId，可离线重算防篡改；决策证书可事后审计。',
+    },
+    refereeNote: '灵脑不当运动员：本证书只判定决策声明是否被确定性验证器支持，绝不替智能体生成/选择动作。',
+  };
+}
+
 function callTool(name, args) {
   args = args || {};
   switch (name) {
@@ -1398,6 +1988,9 @@ function callTool(name, args) {
     case 'verdict_three_layer': return verdictThreeLayerLogic(args);
     case 'prove_complete_mediation': return proveCompleteMediationLogic(args);
     case 'effect_gate_report': return effectGateReportLogic(args);
+    // ── 合规证据批审（AI Agent 审计场景）──
+    case 'audit_evidence': return auditEvidenceLogic(args);
+    case 'certify_decision': return certifyDecisionLogic(args);
     default: throw new Error('未知工具：' + name);
   }
 }
@@ -1420,11 +2013,26 @@ function handle(msg) {
   const { id, method, params } = msg;
   try {
     if (method === 'initialize') {
-      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.1.1' } } });
+      send({ jsonrpc: '2.0', id, result: { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'lingnao', version: '1.2.0' } } });
     } else if (method === 'tools/list') {
-      send({ jsonrpc: '2.0', id, result: { tools: TOOLS } });
+      send({ jsonrpc: '2.0', id, result: { tools: [GATEWAY] } });
     } else if (method === 'tools/call') {
-      const { name, arguments: a } = params;
+      const p = params || {};
+      let name = p.name, a = (p.arguments || {});
+      if (name === GATEWAY.name) {
+        // 唯一入口：{ op: 能力名, args: 参数 }
+        const inner = a || {};
+        name = inner.op;
+        a = inner.args || {};
+        if (!name || !TOOLS.some(t => t.name === name)) {
+          send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: '未知能力 op=' + String(name), hint: 'op 必须是能力索引中的键名', validOps: TOOLS.map(t => t.name) }, null, 2) }], isError: true } });
+          return;
+        }
+      } else {
+        // 62 个旧工具名已从对外列表删除（2026-09-24 单一入口拍板）：按旧名直调给出明确指引
+        send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify({ error: '工具 "' + String(name) + '" 已并入唯一入口 lingnao', hint: '请改为调用 name="lingnao"，arguments={"op":"' + String(name) + '","args":{…原参数…}}', validOps: TOOLS.map(t => t.name) }, null, 2) }], isError: true } });
+        return;
+      }
       const out = callTool(name, a);
       if (out && typeof out.then === 'function') {
         out.then(res => send({ jsonrpc: '2.0', id, result: { content: [{ type: 'text', text: JSON.stringify(res, null, 2) }] } }))
@@ -1631,6 +2239,88 @@ function selftest() {
     T('runtime-monitor', rm && rm.safe === true && rm.action === 'continue', 'action=' + rm.action);
     const cv = continuousVerifyLogic();
     T('continuous-verify', cv && cv.all === true && Array.isArray(cv.checks), 'checks=' + cv.checks.length);
+    // 合规证据批审（audit_evidence，2026-09-24）：三分口径 verified/refuted/unverified + reportId 确定性可复现
+    const _aeBase = { items: [
+      { id: 'AE-1', kind: 'constraint', text: '声明两个区间约束可同时满足', constraints: [{ id: 'a', interval: [0, 1] }, { id: 'b', interval: [0.5, 2] }] },
+      { id: 'AE-2', kind: 'constraint', text: '预算与报价可同时满足', constraints: [{ id: 'a', interval: [800, 1000] }, { id: 'b', interval: [1200, 1500] }] },
+      { id: 'AE-3', kind: 'free_text', text: '自称市场上最好的选择' },
+    ] };
+    const ae1 = auditEvidenceLogic(_aeBase);
+    T('audit-evidence', ae1.ok === true && ae1.items.length === 3
+      && ae1.items[0].verdict === 'verified' && ae1.items[1].verdict === 'refuted' && ae1.items[2].verdict === 'unverified' && ae1.items[2].U === true
+      && typeof ae1.reportIdFull === 'string' && ae1.reportIdFull.length === 64 && ae1.aiucReference && !!ae1.aiucReference.disclaimer,
+      'v=' + ae1.summary.verified + '/r=' + ae1.summary.refuted + '/u=' + ae1.summary.unverified + ' rid=' + ae1.reportId);
+    const ae2 = auditEvidenceLogic(JSON.parse(JSON.stringify(_aeBase)));
+    T('audit-evidence-reproducible', ae2.reportIdFull === ae1.reportIdFull, 'rid=' + ae2.reportId);
+    // algebraic 路径（灵数是可选依赖：在且认证则严格断言，缺则诚实降级不假绿）
+    const _asoProbe = algebraicSolveLogic({ equations: ['x^2+y^2=25', 'x+y=7'] });
+    if (_asoProbe && _asoProbe.available === true && _asoProbe.certified === true) {
+      const ae3 = auditEvidenceLogic({ items: [
+        { id: 'AE-4', kind: 'algebraic', equations: ['x^2+y^2=25', 'x+y=7'], claimed: { x: 3, y: 4 } },
+        { id: 'AE-5', kind: 'algebraic', equations: ['x^2+y^2=25', 'x+y=7'], claimed: { x: 5, y: 0 } },
+      ] });
+      T('audit-evidence-algebraic', ae3.items[0].verdict === 'verified' && ae3.items[1].verdict === 'refuted',
+        'AE-4=' + ae3.items[0].verdict + ' AE-5=' + ae3.items[1].verdict + ' engine=' + (ae3.items[0].engine || '?'));
+    } else {
+      degraded.push('audit-evidence-algebraic :: 可选依赖 lingshu-solver 未安装/未全认证，algebraic 路径诚实降级为 unverified（非内核缺陷）');
+    }
+    // 决策可信裁判（certify_decision，2026-09-24 产品定位"证明决策"）：运动员提议、裁判判定，结构性 verdict + 防篡改 reportId
+    const _cdTrustedArgs = { action: '去 C 区', context: { node: 'CHARGE' }, claimedProperties: [
+      { property: '两区间约束可同时满足', class: 'constraint', payload: { constraints: [{ id: 'a', interval: [0, 1] }, { id: 'b', interval: [0.5, 2] }] } },
+    ] };
+    const _cdT = certifyDecisionLogic(_cdTrustedArgs);
+    T('certify-decision-trusted', _cdT.ok === true && _cdT.decisionVerdict === 'trusted' && _cdT.properties[0].verdict === 'verified', 'verdict=' + _cdT.decisionVerdict + ' rid=' + _cdT.reportId);
+    const _cdU = certifyDecisionLogic({ action: '报价自洽', claimedProperties: [
+      { property: '预算与报价可同时满足', class: 'constraint', payload: { constraints: [{ id: 'a', interval: [800, 1000] }, { id: 'b', interval: [1200, 1500] }] } },
+    ] });
+    T('certify-decision-untrusted', _cdU.ok === true && _cdU.decisionVerdict === 'untrusted' && _cdU.properties[0].verdict === 'refuted', 'verdict=' + _cdU.decisionVerdict);
+    const _cdA = certifyDecisionLogic({ action: '自称最好', claimedProperties: [
+      { property: '自称市场上最好的选择', class: 'free_text', payload: {} },
+    ] });
+    T('certify-decision-abstain', _cdA.ok === true && _cdA.decisionVerdict === 'abstain' && _cdA.properties[0].verdict === 'unverified' && _cdA.properties[0].U === true, 'verdict=' + _cdA.decisionVerdict);
+    const _cdR2 = certifyDecisionLogic(JSON.parse(JSON.stringify(_cdTrustedArgs)));
+    T('certify-decision-reproducible', _cdR2.reportIdFull === _cdT.reportIdFull && _cdR2.decisionId === _cdT.decisionId, 'rid=' + _cdR2.reportId);
+    if (K.EffectGate) {
+      const _cdAuth = certifyDecisionLogic({ action: '跑流程', claimedProperties: [
+        { property: '该副作用被授权', class: 'authorized', payload: { effectKind: 'PROCESS' } },
+      ] });
+      T('certify-decision-authorized', _cdAuth.ok === true && _cdAuth.properties[0].verdict === 'refuted' && _cdAuth.decisionVerdict === 'untrusted', 'auth=' + _cdAuth.properties[0].verdict + ' verdict=' + _cdAuth.decisionVerdict);
+    } else {
+      degraded.push('certify-decision-authorized :: 内核未导出 M4 EffectGate，authorized 类诚实降级为 𝕌（非内核缺陷）');
+    }
+    // 因果可识别性裁判（do-calculus，#383）：后门 / 前门 / 不可识别 三态
+    const _cdCausalBD = certifyDecisionLogic({ action: '对 X 干预以提升 Y', claimedProperties: [
+      { property: 'X→Y 的因果效应可由后门准则识别', class: 'causal', payload: { treatment: 'X', outcome: 'Y', graph: { nodes: ['X', 'Y', 'Z'], edges: [['Z', 'X'], ['Z', 'Y'], ['X', 'Y']] }, adjustmentSet: ['Z'] } },
+    ] });
+    T('certify-decision-causal-backdoor', _cdCausalBD.ok === true && _cdCausalBD.properties[0].verdict === 'verified' && _cdCausalBD.properties[0].evidence && _cdCausalBD.properties[0].evidence.criterion === 'back-door' && _cdCausalBD.decisionVerdict === 'trusted',
+      'verdict=' + _cdCausalBD.properties[0].verdict + ' Z=' + (_cdCausalBD.properties[0].evidence && JSON.stringify(_cdCausalBD.properties[0].evidence.adjustmentSet)) + ' dec=' + _cdCausalBD.decisionVerdict);
+    const _cdCausalFD = certifyDecisionLogic({ action: '对 X 干预以提升 Y', claimedProperties: [
+      { property: 'X→Y 的因果效应可由前门准则识别（存在未测混杂 U）', class: 'causal', payload: { treatment: 'X', outcome: 'Y', graph: { nodes: ['X', 'M', 'Y', 'U'], edges: [['X', 'M'], ['M', 'Y'], ['U', 'X'], ['U', 'Y']], unobserved: ['U'] }, mediator: 'M' } },
+    ] });
+    T('certify-decision-causal-frontdoor', _cdCausalFD.ok === true && _cdCausalFD.properties[0].verdict === 'verified' && _cdCausalFD.properties[0].evidence && _cdCausalFD.properties[0].evidence.criterion === 'front-door',
+      'verdict=' + _cdCausalFD.properties[0].verdict + ' med=' + (_cdCausalFD.properties[0].evidence && JSON.stringify(_cdCausalFD.properties[0].evidence.mediator)));
+    const _cdCausalUN = certifyDecisionLogic({ action: '对 X 干预以提升 Y', claimedProperties: [
+      { property: 'X→Y 的因果效应可识别', class: 'causal', payload: { treatment: 'X', outcome: 'Y', graph: { nodes: ['X', 'Y', 'U'], edges: [['U', 'X'], ['U', 'Y'], ['X', 'Y']], unobserved: ['U'] } } },
+    ] });
+    T('certify-decision-causal-unident', _cdCausalUN.ok === true && _cdCausalUN.properties[0].verdict === 'unverified' && _cdCausalUN.properties[0].U === true && _cdCausalUN.decisionVerdict === 'abstain',
+      'verdict=' + _cdCausalUN.properties[0].verdict + ' dec=' + _cdCausalUN.decisionVerdict);
+    // conformal 风险界裁判（#384）：边际覆盖 verified / 逐点过度声明 refuted / 量化风险界弃权
+    const _scores = [0.1, 0.2, 0.15, 0.3, 0.05, 0.25, 0.4, 0.35, 0.12, 0.22, 0.18, 0.28, 0.08, 0.33, 0.45, 0.5, 0.6, 0.7, 0.09, 0.27];
+    const _cdConfM = certifyDecisionLogic({ action: '发布风险受限预测', claimedProperties: [
+      { property: '该预测的边际误覆盖 ≤ 0.1', class: 'conformal', payload: { calibrationScores: _scores, alpha: 0.1, claim: 'marginal-risk-bound' } },
+    ] });
+    T('certify-decision-conformal-marginal', _cdConfM.ok === true && _cdConfM.properties[0].verdict === 'verified' && _cdConfM.properties[0].riskBound === 0.1 && _cdConfM.decisionVerdict === 'trusted',
+      'verdict=' + _cdConfM.properties[0].verdict + ' α=' + _cdConfM.properties[0].riskBound + ' qhat=' + _cdConfM.properties[0].alpha);
+    const _cdConfP = certifyDecisionLogic({ action: '发布逐决策安全声明', claimedProperties: [
+      { property: '这一具体决策以 ≥0.9 概率安全', class: 'conformal', payload: { calibrationScores: _scores, alpha: 0.1, claim: 'per-decision-safe' } },
+    ] });
+    T('certify-decision-conformal-pointwise', _cdConfP.ok === true && _cdConfP.properties[0].verdict === 'refuted' && _cdConfP.decisionVerdict === 'untrusted',
+      'verdict=' + _cdConfP.properties[0].verdict + ' dec=' + _cdConfP.decisionVerdict);
+    const _cdConfA = certifyDecisionLogic({ action: '发布未知 claim 的 conformal 预测', claimedProperties: [
+      { property: 'conformal 风险声明（claim 类型未知）', class: 'conformal', payload: { calibrationScores: _scores, alpha: 0.1, claim: 'unknown' } },
+    ] });
+    T('certify-decision-conformal-abstain', _cdConfA.ok === true && _cdConfA.properties[0].verdict === 'unverified' && _cdConfA.decisionVerdict === 'abstain' && _cdConfA.summary.abstainRiskBound === 0.1,
+      'verdict=' + _cdConfA.properties[0].verdict + ' dec=' + _cdConfA.decisionVerdict + ' riskBound=' + _cdConfA.summary.abstainRiskBound);
     // perceive（mock fetch 验证解析链路）
     sandbox.fetch = mockFetchOpenRouter;
     return perceiveLogic('电量80目标C区A蚊子多', 'fake-key').then(async pr => {
@@ -1730,7 +2420,7 @@ function selftest() {
         '不计入绿色通过，如实披露；接入 KB 后才可用）：');
       unimpl.forEach(u => console.log('  ○ ' + u));
       console.log('注：上述 ' + unimpl.length + ' 项为"已知未实现"能力，selftest 不谎称其已可用；' +
-        '产品对外"62 工具"清单中含这些项时须同步标注"需接入 KB"。');
+        '产品对外仅暴露 1 个网关工具 lingnao（内含 ' + TOOLS.length + ' 项能力）；能力清单中含这些项时须同步标注"需接入 KB"。');
     }
     process.exit(0);
   }
@@ -1745,7 +2435,7 @@ if (SELFTEST) {
   // 仅当以 `node lingnao-mcp.js` 直接运行（而非被 require）时，才启动 stdio 服务
   process.stdin.on('data', c => { buf = Buffer.concat([buf, c]); pump(); });
   process.stdin.on('end', () => { /* 等 stdout 自然 flush */ });
-  process.stderr.write('[lingnao-mcp] 已启动，内核载入: ' + K.getWorld().nodes.length + ' 节点 / ' + K.getWorld().edges.length + ' 边；工具 ' + TOOLS.length + ' 个\n');
+  process.stderr.write('[lingnao-mcp] 已启动，内核载入: ' + K.getWorld().nodes.length + ' 节点 / ' + K.getWorld().edges.length + ' 边；对外 1 个网关工具 lingnao（内含 ' + TOOLS.length + ' 项能力，op 分发）\n');
 }
 
 // 库导出：让 examples / 第三方 `require('./lingnao-mcp')` 直接拿到内核（不自启 stdio 服务）

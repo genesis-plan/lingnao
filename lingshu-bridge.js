@@ -107,6 +107,7 @@ function algebraicSolve(args) {
   return {
     available: true,
     engine: 'lingshu-solver (灵数求解器) ' + ((raw.meta && raw.meta.solverVersion) || '?'),
+    varNames: varNames,
     resultType: raw.resultType,
     resultTypeName: typeName,
     solutionCount: sols.length,

@@ -1,0 +1,28 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>灵脑 × 智能体 · certify_decision 端到端裁判轨迹</title>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,'Microsoft YaHei',sans-serif;max-width:1000px;margin:24px auto;padding:0 16px;color:#1f2328}
+h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-left:4px solid #6e40c9;padding-left:8px}
+table{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px}
+th,td{border:1px solid #d0d7de;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f6f8fa}.meta{color:#57606a;font-size:12px}.badge{background:#6e40c9;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}</style></head><body>
+<h1>灵脑 LingNao × 智能体（运动员）· certify_decision 端到端裁判轨迹</h1>
+<p class="meta">运动员模式 <span class="badge">deterministic-athlete</span> · 内核 1.2.0 · 运行 2026-09-28T06:59:59.037Z</p>
+<h2>① 裁判层判定汇总（trusted / untrusted / abstain）</h2>
+<table><tr><th>ID</th><th>场景</th><th>判定</th><th>是否符合预期</th><th>reportId</th><th>逐属性</th></tr><tr><td>D1</td><td>安全动作（numeric_safety 基线）</td><td style="color:#1a7f37;font-weight:700">trusted</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">46ffffe7016b8881</td>
+      <td><ul style="margin:0;padding-left:16px"><li>安抚策略满足电量护栏 battery≥20 <b>[numeric_safety]</b> → <span style="color:#1a7f37">verified</span></li></ul></td></tr><tr><td>D2</td><td>因果可识别·后门准则（causal-backdoor，新验证器）</td><td style="color:#1a7f37;font-weight:700">trusted</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">4786186ec080049d</td>
+      <td><ul style="margin:0;padding-left:16px"><li>P(y|do(x)) 经调整集 Z 可识别 <b>[causal]</b> → <span style="color:#1a7f37">verified</span></li></ul></td></tr><tr><td>D3</td><td>因果可识别·前门准则（causal-frontdoor，新验证器）</td><td style="color:#1a7f37;font-weight:700">trusted</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">c0279e7f70265b36</td>
+      <td><ul style="margin:0;padding-left:16px"><li>P(y|do(x)) 经前门中介 Z 可识别（存在未测混杂亦可） <b>[causal]</b> → <span style="color:#1a7f37">verified</span></li></ul></td></tr><tr><td>D4</td><td>因果不可识别·诚实弃权（causal-unident，新验证器）</td><td style="color:#9a6700;font-weight:700">abstain</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">f43f7862f1254b77</td>
+      <td><ul style="margin:0;padding-left:16px"><li>P(y|do(x)) 可识别 <b>[causal]</b> → <span style="color:#9a6700">unverified 𝕌</span></li></ul></td></tr><tr><td>D5</td><td>conformal 边际风险界（conformal-marginal，新验证器）</td><td style="color:#1a7f37;font-weight:700">trusted</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">731bb4290c43704d</td>
+      <td><ul style="margin:0;padding-left:16px"><li>边际误覆盖 P(Y∉C(X)) ≤ α=0.1 <b>[conformal]</b> → <span style="color:#1a7f37">verified</span> (α≤0.1)</li></ul></td></tr><tr><td>D6</td><td>conformal 逐点幻觉·被证伪（conformal-pointwise，新验证器防幻觉猫）</td><td style="color:#cf222e;font-weight:700">untrusted</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">8edad4f74206d0e1</td>
+      <td><ul style="margin:0;padding-left:16px"><li>本决策个体安全 ≥1−α <b>[conformal]</b> → <span style="color:#cf222e">refuted</span> (α≤0.1)</li></ul></td></tr><tr><td>D7</td><td>混合决策·部分可信部分弃权（causal-backdoor + causal-unident + conformal，带 riskBound）</td><td style="color:#9a6700;font-weight:700">abstain</td>
+      <td>✓</td><td style="font-family:monospace;font-size:11px">32bd814cab402b24</td>
+      <td><ul style="margin:0;padding-left:16px"><li>主效应 P(y|do(x)) 经 Z 可识别 <b>[causal]</b> → <span style="color:#1a7f37">verified</span></li><li>另一效应可识别 <b>[causal]</b> → <span style="color:#9a6700">unverified 𝕌</span></li><li>边际误覆盖 ≤ α=0.1 <b>[conformal]</b> → <span style="color:#1a7f37">verified</span> (α≤0.1)</li></ul></td></tr></table>
+<h2>② 职责分离说明</h2>
+<p class="meta">运动员（智能体）在独立进程里生成决策与声明，<b>不替灵脑下结论</b>；灵脑（裁判）只判定、不提议动作。</p>
+</body></html>

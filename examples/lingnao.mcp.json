@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "lingnao": {
+      "command": "C:/Users/Administrator/.workbuddy/binaries/node/versions/22.12.0/node.exe",
+      "args": ["C:/Users/Administrator/WorkBuddy/2026-08-26-13-10-25/lingnao-mcp.js"],
+      "env": {}
+    }
+  }
+}

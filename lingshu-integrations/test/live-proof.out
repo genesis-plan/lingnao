@@ -1,0 +1,6 @@
+PASS A1 agent-offload certified  {"certified":true,"provenCount":2,"solverVersion":"lingshu-solver/1.0.10-auditable","summary":"找到 2 个实数解（全部经 Krawczyk 区间认证）。"}
+PASS A2 a2a trusted+verify  x,y=[0.923077,0.846154]
+PASS C2 web3 offchain verified  x=[1.098612]
+PASS B3 rpa-finance AUTO_POST  y=[14.69]
+PASS C1 lingjing compute-layer  proven=196
+=== ALL PASS ✅ 灵数已在 5 个场景实测发挥作用 ===

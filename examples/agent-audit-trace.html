@@ -1,0 +1,157 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>灵脑 × 真实智能体 · 端到端审计轨迹</title>
+<style>body{font-family:-apple-system,Segoe UI,Roboto,'Microsoft YaHei',sans-serif;max-width:920px;margin:24px auto;padding:0 16px;color:#1f2328}
+h1{font-size:22px}h2{font-size:16px;margin-top:28px;border-left:4px solid #6e40c9;padding-left:8px}
+pre{background:#f6f8fa;border:1px solid #d0d7de;border-radius:8px;padding:12px;overflow:auto;font-size:12px;line-height:1.5}
+table{border-collapse:collapse;width:100%;margin-top:8px;font-size:13px}
+th,td{border:1px solid #d0d7de;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f6f8fa}.meta{color:#57606a;font-size:12px}
+.badge{display:inline-block;background:#6e40c9;color:#fff;border-radius:6px;padding:2px 8px;font-size:12px}
+</style></head><body>
+<h1>灵脑 LingNao × 真实 LLM 智能体 · 端到端合规审计轨迹</h1>
+<p class="meta">模型 <span class="badge">cohere/north-mini-code:free</span> · 内核 3.1 / 确定性 · 运行 2026-09-28T03:18:58.681Z</p>
+<h2>① 任务（智能体收到的指令）</h2><pre>你是嵌入式合规审计智能体。下面是一家客服 AI Agent 厂商对外宣称的 5 条声明，
+请你用灵脑的 audit_evidence 工具逐条独立核验，最后写一份证据报告。
+判定权在灵脑内核：verified=被确定性证明、refuted=被确定性证伪、unverified(𝕌)=无法确定性验证（诚实弃权，绝不能当真）。
+你只能转述内核结论，不得自行断言某条"已证明"。</pre>
+<h2>② 智能体规划：它决定每条声明用什么 kind / 什么载荷去核</h2><pre>[
+  {
+    "id": "C1",
+    "text": "客服安抚策略：在电量域 [20,100] 内恒满足\"剩余电量 ≥ 20\"（即 battery-20 ≥ 0）。",
+    "kind": "numeric_safety",
+    "hExpr": "battery-20",
+    "vars": [
+      "battery"
+    ],
+    "domain": {
+      "battery": [
+        20,
+        100
+      ]
+    },
+    "bound": 0
+  },
+  {
+    "id": "C2",
+    "text": "安全护栏声明：h = 1-(x²+y²) 在域 [-1,1]² 内恒 ≥ 0。",
+    "kind": "numeric_safety",
+    "hExpr": "1-(x*x+y*y)",
+    "vars": [
+      "x",
+      "y"
+    ],
+    "domain": {
+      "x": [
+        -1,
+        1
+      ],
+      "y": [
+        -1,
+        1
+      ]
+    },
+    "bound": 0
+  },
+  {
+    "id": "C3",
+    "text": "配置求解：方程组 x+y=10, x-y=4 的解为 x=7, y=3。",
+    "kind": "algebraic",
+    "equations": [
+      "x+y=10",
+      "x-y=4"
+    ],
+    "variables": [
+      "x",
+      "y"
+    ],
+    "claimed": {
+      "x": 7,
+      "y": 3
+    }
+  },
+  {
+    "id": "C4",
+    "text": "声称 x²=2 且 x=1（即 x 同时满足两式）。",
+    "kind": "algebraic",
+    "equations": [
+      "x^2=2",
+      "x=1"
+    ],
+    "variables": [
+      "x"
+    ],
+    "claimed": {
+      "x": 1
+    }
+  },
+  {
+    "id": "C5",
+    "text": "导航声明：从 CHARGE 到 C 的最短路为 CHARGE→A→C。",
+    "kind": "path",
+    "start": "CHARGE",
+    "goal": "C",
+    "claimedPath": [
+      "CHARGE",
+      "A",
+      "C"
+    ]
+  }
+]</pre>
+<p class="meta">⚠️ 校正留痕：LLM 规划未解析为数组，已按 canonical 全量重建后核审</p>
+<h2>③ 真实 MCP tools/call → 灵脑内核判定</h2>
+<table><tr><th>ID</th><th>kind</th><th>判定</th><th>内核理由</th></tr><tr><td>C1</td><td>numeric_safety</td><td style="color:#1a7f37;font-weight:700">verified</td><td>M2 全域安全证书：证明：域内不存在使 h &lt; -1/B² 的违反点 ⇒ 安全不变式 h ≥ -1/B² 在该盒式域内恒成立（默认 B=1e6 ⇒ 容差 1e-12；浅层违反 (-1/B², 0) 不在此证书射程内）。</td></tr><tr><td>C2</td><td>numeric_safety</td><td style="color:#9a6700;font-weight:700">unverified (𝕌)</td><td>M2 未签发证书：引擎返回「无解」，但独立回代在域内找到 h &lt; 0 的点 ⇒ 二者矛盾，拒绝签发证书。 ⇒ 𝕌（诚实降级，非不安全）</td></tr><tr><td>C3</td><td>algebraic</td><td style="color:#1a7f37;font-weight:700">verified</td><td>灵数独立复算（区间收缩+Krawczyk 认证）得到认证解集，声明值与其中一解一致（x=7.000000, y=3.000000）</td></tr><tr><td>C4</td><td>algebraic</td><td style="color:#cf222e;font-weight:700">refuted</td><td>灵数严格证明该方程组无实数解 ⇒ 声明的任何取值组合均不可能成立（engine: lingshu-solver (灵数求解器) lingshu-solver/1.0.0-auditable）</td></tr><tr><td>C5</td><td>path</td><td style="color:#1a7f37;font-weight:700">verified</td><td>A* 重算与声明一致（path=CHARGE→A→C，cost=7.242641，A* 最优性保证 ⇒ 该路径为真最优）</td></tr></table>
+<h2>④ reportId（同输入同内核可离线重算，防篡改）</h2><pre>cdd67f78e038291b  (full=cdd67f78e038291ba36d9ec2e19af8a80decb081cedd81d630369eb84f94cc4c)</pre>
+<h2>⑤ 智能体产出的最终证据报告</h2><pre>**证据报告**
+**报告 ID：** `cdd67f78e038291b`
+*审计员可通过使用相同的输入数据和内核版本离线重算报告 ID 以验证报告未被篡改。*
+
+---
+
+### 1. 声明 C1
+**声明：** 数值安全性验证（M2 全域安全证书）。
+**类型：** `numeric_safety`
+**内核判定：** `verified`
+**内核理由：** M2 全域安全证书：证明：域内不存在使 `h &lt; -1/B²` 的违反点 ⇒ 安全不变式 `h ≥ -1/B²` 在该盒式域内恒成立（默认 `B = 1e6` ⇒ 容差 `1e-12`；浅层违反 `(-1/B², 0)` 不在此证书射程内）。
+
+---
+
+### 2. 声明 C2
+**声明：** 数值安全性验证（M2 证书）。
+**类型：** `numeric_safety`
+**内核判定：** `unverified 𝕌`
+**内核理由：** M2 未签发证书：引擎返回「无解」，但独立回代在域内找到 `h &lt; 0` 的点 ⇒ 二者矛盾，拒绝签发证书。
+**附加说明：** 无法确定性验证、不计入可信结论。
+
+---
+
+### 3. 声明 C3
+**声明：** 代数正确性验证（灵数独立复算���。
+**类型：** `algebraic`
+**内核判定：** `verified`
+**内核理由：** 灵数独立复算（区间收缩+Krawczyk 认证）得到认证解集，声明值与其中一解一致（`x = 7.000000, y = 3.000000`）。
+
+---
+
+### 4. 声明 C4
+**声明：** 代数正确性验证（灵数无实数解证明）。
+**类型：** `algebraic`
+**内核判定：** `refuted`
+**内核理由：** 灵数严格证明该方程组无实数解 ⇒ 声明的任何取值组合均不可能成立（engine: lingshu-solver (灵数求解器) lingshu-solver/1.0.0-auditable）。
+
+---
+
+### 5. 声明 C5
+**声明：** 路径正确性验证（A* 最优路径）。
+**类型：** `path`
+**内核判定：** `verified`
+**内核理由：** A* 重算与声明一致（path=CHARGE→A→C，cost=7.242641，A* 最优性保证 ⇒ 该路径为真最优）。
+
+---
+
+**总结：**
+- 已验证声明：C1, C3, C5。
+- 已反驳声明：C4。
+- 未验证声明：C2（无法确定性验证、不计入可信结论）。
+
+所有内核理由均来自灵脑内核的逐条判定。</pre>
+</body></html>

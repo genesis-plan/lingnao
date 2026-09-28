@@ -1,0 +1,6 @@
+ENDPOINT=https://hongchenlingjing.com/mcp
+[health] version=1.0.8 metering=on tools=["solve","give_feedback","pay"]
+[solve] x^2 - 2 = 0 → certified=true proven=? n=2
+[solve] sin(x) - 0.5 = 0 → certified=true proven=? n=196
+[solve] exp(x) - 3 = 0 → certified=true proven=? n=1
+[solve] 3*x + 5*y = 7, 2*x - y = 1 → certified=false proven=? n=0

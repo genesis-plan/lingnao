@@ -2200,6 +2200,26 @@ function _m2SampleRefute(hExpr, vars, dom, opts) {
   return { usable:true, sampled: pts.length, evaluated: evaluated,
            minValue: worst, minAt: worstAt, refuted: (worst < 0), evalError: evalErr };
 }
+// 证明 expr ≥ 0 在 (vars, domain) 上恒成立：编码 expr + _sv² = 0, _sv·_wv = 1，
+// 用 Krawczyk 区间算术证明该方程组无实数解（无实解 ⟺ expr ≥ 0 恒成立：因 expr = -_sv² ≤ 0 与 _sv·_wv=1 矛盾）。
+// 供 certifySafetyInvariant 的「集合非负」与「前向不变(CBF)条件」两证复用，机理与 M2 同。
+function _certifyExprNonneg(expr, vars, dom, BOUND) {
+  var s = '_sv', w = '_wv';
+  var eqs = [ '(' + expr + ') + ' + s + '^2 = 0', s + ' * ' + w + ' = 1' ];
+  var allVars = vars.concat([s, w]);
+  // 深拷贝 domain：与 certifySafetyInvariant 的首证（集合非负）隔离，避免两证共享同一 dom 对象
+  // 被求解器就地改写而互相污染（防御性，非本次失效根因，但保留以免回归）。
+  var domCopy = JSON.parse(JSON.stringify(dom || {}));
+  var r = certifiedNumeric({ equations: eqs, variables: allVars, domain: domCopy, options: {} });
+  if (!r.available) return { available:false, verdict:'unverified', reason: r.note || '灵数求解器未接入' };
+  if (r.provenNoSolution) return { available:true, verdict:'verified', provenNoSolution:true, engine:r.engine, equations: eqs };
+  var sol = r.recommended;
+  if (sol && Array.isArray(sol.values) && sol.values.length >= vars.length) {
+    var pt = {}; vars.forEach(function (v, i) { pt[v] = sol.values[i]; });
+    return { available:true, verdict:'violated', counterexample: pt, engine:r.engine, equations: eqs, residual: sol.residual };
+  }
+  return { available:true, verdict:'unverified', reason:'灵数既未证无解也未给反例（截断/预算耗尽）', engine:r.engine, equations: eqs };
+}
 function certifySafetyInvariant(args){
   args = args || {};
   var hExpr  = args.hExpr;                                        // 不变式表达式字符串，如 "1 - (x^2 + y^2)"
@@ -2281,6 +2301,7 @@ function certifySafetyInvariant(args){
       reason:'灵数求解器未接入 ⇒ 无法 Krawczyk 认证（诚实降级，不假装求解）。',
       detail: r.note || null, provenNoSolution:false, certified:false, equations: eqs };
   }
+  var setVerdict, setOut;
   if (r.provenNoSolution) {
     // 独立防线：引擎说"无解"，仍在域内确定性回代 h，一旦找到 h<0 即判矛盾（宁可不出证书，也不出假证书）
     var refuteDom = {};
@@ -2293,7 +2314,8 @@ function certifySafetyInvariant(args){
         sampled: chk.sampled, engine: r.engine, equations: eqs, domainUsed: dom,
         note:'fail-closed：证明器与事实冲突时一律不出证书。请检查域形态/表达式，或视为引擎缺陷上报。' };
     }
-    return { verdict:'verified', tier:'certified-krawczyk', layer:'computation',
+    setVerdict = 'verified';
+    setOut = { verdict:'verified', tier:'certified-krawczyk', layer:'computation',
       meaning:'证明：域内不存在使 h < -1/B² 的违反点 ⇒ 安全不变式 h ≥ -1/B² 在该盒式域内恒成立（默认 B=1e6 ⇒ 容差 1e-12；浅层违反 (-1/B², 0) 不在此证书射程内）。',
       provenBound: -1 / (BOUND * BOUND),
       provenNoSolution:true, certified:true, engine:r.engine, equations: eqs,
@@ -2305,20 +2327,58 @@ function certifySafetyInvariant(args){
         : { done:false, reason: chk.reason },
       note:'灵数「证明无实数解」—— 单点浮点判定永远做不到这一点。' +
            (missingDom.length ? ' 注意：变量 ' + missingDom.join(',') + ' 未给定域，实际按 ±' + BOUND + ' 认证。' : '') };
+  } else {
+    var sol = r.recommended;
+    if (sol && Array.isArray(sol.values) && sol.values.length >= vars.length) {
+      setVerdict = 'violated';
+      setOut = { verdict:'violated', tier:'candidate-counterexample', layer:'computation',
+        meaning:'域内存在使 h<0 的状态 ⇒ 安全不变式被违反。所给为【候选反例】（欠定系统，引擎未 Krawczyk 认证），需回代校验。',
+        counterexample: (function () { var p = {}; vars.forEach(function (v, i) { p[v] = sol.values[i]; }); return p; })(),
+        fullSolution: sol.values, certified: !!sol.certified,
+        residual: (sol.residual == null ? null : sol.residual),
+        engine: r.engine, equations: eqs,
+        verifyHint:'把 counterexample 代入 hExpr 自行回代校验 h<0；residual 是强证据，但不是认证。' };
+    } else {
+      setVerdict = 'unverified';
+      setOut = { verdict:'unverified', tier:'partially-explored', layer:'computation',
+        reason:'灵数既未证无解、也未给出可用反例（可能截断或预算耗尽）⇒ 计算边界，诚实判 unverified。',
+        resultTypeName: r.resultTypeName, solutionCount: r.solutionCount, equations: eqs };
+    }
   }
-  var sol = r.recommended;
-  if (sol && Array.isArray(sol.values) && sol.values.length >= vars.length) {
-    var pt = {}; vars.forEach(function (v, i) { pt[v] = sol.values[i]; });
-    return { verdict:'violated', tier:'candidate-counterexample', layer:'computation',
-      meaning:'域内存在使 h<0 的状态 ⇒ 安全不变式被违反。所给为【候选反例】（欠定系统，引擎未 Krawczyk 认证），需回代校验。',
-      counterexample: pt, fullSolution: sol.values, certified: !!sol.certified,
-      residual: (sol.residual == null ? null : sol.residual),
-      engine: r.engine, equations: eqs,
-      verifyHint:'把 counterexample 代入 hExpr 自行回代校验 h<0；residual 是强证据，但不是认证。' };
+  // ── 前向不变性（barrier certificate / CBF 条件）────────────────────────────
+  // 仅当集合非负已证、且调用方提供动力学时，追加验证 Nagumo/CBF 条件 ∇h·f + α(h) ≥ 0。
+  // 这是「真安全证书」与「仅集合非负」的分野：集合非空/大 ≠ 轨迹留在集合内（Nagumo 1942 / Prajna-Jadbabaie 2004 / Ames 2016）。
+  // 两种给法：
+  //   · dynamics.lieDerivExpr = ∇h·f（字符串），可选 dynamics.alpha = 系数 γ（默认 1，即 α(h)=γ·h 指数趋近）
+  //     ⇒ 待证 expr = (∇h·f) + γ·(hExpr) ≥ 0
+  //   · dynamics.cbfExpr = 完整 ∇h·f + α(h)（调用方已代入，支持任意 class-K 函数 α）
+  //     ⇒ 待证 expr = cbfExpr ≥ 0
+  if (setVerdict === 'verified' && args.dynamics && ((typeof args.dynamics.lieDerivExpr === 'string' && args.dynamics.lieDerivExpr.length) || (typeof args.dynamics.cbfExpr === 'string' && args.dynamics.cbfExpr.length))) {
+    var Lexpr;
+    if (typeof args.dynamics.cbfExpr === 'string' && args.dynamics.cbfExpr.length) {
+      Lexpr = args.dynamics.cbfExpr;                                       // 调用方已给出完整 ∇h·f + α(h)
+    } else {
+      var gamma = (args.dynamics.alpha == null) ? '1' : String(args.dynamics.alpha);  // α(h)=γ·h（γ>0，默认 1）
+      Lexpr = '(' + args.dynamics.lieDerivExpr + ') + (' + gamma + ')*(' + hExpr + ')';
+    }
+    var pInv = _certifyExprNonneg(Lexpr, vars, dom, BOUND);
+    if (pInv.verdict === 'verified') {
+      setOut.verdict = 'verified'; setOut.forwardInvariant = true;
+      setOut.theorem = 'THM_BARRIER_NAGUMO_CBF';
+      setOut.meaning = (setOut.meaning || '') + ' 且已验证前向不变性：∇h·f + α(h) ≥ 0 在域内恒成立 ⇒ 安全集 C={x:h≥0} 对给定动力学前向不变（barrier certificate / 控制障碍函数）。';
+      setOut.note = (setOut.note || '') + ' 前向不变性用同一 Krawczyk 机理独立认证（Nagumo 1942 / Prajna-Jadbabaie 2004 / Ames 2016）。';
+    } else if (pInv.verdict === 'violated') {
+      setOut = { verdict:'violated', tier:'not-forward-invariant', layer:'computation',
+        meaning:'集合非负虽已证，但 Lie 导数条件 ∇h·f + α(h) ≥ 0 在域内被违反 ⇒ 安全集 C 非前向不变，轨迹可穿越安全边界（Nagumo 定理的反面）。',
+        counterexample: pInv.counterexample, engine: pInv.engine, equations: pInv.equations,
+        note:'声明「系统恒安全」不成立：即使起点落在安全集内，也不保证轨迹留在其中。' };
+    } else {
+      setOut.verdict = 'unverified'; setOut.forwardInvariant = null;
+      setOut.reason = (setOut.reason || '') + ' 集合非负已证，但前向不变性(CBF 条件)未认证 ⇒ 诚实地降为 𝕌。';
+      setOut.note = (setOut.note || '') + ' 提供了动力学但未证不变；若只需「集合非负」证据可忽略 dynamics 参数。';
+    }
   }
-  return { verdict:'unverified', tier:'partially-explored', layer:'computation',
-    reason:'灵数既未证无解、也未给出可用反例（可能截断或预算耗尽）⇒ 计算边界，诚实判 unverified。',
-    resultTypeName: r.resultTypeName, solutionCount: r.solutionCount, equations: eqs };
+  return setOut;
 }
 // ⑥ 三层次裁决表达层（M3 · 不是「证明模块」，是把调用方证言按层归口的路由器）
 //    把任一安全声明的【调用方提供的层事实】归因到【逻辑层 / 计算层 / 工程层】，按层给出降级策略：
@@ -4487,6 +4547,11 @@ function compactnessTrap(constraints, opts) {
   opts = opts || {};
   if (!Array.isArray(constraints) || constraints.length < 2) return { verdict: 'undecided', U: true, theorem: 'THM_COMPACTNESS', reason: '约束少于 2 项 ⇒ 无需紧致性论证 ⇒ 𝕌' };
   function _id(c, i) { return (c && c.id != null) ? c.id : ('#' + i); }
+  function _isInterval(c) {
+    return c && Array.isArray(c.interval) && c.interval.length === 2 &&
+      typeof c.interval[0] === 'number' && typeof c.interval[1] === 'number' &&
+      isFinite(c.interval[0]) && isFinite(c.interval[1]);
+  }
   function _pairConsistent(a, b) {
     if (a.interval && b.interval) return !(a.interval[1] < b.interval[0] - 1e-12 || b.interval[1] < a.interval[0] - 1e-12);
     if (a.feasible !== undefined && b.feasible !== undefined) return a.feasible && b.feasible;
@@ -4498,8 +4563,18 @@ function compactnessTrap(constraints, opts) {
   }
   if (inconsistent.length) return { verdict: 'unsafe', tier: 0, theorem: 'THM_COMPACTNESS', conflictingPairs: inconsistent,
     reason: '存在相互矛盾的约束对 ⇒ 有限子集已不可满足 ⇒ 全局更不可满足（紧致性逆否）⇒ 约束族有全局矛盾，不安全' };
-  return { verdict: 'safe', tier: 0, theorem: 'THM_COMPACTNESS', checkedPairs: constraints.length * (constraints.length - 1) / 2,
-    note: '所有有限（两两）子集一致 ⇒ 在紧逻辑（区间/线性算术）下全局可满足，无隐藏全局矛盾（两两一致即全体一致，由 Helly/紧致性）' };
+  // 一致性（无矛盾对）⇒ 全局可满足性须按维度判定（Helly 定理）：
+  //  · 1D 区间族（每个约束是单变量区间 [lo,hi]）：R¹ 中 pairwise(2-linked)⟺全局交集非空 ⇒ 可判 safe。
+  //  · ≥2D / 非线性 / 非区间约束：R^d 中 Helly 需每 d+1 个相交（而非 pairwise）；存在 pairwise 一致却全局
+  //    不可行的反例（如 C1={x≥0}, C2={y≥0}, C3={x+y≤−1}）⇒ pairwise 一致不足以判全局 ⇒ fail-closed 降为 𝕌。
+  var all1D = constraints.every(_isInterval);
+  if (all1D) {
+    return { verdict: 'safe', tier: 0, theorem: 'THM_HELLY_R1', checkedPairs: constraints.length * (constraints.length - 1) / 2,
+      note: '全部约束为单变量区间且两两（pairwise）一致 ⇒ 由 Helly 定理在 R¹（pairwise⟺全局交集非空）全局可满足，无隐藏全局矛盾。' };
+  }
+  return { verdict: 'unverified', U: true, tier: 0, theorem: 'THM_COMPACTNESS', checkedPairs: constraints.length * (constraints.length - 1) / 2,
+    reason: '约束族含非 1D-区间约束（≥2D 盒 / 线性半空间 / 非线性 / feasibility-only）⇒ pairwise 一致不能推出全局可满足（Helly 在 R^d 需 d+1-wise）⇒ 本检查不足以签发 safe，诚实降为 𝕌。',
+    note: 'fail-closed：高维约束族的全局可满足需更完备的判定（精确 LP / SMT）；此处仅做矛盾对检测（refute-only），绝不谎称 safe。' };
 }
 
 // ── 13d. 范德瓦尔登陷阱（协作序列结构合法性）──

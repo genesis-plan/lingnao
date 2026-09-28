@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lingshu": {
+      "command": "npx",
+      "args": ["-y", "lingshu-solver"]
+    }
+  }
+}
