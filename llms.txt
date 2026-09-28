@@ -5,6 +5,13 @@
 > When a question is undecidable it honestly returns U instead of guessing.
 > LLM output is confined to perception/explanation and never enters the decision or proof chain.
 
+## Positioning (root purpose)
+LingNao is a **certified reasoning substrate** — concretely the **trust arbiter for agent decisions**: it judges whether each agent output/action is safe / correct / authorized and issues a machine-checkable, post-hoc auditable certificate. It does not decide for the agent (referee, not athlete). Other tools (Coq/Lean) prove *theorems* from axioms; LingNao proves *decisions*.
+actions are provably safe / correct / authorized. **Roadmap: agents first, robots later** — the first
+shippable scenario is AI-agent compliance audit (AIUC-1 mandatory controls + offline re-checkable
+`reportId` evidence, via the `audit_evidence` op). It is an embeddable trust anchor, not a standalone SaaS.
+LingJing (cognitive OS) is the orchestrator that embeds LingNao as its certified-reasoning layer.
+
 ## Why use it
 - **Deterministic & reproducible** — identical input always yields identical output.
 - **No hallucination** — the LLM only parses intent; planning is symbolic and auditable.
@@ -27,8 +34,16 @@
 LingNao reimplements no solving logic: `algebraic_solve` **delegates** to LingShu.
 LingShu is an **optional dependency** — without it LingNao still works, that one tool degrades honestly.
 
-## Tools (62 total)
-`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`
+## Tools (single gateway `lingnao`, 63 ops)
+MCP exposes **1 tool** `lingnao`: `arguments = { "op": capabilityName, "args": params }`.
+Calling legacy tool names directly is rejected with guidance.
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`, `audit_evidence`
+
+`audit_evidence` (compliance evidence batch audit, for AI-agent auditing): each claim is delegated to a
+deterministic kernel verifier (algebraic → lingshu interval/Krawczyk re-derivation; constraint → compactness
+theorem; numeric_safety → M2 safety certificate; path → A* re-derivation); anything else honestly abstains as
+`unverified(𝕌)`. Emits an auditor-ready report with deterministic `reportId` (sha256, offline re-checkable)
+and an AIUC-1 Domain-D reference mapping (a mapping, NOT a certification).
 
 ### Recommended call sequence (plain reasoning)
 1. `world_info` — inspect the world graph
@@ -56,6 +71,12 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 > 并给出可追溯的证明链；不可判定时诚实返回 𝕌，绝不编造。
 > 大模型输出被严格限制在感知/解释两端，不进入决策链与证明链。
 
+## 产品定位（根目的）
+灵脑是一个「可证明、不自欺的推理核（certified reasoning substrate）」—— 落到产品上，它是智能体的**可信裁判层（decision trust arbiter）**：对智能体的每个输出/决策做可信判定（安全 / 正确 / 授权），签发可机检、事后可审计的证书。供自主行动的智能体与机器人调用，**不当运动员、不替智能体做主**——
+让动作「安全 / 正确 / 授权」可被证明。**落地顺序：先智能体，后机器人** —— 当前首个可交付场景是
+智能体合规审计（AIUC-1 强制控制项 + 可离线重算的 `reportId` 证据，已有 `audit_evidence`）。
+它是嵌入到别人产品里的信任锚，不是独立 SaaS；灵境（认知 OS）是编排主体，灵脑是被嵌入的认证推理层。
+
 ## 核心特性
 - **确定性可复现**：同样输入必得同样输出
 - **不幻觉**：LLM 只解析意图，规划与审计全在本地符号内核
@@ -77,8 +98,18 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 灵脑不重写求解逻辑：`algebraic_solve` 委派给灵数真引擎。灵数是**可选依赖**，
 不装它灵脑其余能力照常运行，仅该项诚实降级。
 
-## 工具（共 62 个）
-`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`
+## 工具（唯一网关 lingnao，内含 63 项能力）
+MCP 对外只暴露 **1 个工具** `lingnao`：`arguments = { "op": 能力名, "args": 参数 }`，
+`op` 取下表能力名（即原工具名），按旧名直调会被拒绝并返回指引。
+`{"name":"lingnao","arguments":{"op":"reason","args":{"start":"A","goal":"C"}}}`
+
+能力目录（`op` 取值）：
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`, `audit_evidence`
+
+`audit_evidence`（合规证据批审，面向 AI Agent 审计）：对一批被审声明逐条走确定性验证
+（algebraic→灵数区间认证复算 / constraint→紧致性定理检矛盾 / numeric_safety→M2 安全证书 / path→A\* 重算），
+无法确定性验证的一律 `unverified(𝕌)` 诚实弃权；输出带确定性 `reportId`（sha256，可离线重算防篡改）的证据报告，
+含 AIUC-1 D 域(Reliability)控制项**参考映射**（仅为映射，非认证声明）。
 
 ## 诚实边界
 - 无世界知识、无开放域语言能力；离线时感知降级
@@ -86,7 +117,7 @@ LingShu is an **optional dependency** — without it LingNao still works, that o
 - 8 类数学尚未实装（MPC、SOS/SDP 障碍证书、一般 LP 求解器、一般非线性可达集等）
 
 ## 诚实注记（Honest notes）
-- 62 项中 `knowledge_query` / `knowledge_add` / `knowledge_ann` / `knowledge_distill` / `cog_graph` 需接入 KB 知识库，
+- 63 项中 `knowledge_query` / `knowledge_add` / `knowledge_ann` / `knowledge_distill` / `cog_graph` 需接入 KB 知识库，
   未接入时恒返 `available:false`；自测中如实单列为「已知未实现能力」，不计入绿色通过。
 - 物理接入模块 30 条协议中仅 `ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余为「仅建档、需硬件」。
 - 本内核为确定性、可审计系统，不声称「绝对安全」；M2 数值证书带 h ≥ −1/B² 辅助域松弛。
