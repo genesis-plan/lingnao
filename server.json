@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.genesis-plan/lingnao",
+  "title": "LingNao",
+  "description": "Auditable deterministic reasoning MCP server: A* over a world-graph with certified reasoning chains (fail-closed, no hallucination); delegates algebraic solving to lingshu-solver.",
+  "version": "1.2.0",
+  "repository": {
+    "url": "https://github.com/genesis-plan/lingnao",
+    "source": "github"
+  },
+  "websiteUrl": "https://hongchenlingjing.com/verify/",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "lingnao-mcp",
+      "version": "1.2.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
