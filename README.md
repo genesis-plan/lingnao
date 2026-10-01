@@ -1,3 +1,5 @@
+[English](README.en.md)
+
 # 灵脑 LingNao · 可审计确定性推理内核
 
 [![License](https://img.shields.io/badge/license-非商业免费%20%2F%20商业须书面授权-blue)](LICENSE)
