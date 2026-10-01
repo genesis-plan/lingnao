@@ -1,4 +1,4 @@
-[English](README.en.md)
+[English](README.en.md) | [Integration guide / HTTP audit-gate API](https://hongchenlingjing.com/verify/integrate.html) | [Playground](https://hongchenlingjing.com/verify/)
 
 # 灵脑 LingNao · 可审计确定性推理内核
 
