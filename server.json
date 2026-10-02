@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.genesis-plan/lingnao",
   "title": "LingNao",
-  "description": "Auditable deterministic reasoning MCP server: A* over a world-graph with certified reasoning chains (fail-closed, no hallucination); delegates algebraic solving to lingshu-solver.",
-  "version": "1.2.0",
+  "description": "AI number verification API: your AI computes the numbers, LingNao recomputes them independently and returns verified / refuted / unverifiable. No second model in the loop, fail-closed, ~3ms.",
+  "version": "1.3.0",
   "repository": {
     "url": "https://github.com/genesis-plan/lingnao",
     "source": "github"
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "lingnao-mcp",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "transport": {
         "type": "stdio"
       }

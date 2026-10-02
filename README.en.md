@@ -1,17 +1,17 @@
-# LingNao — the audit gate for AI-computed numbers
+# LingNao — AI number verification API
 
 [中文文档](README.md)
 
-An agent or LLM produces numbers. Before anyone acts on them, they need a deterministic check — not another model's opinion. **LingNao is that check**: a fail-closed audit gate that returns one of three verdicts and nothing else.
+Your AI computes numbers. LingNao **recomputes them independently** — no second model, no confidence scores — and returns one of three verdicts: **verified / refuted / unverifiable**. A fail-closed verification API, ~3 ms per call.
 
 ```
 agent / LLM produces numbers
         │
         ▼
-   LingNao gate  ──verified──▶  continue & archive the proof object
+   LingNao API  ──verified──▶  continue & archive the proof id
         │
         ├──refuted──▶  stop, discard, fix the prompt
-        └──unverified─▶  route to a human
+        └─unverified─▶  route to a human
 ```
 
 **There is no fourth verdict.** No "probably fine", no confidence score.
@@ -59,11 +59,15 @@ One gateway tool `lingnao` (64 capabilities under the hood), for agent framework
 
 ## What it refuses — by design
 
-Medical, mental-health, education & training, investment or financial advice, and legal advice are refused with HTTP 422 (`compliance:true`). An audit tool must refuse what it cannot deterministically judge. Inside scope: everyday numbers, formulas, algebraic constraints, logic.
+Medical, mental-health, education & training, investment or financial advice, and legal advice are refused with HTTP 422 (`compliance:true`). A verification service must refuse what it cannot check. Inside scope: everyday numbers, formulas, algebraic constraints, logic.
 
 ## Why not just ask the model again?
 
-Asking the model again gives you a second opinion, not an audit. LingNao's kernel is deterministic and offline: same input, same verdict, with a proof object you can archive for `audit-ready` / `controls-compliant` workflows. Your payload is not stored.
+Asking the model again gives you a second opinion, not a verification. LingNao's kernel is independent and offline: same input, same verdict, with a proof id you can archive for audit-ready workflows. Your payload is not stored.
+
+## Pricing
+
+Browser playground is free. Hosted API: self-service key, ¥0.01 per call — [hongchenlingjing.com/pay/en.html](https://hongchenlingjing.com/pay/en.html).
 
 ## Licence
 

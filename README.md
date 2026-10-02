@@ -1,22 +1,22 @@
-[English](README.en.md) | [Integration guide / HTTP audit-gate API](https://hongchenlingjing.com/verify/integrate.html) | [Playground](https://hongchenlingjing.com/verify/)
+[English](README.en.md) | [API 接入指南（JS / Python / LangChain / OpenAI / MCP 片段）](https://hongchenlingjing.com/verify/integrate.html) | [Playground](https://hongchenlingjing.com/verify/)
 
-# 灵脑 LingNao · 可审计确定性推理内核
+# 灵脑 LingNao · AI 数字验真 API
 
 [![License](https://img.shields.io/badge/license-非商业免费%20%2F%20商业须书面授权-blue)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io)
-[![Deterministic](https://img.shields.io/badge/core-deterministic%20%2F%20non--LLM-green)](docs/03-设计思想.md)
+[![Non-LLM](https://img.shields.io/badge/core-non--LLM%20%2F%20independent%20recompute-green)](docs/03-设计思想.md)
 [![npm](https://img.shields.io/npm/v/lingnao-mcp)](https://www.npmjs.com/package/lingnao-mcp)
 
-> **智能体决策的「可信裁判层（decision trust arbiter / machine-checkable certificate layer）」—— 对智能体的每一个输出/动作做可信任判定（安全 / 正确 / 授权），签发可机检、事后可审计的证书；不是概率生成式大模型，不幻觉。**别人（Coq/Lean）证明定理，灵脑证明决策。**
-> 单文件内核 `灵脑.html` 把「世界图 → A\* 可审计推理 → 物理载体执行 → 审计」封装为单一引擎，
-> 对外以 **MCP stdio / 网页 / UMD 库**三种接口暴露。
-> 零依赖 · 零服务器 · 可离线 · 非商业免费（含非商业 AI Agent），商业须授权。
+> **你的 AI 算出的数字，交给灵脑独立复算——不经第二个模型、没有置信度，只给三个结论：对（verified）/ 错（refuted）/ 证不了（unverifiable，诚实弃权）。** 没有第四种结论，没有「大概没问题」。
+> 内核离线、结果可复现，附可存档的证明凭据；单次调用 ≈ 3ms。
+> 以 **HTTP API / MCP stdio（`npx lingnao-mcp`）/ 网页 playground** 三种方式提供。
+> 零依赖 · 非商业免费，商业须授权。
 
 - 仓库：`genesis-plan/lingnao` · npm：`lingnao-mcp` · 在线试用：[playground](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html) ／ [控制台](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html)
 
 | | 说明 |
 |---|---|
-| **是** | 智能体的**决策可信裁判**：对每一个输出/动作做可信任判定（安全 / 正确 / 授权），给依据链 + 七段审计报告；`audit_evidence` 把每条决策声明升级为带证明步的**证明对象**；`certify_decision` 把智能体提出的**一份具体决策**整体裁判为 `trusted / untrusted / abstain`（运动员提议、裁判判定，职责分离）；不可判定时诚实返回 𝕌 |
+| **是** | **AI 数字验真器**：对 AI/应用产出的数字、算式、逻辑结论做独立复算，给 verified / refuted / unverified 三态 + 可存档证明凭据；持牌领域（医疗/心理/教育/金融建议/法律）一律拒绝（HTTP 422）；不可判定时诚实返回 𝕌 |
 | **不是** | 语言模型（不生成文本、无世界知识）、符号 CAS、"绝对安全"的证明器、"保证不漏"的完备判定器，也不是**数学定理证明器**（Coq/Lean 类：它们从公理证明定理；灵脑证明的是智能体的具体决策，方程 / 区间 / CBF 只是判定决策的底层手段） |
 
 ---

@@ -1,8 +1,8 @@
 {
   "name": "lingnao-mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "mcpName": "io.github.genesis-plan/lingnao",
-  "description": "灵脑 LingNao（世界通用大脑）— 可审计推理 MCP 服务：把「世界图 → A* 可审计推理 → 物理载体执行 → 学习闭环」封装为标准 MCP stdio 服务。零依赖。授权：商业授权 / 非商业免费（个人学习、研究、教学及非营利内部使用免费，商业使用须事先书面授权）。",
+  "description": "LingNao - AI number verification API: your AI computes the numbers, LingNao recomputes them independently and returns one of three verdicts - verified / refuted / unverifiable. No second model in the loop, ~3ms, fail-closed. MCP stdio server, zero dependency. Licence: non-commercial free / commercial by written agreement.",
   "keywords": [
     "mcp",
     "model-context-protocol",
