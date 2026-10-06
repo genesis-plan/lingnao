@@ -20,3 +20,6 @@ _probe_*.js
 _mcp_verify*.js
 _kernel_load.js
 *.jsonl
+
+# API 推送通道临时产物（token 元数据，绝不入库）
+.push-tmp/

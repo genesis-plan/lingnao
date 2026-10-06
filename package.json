@@ -2,19 +2,20 @@
   "name": "lingnao-mcp",
   "version": "1.3.0",
   "mcpName": "io.github.genesis-plan/lingnao",
-  "description": "LingNao - AI number verification API: your AI computes the numbers, LingNao recomputes them independently and returns one of three verdicts - verified / refuted / unverifiable. No second model in the loop, ~3ms, fail-closed. MCP stdio server, zero dependency. Licence: non-commercial free / commercial by written agreement.",
+  "description": "LingNao - a deterministic reasoning SERVICE for ANY AI agent: deliberate planning (A*/deterministic MCTS), causal inference (do-calculus), PAC bounds, and mathematical soundness stress-tests (Baire/compactness/variety/van der Waerden/Cauchy-Lipschitz/Bertrand - each a real theorem). No neural net in the loop, no hallucination, reproducible. Single MCP gateway `lingnao`, zero dependencies.",
   "keywords": [
     "mcp",
     "model-context-protocol",
     "agent",
     "reasoning",
-    "audit",
+    "planning",
+    "causal-inference",
     "a-star",
     "embodied",
     "lingnao",
     "灵脑",
     "世界通用大脑",
-    "可信推理",
+    "确定性推理",
     "物理载体"
   ],
   "bin": {

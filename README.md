@@ -1,37 +1,62 @@
-[English](README.en.md) | [API 接入指南（JS / Python / LangChain / OpenAI / MCP 片段）](https://hongchenlingjing.com/verify/integrate.html) | [Playground](https://hongchenlingjing.com/verify/)
+[English](README.en.md) | [推理方法学与数学定理（地基文档）](docs/00-推理引擎原理与方法学.md) | [API 接入指南](https://hongchenlingjing.com/reason/integrate.html) | [Playground](https://hongchenlingjing.com/reason/)
 
-# 灵脑 LingNao · AI 数字验真 API
+# 灵脑 LingNao · 任意智能体的确定性推理服务
 
 [![License](https://img.shields.io/badge/license-非商业免费%20%2F%20商业须书面授权-blue)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-stdio-blue)](https://modelcontextprotocol.io)
-[![Non-LLM](https://img.shields.io/badge/core-non--LLM%20%2F%20independent%20recompute-green)](docs/03-设计思想.md)
-[![npm](https://img.shields.io/npm/v/lingnao-mcp)](https://www.npmjs.com/package/lingnao-mcp)
+[![Non-LLM](https://img.shields.io/badge/core-non--LLM%20%2F%20deterministic-green)](docs/03-设计思想.md)
+[![npm](https://img.shields.io/badge/npm-lingnao--mcp-blue)](https://www.npmjs.com/package/lingnao-mcp)
 
-> **你的 AI 算出的数字，交给灵脑独立复算——不经第二个模型、没有置信度，只给三个结论：对（verified）/ 错（refuted）/ 证不了（unverifiable，诚实弃权）。** 没有第四种结论，没有「大概没问题」。
-> 内核离线、结果可复现，附可存档的证明凭据；单次调用 ≈ 3ms。
-> 以 **HTTP API / MCP stdio（`npx lingnao-mcp`）/ 网页 playground** 三种方式提供。
-> 零依赖 · 非商业免费，商业须授权。
+> **灵脑是面向「任意智能体」的确定性推理服务层——不做验证、不做审计，只做推理。**
+> 无论你的智能体跑在 Claude、GPT、自研 agent 还是机器人控制器上，只要它能发 MCP 调用，就能用同一个网关 `lingnao`（`op` + `args` → 结构化结论）拿到**确定性、不幻觉、可复现**的推理。
+> 推理能力由真实数学定理支撑：A\*/确定性 MCTS 做深思规划，do-演算做因果推理，PAC/VC 维做不确定性界，**Baire 纲 / 紧致性 / 代数簇 / 范德瓦尔登 / Cauchy–Lipschitz / Bertrand / 鸽笼原理 / 霍尔匹配 / Erdős–Szekeres / 欧拉路径** 共 10 个真实定理做数学健全性压力测试。
+> 完整方法学与定理清单见 [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md)。
 
 - 仓库：`genesis-plan/lingnao` · npm：`lingnao-mcp` · 在线试用：[playground](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html) ／ [控制台](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html)
 
 | | 说明 |
 |---|---|
-| **是** | **AI 数字验真器**：对 AI/应用产出的数字、算式、逻辑结论做独立复算，给 verified / refuted / unverified 三态 + 可存档证明凭据；持牌领域（医疗/心理/教育/金融建议/法律）一律拒绝（HTTP 422）；不可判定时诚实返回 𝕌 |
-| **不是** | 语言模型（不生成文本、无世界知识）、符号 CAS、"绝对安全"的证明器、"保证不漏"的完备判定器，也不是**数学定理证明器**（Coq/Lean 类：它们从公理证明定理；灵脑证明的是智能体的具体决策，方程 / 区间 / CBF 只是判定决策的底层手段） |
+| **是** | **确定性推理服务层**：对智能体/机器人的规划、因果、世界模型、数学健全性做符号推理；同输入必得同输出；不可判定时诚实返回 𝕌（弃权） |
+| **不是** | 语言模型（不生成文本、无世界知识）、审计器、认证器、"绝对安全"的证明器、通用数学定理证明器（Coq/Lean 类），也不是验证/裁判层 |
 
 ---
 
-## 产品定位（root purpose）
+## 为什么"任意智能体"都能用
 
-**灵脑是一个「可证明、不自欺的推理核（certified reasoning substrate）」—— 供在真实世界里自主行动的智能体与机器人调用，让它们的动作「安全 / 正确 / 授权」可被证明。落到产品上，灵脑是智能体的**可信裁判层（decision trust arbiter）**：它不当运动员、不替智能体做主，而是对智能体的每一个输出/决策做可信任判定（安全 / 正确 / 授权），签发一份带证明步、可离线重算、事后可审计的证书（verified / refuted / 𝕌 三态，fail-closed）。**与 Coq/Lean 的区别：它们从公理证明数学定理；灵脑从决策的结构化声明 + 确定性验证器，证明「这个决策可信」。**
+这不是营销话术，而是**接口设计 + 内核性质**共同保证的：
 
-- **落地顺序：先智能体，后机器人。** 当前第一个可交付场景是 **智能体合规审计**（AIUC-1 强制控制项 + 可离线重算的 `reportId` 证据，已有 `audit_evidence` 能力）；在此之上，`certify_decision`（2026-09-24 新增，裁判层旗舰）把"证明决策"落成一等公民——接收智能体一份结构化决策记录，裁判其安全/正确/授权声明，签发可机检防篡改的 DecisionCertificate；机器人 / 具身场景列入路线，后置推进。
-- 它不是一个独立 SaaS，而是**嵌入到别人 Agent / 机器人产品里的信任锚**：当主体需要证明某一步安全、正确或授权时，调灵脑。
-- 与灵境的边界：灵境是认知 / 编排 OS（决定做什么），灵脑是可嵌入的认证推理核（证明那一步），灵境把灵脑作为认证推理层嵌入。
+| 性质 | 含义 | 对任意智能体的意义 |
+|---|---|---|
+| **单一网关** | 只暴露 1 个工具 `lingnao`，靠 `op` 分派 51 项能力 | 任何 MCP 客户端一行配置即可接入，无需为某家 LLM 定制 |
+| **智能体无关语义** | 入参/出参都是结构化 JSON，`op` 是稳定键名 | 不要求智能体说中/英、不绑定任何框架、不依赖特定模型 |
+| **确定性内核** | 同输入 ⇒ 同输出 | 推理可复现、可比对，能直接集成进任何决策回路 |
+| **无神经网络在环** | 推理全是符号/数值确定性计算；可选 LLM 仅在"感知 NL→JSON"与"解释"两端，强制标 `UNVERIFIED_LLM` **且绝不进入推理链** | 不幻觉、不编造、不被 prompt 注入改写出错答案 |
+| **三态诚实语义** | 真 / 假 / 想不了（𝕌 弃权），fail-closed | 智能体拿到的是"可被机器消费"的结论，而非需再判断的自然语言 |
+| **可复现推理账本** | 推理链由 Hoare 逻辑闭合（proof ledger） | 任意智能体都能拿到"为何得此结论"的可验证轨迹 |
+
+---
+
+## 方法学与数学定理（地基）
+
+灵脑的推理能力由**真实数学定理**支撑，不是启发式打分。五大前沿逐一对应：
+
+| # | 前沿 | 方法 | 数学定理 / 形式基础 | 对应 `op` |
+|---|---|---|---|---|
+| ① | **深思规划** | 可搜索推理（非一遍直出） | A\*（可采纳启发式下最优）；确定性 MCTS（UCB1）；Bellman 值迭代 | `reason` · `dmcts` · `plan_task` · `h_max` · `goal_directed` |
+| ② | **因果推理** | 因果图 + do-演算 | Pearl 因果阶梯；do-演算（后门/前门准则）；反事实三步法 | `causal` · `causal_effect` · `counterfactual` |
+| ③ | **不确定性理论** | 样本复杂度界 + 保角预测 | PAC（Valiant 1984）+ VC 维：`m ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε²` | `pac_bound` |
+| ④ | **数学健全性压力测试** | 真实定理做健全性检验 | **Baire 纲 / 紧致性 / 代数簇(Zariski) / 范德瓦尔登(Ramsey) / Cauchy–Lipschitz / Bertrand / 鸽笼原理(Dirichlet) / 霍尔匹配(Hall) / Erdős–Szekeres / 欧拉路径(Euler)** | `baire_trap` · `compactness_trap` · `variety_trap` · `van_der_waerden_trap` · `cauchy_lipschitz_trap` · `bertrand_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps` |
+| ⑤ | **世界模型 / 反事实 / 元认知 / 自演化** | SEM + 不动点 + Hoare + FCA | 结构方程模型；Banach 不动点；Hoare 逻辑 `{P}C{Q}`；形式概念分析 FCA | `world_model` · `perceive_belief` · `meta` · `knowledge_*` · `sl_*` · `ima_*` |
+| ＋ | **具身决策** | 声明式能力契约 + 有界重规划闭环 | 规划→执行→SAFE-STOP→有界重规划（`maxReplans`） | `attach_body` · `get_state`/`set_state`/`state_diff` · `positioning` |
+
+> 逐条定理出处、保证内容与 `op` 对应关系，见 [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md)。
+> 诚实注记：因果/世界模型为 lite 实现（PC-lite 发现、线性 SEM），规划基于有限图；但每个结论都来自确定性符号计算，可复现、不幻觉，数学健全性由真实定理保证。
+
+---
 
 ## 30 秒上手
 
-**① MCP 接入（推荐，给 AI 客户端用）** —— 不用开网页、不用服务器、不用本地装包：
+**① MCP 接入（推荐，给任意 AI 客户端用）** —— 不用开网页、不用服务器、不用本地装包：
 
 ```json
 {
@@ -47,8 +72,7 @@
 
 npm 稳定版同款：`{ "command": "npx", "args": ["-y", "lingnao-mcp"] }`（见 [`mcp.json`](mcp.json) ／ [`mcp.example.json`](mcp.example.json)）
 
-**② 零安装网页** —— 双击 [`playground.html`](playground.html)（规划路径 + 七段审计 + 不幻觉分层，离线可用），
-或 [`lingnao-console.html`](lingnao-console.html)（三步接入「身体 / 大模型 / 大脑」后开始干活）。
+**② 零安装网页** —— 双击 [`playground.html`](playground.html)（A\* 规划 + 因果 + 数学健全性陷阱，离线可用），或 [`lingnao-console.html`](lingnao-console.html)（接入身体/大模型/大脑后开始干活）。
 
 **③ 开发者**
 
@@ -67,51 +91,39 @@ node build-umd.js                   # 从内核真源重建 UMD（导出 250）
 
 | 维度 | 说明 |
 |---|---|
-| 决策 | A\* 最优路径 + 硬/软约束 + RSG 推理状态图 + 系统 1 高置信快答，**同输入必得同输出** |
-| 审计 | 七段审计报告（概要/轨迹/证据/约束/𝕌/证明证书/可复现）+ 霍尔证明证书 + 签名审计账本（哈希链 + HMAC） |
-| 不幻觉 | LLM 只在感知（NL→JSON）与解释两端，强制标 `UNVERIFIED_LLM` + `mayHallucinate`，**绝不进入决策链与证明链** |
+| 决策/规划 | A\* 最优路径 + 硬/软约束 + RSG 推理状态图 + 系统 1 高置信快答，**同输入必得同输出** |
+| 因果 | do-演算（后门/前门调整）估计因果效应、反事实推演；确定性因果图，无 LLM 编造 |
+| 数学健全性 | 十类确定性陷阱（Baire/紧致/代数簇/范德瓦尔登/柯西-利普希茨/Bertrand/鸽笼/霍尔匹配/Erdős–Szekeres/欧拉路径），**真实定理保证** |
+| 不幻觉 | LLM 只在感知（NL→JSON）与解释两端，强制标 `UNVERIFIED_LLM` + `mayHallucinate`，**绝不进入推理链** |
 | 具身 | 声明式能力契约接入任意身体；规划 → SAFE-STOP → 执行 → 有界重规划闭环 |
-| 接入设备 | 30 条协议登记（**仅 `ws`/`modbus-tcp`/`mqtt` 已实装真实驱动**）+ 17 张规范卡 + 9 类字节解码器，无硬件也能跑软件路径 |
-| 工具暴露 | **1 个网关工具 `lingnao`**（`op` 参数收编内核 64 项能力，2026-09-24 定稿）；其中 5 项需接入 KB 才可用，**如实单列不计入绿色通过** |
-| 自测 | `--selftest` → **核心 55 项通过** + 如实披露 6 项已知未实现能力 |
+| 工具暴露 | **1 个网关工具 `lingnao`**（`op` 参数收编 51 项推理能力）；其中 6 项需接入 KB 才可用，**如实单列不计入绿色通过** |
+| 自测 | `--selftest` → 核心通过 + 如实披露 6 项已知未实现能力（KB 未接入） |
 | 依赖 | 零第三方运行时依赖；灵数求解器为**可选**依赖（缺失时 `algebraic_solve` 单项诚实降级） |
 
-**不保证**：绝对安全、绝对正确、不漏解、能连所有真机。
-M2 数值证书带 `h ≥ −1/B²` 辅助域松弛；M1/M4 为静态/语法层检查；
-**副作用面完备性经自查工具检测为"不成立"**（`proveGateChain` 的结论只对走 `execute()` 的物理动作有效）。
-这是设计上的诚实边界，不是待修缺陷 —— 详见 [04 · 技术参考](docs/04-技术参考.md) 第六节。
+**不保证**：绝对安全、绝对正确、不漏解、能连所有真机。这是设计上的诚实边界，不是待修缺陷。
 
 ---
 
-## 文档
+## 能力目录（51 项推理能力，单网关 `lingnao`）
 
-| 文档 | 内容 |
-|---|---|
-| [01 · 产品作用](docs/01-产品作用.md) | 它是什么、解决什么问题、给谁用、能力与边界、对外口径红线 |
-| [02 · 使用指南](docs/02-使用指南.md) | 三种形态上手、MCP 配置、环境变量、物理接入用法、自测与常见问题 |
-| [03 · 设计思想](docs/03-设计思想.md) | 六条设计原则、不幻觉怎么做、fail-closed 落点、三面导出约束、有意不做的事 |
-| [04 · 技术参考](docs/04-技术参考.md) | 仓库结构、64 项能力目录（经唯一网关工具暴露）、接入模块技术细节、M1–M4 摘要、验证体系与已知缺陷 |
-| [05 · 应用场景](docs/05-应用场景.md) | 五类可落地场景（Agent 后端 / 具身 / 设备接入 / 合规审计 / 教学）与**不适用**场景 |
-| [06 · 商业授权与收费](docs/06-商业授权与收费.md) | 许可模型、免费范围、商业授权范围、授权要素、发票与收款、商务流程 |
-| [07 · 授权合同](docs/07-授权合同.md) | 商业授权合同模板、关键条款说明、签署流程 |
-| [08 · 版本管理](docs/08-版本管理.md) | 版本号语义、发布前一致性清单、兼容性承诺、版本历史 |
-| [09 · 项目历史](docs/09-项目历史.md) | 从"通用大脑"到可审计内核的阶段沿革与关键决策 |
-| [10 · 形式化证明规格](docs/10-形式化证明规格.md) | M1–M4 的完整规格（附录） |
-| [11 · 机器与协议目录](docs/11-机器与协议目录.md) | 设备类全集、协议标准出处、规范卡清单（附录） |
+MCP 对外只暴露 **1 个工具** `lingnao`：`arguments = { "op": 能力名, "args": 参数 }`，按旧名直调会被拒绝并返回指引。
 
----
+`world_info` · `set_world` · `perceive` · `reason` · `carrier_report` · `learn` · `knowledge_query` · `knowledge_add` · `meta` · `perceive_belief` · `knowledge_ann` · `knowledge_distill` · `cog_graph` · `algebraic_solve` · `world_model` · `counterfactual` · `causal_effect` · `dmcts` · `goal_directed` · `pac_bound` · `ask` · `explain` · `causal` · `event_publish` · `knowledge_fabric` · `ima_load` · `ima_query` · `sl_record` · `sl_discover` · `sl_monitor` · `sl_status` · `attach_body` · `capabilities` · `get_state` · `set_state` · `state_diff` · `h_max` · `plan_task` · `execute_task` · `positioning` · `bertrand_trap` · `compactness_trap` · `van_der_waerden_trap` · `baire_trap` · `variety_trap` · `cauchy_lipschitz_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`
 
-## 许可（摘要）
+### 推荐调用序列（纯推理）
 
-**非商业免费 + 商业须书面授权**（自有《灵脑商业授权许可协议》，**不是开源协议**）：
+1. `world_info` — 查看世界图 𝕎
+2. `set_world` —（可选）载入你自己的场景
+3. `carrier_report` — 上报物理状态（电量/密度）以推导硬/软约束
+4. `reason` — 深思规划（系统 1 快答 + 系统 2 A\* + RSG）
+5. `dmcts` —（可选）确定性 MCTS 多候选探索
+6. `causal` / `causal_effect` / `counterfactual` — 因果与反事实推演
+7. `pac_bound` — 评估所需样本量（不确定性理论）
+8. `learn` — 把真实结果反馈回经验库，置信度流入未来规划
 
-- **非商业用途免费**：个人学习 / 研究 / 教学 / 评测；非营利组织与教育机构内部使用；
-  年营收 ≤ 100 万元的团队内部评估（同时运行实例 ≤ 3 个）。须保留版权与许可声明。
-- **商业用途须事先取得书面授权**：任何以营利为目的的产品 / 服务 / 业务，SaaS / 云 / API 对外提供能力（**无论是否收费**），
-  集成嵌入商业发行物，再分发 / 转授权 / 对外托管 —— 均须《商业授权协议》。
-- 「灵脑 / LingNao」为版权方商标，本许可不授予商标使用权。
+### 推荐调用序列（具身 / 机器人）
 
-完整条款见 [LICENSE](LICENSE) ｜ 授权范围见 [06 · 商业授权与收费](docs/06-商业授权与收费.md) ｜ 合同见 [07 · 授权合同](docs/07-授权合同.md)
+`attach_body` → `plan_task` → `execute_task`（每步 SAFE-STOP）→ `state_diff` → 有界重规划（`maxReplans`）
 
 ---
 
@@ -119,8 +131,8 @@ M2 数值证书带 `h ≥ −1/B²` 辅助域松弛；M1/M4 为静态/语法层�
 
 | 产品 | 是什么 | 仓库 | npm |
 |---|---|---|---|
-| **灵脑 LingNao**（本仓库） | **大脑**：感知 / 规划 / 审计 / 学习 / 具身裁决 | `genesis-plan/lingnao` | `lingnao-mcp` |
-| **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk 认证） | `genesis-plan/lingshu-solver` | `lingshu-solver` |
+| **灵脑 LingNao**（本仓库） | **推理服务**：感知 / 规划 / 因果 / 世界模型 / 数学健全性 / 具身决策 | `genesis-plan/lingnao` | `lingnao-mcp` |
+| **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk） | `genesis-plan/lingshu-solver` | `lingshu-solver` |
 
 灵脑**不重写求解逻辑**：`algebraic_solve` **委派**给灵数真引擎。灵数是**可选依赖** —— 不装它，其余能力照常运行，仅该项诚实降级。
 
@@ -137,7 +149,28 @@ M2 数值证书带 `h ≥ −1/B²` 辅助域松弛；M1/M4 为静态/语法层�
 
 ---
 
+## 许可（摘要）
+
+**非商业免费 + 商业须书面授权**（自有《灵脑商业授权许可协议》，**不是开源协议**）：
+
+- **非商业用途免费**：个人学习 / 研究 / 教学 / 评测；非营利组织与教育机构内部使用；年营收 ≤ 100 万元的团队内部评估（同时运行实例 ≤ 3 个）。须保留版权与许可声明。
+- **商业用途须事先取得书面授权**：任何以营利为目的的产品 / 服务 / 业务，SaaS / 云 / API 对外提供能力（**无论是否收费**），集成嵌入商业发行物，再分发 / 转授权 / 对外托管 —— 均须《商业授权协议》。
+- 「灵脑 / LingNao」为版权方商标，本许可不授予商标使用权。
+
+完整条款见 [LICENSE](LICENSE) ｜ 授权范围见 [06 · 商业授权与收费](docs/06-商业授权与收费.md)
+
+---
+
 ## 联系
 
 - 商务 / 授权 / 反馈：553420544@qq.com（亦可用仓库 Issues）
 - 版权方：广州市红尘灵境数字科技有限公司
+
+---
+
+## 诚实注记（已知待办）
+
+- `knowledge_query` / `knowledge_add` / `knowledge_ann` / `knowledge_distill` / `cog_graph` 需接入 KB 知识库，未接入时恒返 `available:false`；自测中如实单列为「已知未实现能力」，不计入绿色通过。
+- 物理接入模块 30 条协议中仅 `ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余为「仅建档、需硬件」。
+- `docs/01–11` 为历史技术文档，仍含「审计/验证」旧口径，正逐步与本文档及 [docs/00](docs/00-推理引擎原理与方法学.md) 对齐（后续收尾任务）；本文档与方法学文档为对外权威口径。
+- 验证/审计类能力（`audit`/`certify`/`verify`/`prove`/`runtime_monitor` 等）已**从对外网关能力清单中移除**（不再暴露、不再挂名），仅保留为内核内部资产；灵脑对外只做推理。

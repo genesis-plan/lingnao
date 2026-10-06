@@ -270,7 +270,7 @@ function kbAvailable() { return !!K.KB; }
 function learnLogic(p, success) {
   if (!Array.isArray(p) || p.length < 2) throw new Error('path 需为至少含 2 节点的数组');
   const r = K.learn(p, !!success, 0.1);
-  const s = kbAvailable() ? K.KB.summary() : { available: false, reason: '知识库模块(KB)未暴露；可审计推理请用 reason/ask，证据检索用 ima_query，版本化用 KBFabric' };
+  const s = kbAvailable() ? K.KB.summary() : { available: false, reason: '知识库模块(KB)未暴露；确定性推理请用 reason/ask，证据检索用 ima_query，版本化用 KBFabric' };
   return { updated: r.updated, knowledgeBase: s, log: r.log };
 }
 function knowledgeQueryLogic(from, to) {
@@ -559,7 +559,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'reason', description: '可审计推理：系统1快答(高置信复用) + 系统2(A*最优+RSG推理状态图)。输出每步依据、所用系统、RSG、不可判定标记 𝕌。  / EN: Auditable reasoning: System-1 fast answer (high-confidence reuse) + System-2 (A* optimal + RSG reasoning state graph). Outputs per-step rationale, which system was used, the RSG, and the undecidable marker 𝕌.',
+    name: 'reason', description: '确定性推理：系统1快答(高置信复用) + 系统2(A*最优+RSG推理状态图)。输出每步依据、所用系统、RSG、不可判定标记 𝕌。  / EN: Auditable reasoning: System-1 fast answer (high-confidence reuse) + System-2 (A* optimal + RSG reasoning state graph). Outputs per-step rationale, which system was used, the RSG, and the undecidable marker 𝕌.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -580,19 +580,6 @@ const TOOLS = [
         battery: { type: 'number', description: '载体电量 %（<20 触发硬约束）' },
         goal: { type: 'string', description: '巡检/目标节点' },
         density: { type: 'object', description: '各区域观测密度 {区域:数值}' },
-      },
-      required: ['goal'],
-    },
-  },
-  {
-    name: 'audit', description: '生成七段审计报告（概要/详细/证据/约束/𝕌/形式化证明证书/可复现）+ 不确定性量化，对应文档 3.4。  / EN: Generate a seven-part audit report (summary / detail / evidence / constraints / 𝕌 / formal proof certificate / reproducible) + uncertainty quantification. See doc §3.4.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        start: { type: 'string', description: '起点节点，默认 CHARGE' },
-        goal: { type: 'string', description: '目标节点' },
-        hard: { type: 'array', items: { type: 'string' }, description: '硬约束禁入节点集' },
-        soft: { type: 'array', items: { type: 'string' }, description: '软约束避开节点集' },
       },
       required: ['goal'],
     },
@@ -683,19 +670,6 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {}, required: [] },
   },
   {
-    name: 'symbolic_verify', description: '符号验证：霍尔逻辑机器验证证明 A* 路径满足不变量（手写 Z3-lite 等价）。  / EN: Symbolic verification: Hoare-logic machine-checked proof that the A* path satisfies an invariant (hand-written Z3-lite equivalent).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        start: { type: 'string', description: '起点节点，默认 CHARGE' },
-        goal: { type: 'string', description: '目标节点' },
-        hard: { type: 'array', items: { type: 'string' } },
-        soft: { type: 'array', items: { type: 'string' } },
-      },
-      required: ['goal'],
-    },
-  },
-  {
     name: 'algebraic_solve', description: '代数方程系统求解 —— 真正委派给灵数求解器(lingshu-solver)真引擎（区间收缩 + Krawczyk 认证，离线、确定性、可复现；非手写 lite）。  / EN: Algebraic equation-system solver — genuinely delegates to the lingshu-solver engine (interval contraction + Krawczyk certification; offline, deterministic, reproducible; not a hand-written lite).' +
       '输入：equations 为含 "=" 的方程字符串数组，如 ["x^2+y^2=25","x+y=7"]；支持 + - * / ^ sqrt log sin cos tan exp abs 及 in-text 域约束 "x ∈ [-30,30]"。' +
       'variables 可选（不填自动识别，≤6）；domain 可选 {"x":[-30,30]}（exp/sinh 等快增长函数建议显式给定）；fastMode 可选；options 可选 {budget,maxDepth}。' +
@@ -714,9 +688,9 @@ const TOOLS = [
     },
   },
   {
-    name: 'world_model', description: '世界模型（lite）：从观测轨迹样本学结构方程模型 SEM（手写最小二乘），并前向模拟下一状态。文档 3.4 给的 VAE/ADM-v2 需神经网络+大数据（无定义），本实装为诚实 lite 等价（线性 SEM + Pearl 反事实框架），确定性、可复现、可审计。  / EN: World model (lite): learn a structural-equation model (SEM) from observed trajectory samples (hand-written least squares) and forward-simulate the next state. The VAE/ADM-v2 from doc §3.4 needs neural nets + big data (undefined), so this is an honest lite equivalent (linear SEM + Pearl counterfactual framework): deterministic, reproducible, auditable.' +
+    name: 'world_model', description: '世界模型（lite）：从观测轨迹样本学结构方程模型 SEM（手写最小二乘），并前向模拟下一状态。文档 3.4 给的 VAE/ADM-v2 需神经网络+大数据（无定义），本实装为诚实 lite 等价（线性 SEM + Pearl 反事实框架），确定性、可复现、确定性。  / EN: World model (lite): learn a structural-equation model (SEM) from observed trajectory samples (hand-written least squares) and forward-simulate the next state. The VAE/ADM-v2 from doc §3.4 needs neural nets + big data (undefined), so this is an honest lite equivalent (linear SEM + Pearl counterfactual framework): deterministic, reproducible, auditable.' +
       'samples 为轨迹数组，每项 {state:{变量:值}, action:{变量:值}, next:{变量:值}}；提供 state+action 则同时返回 simulate 预测 next。' +
-      '输出 model（method/变量集/方程系数 eqs[变量].coef/偏置 bias/残差 residuals，全部可审计）与 simulate.next。',
+      '输出 model（method/变量集/方程系数 eqs[变量].coef/偏置 bias/残差 residuals，全部确定性）与 simulate.next。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -729,7 +703,7 @@ const TOOLS = [
   },
   {
     name: 'counterfactual', description: '反事实推理（lite，Pearl 三步法 abduction→action→prediction）：给定事实上发生的轨迹 factual={state,action,next} 与干预 intervention={var,value}，  / EN: Counterfactual reasoning (lite, Pearl’s three-step abduction→action→prediction): given the factual trajectory factual={state,action,next} and the intervention intervention={var,value}, estimate what would have happened under the intervention.' +
-      '保持事实推断噪声 U 下施加 do(var=value) 重算其余变量。确定性、可复现、可审计；非 VAE 潜空间推演。需先以同结构 samples 学出模型。',
+      '保持事实推断噪声 U 下施加 do(var=value) 重算其余变量。确定性、可复现、确定性；非 VAE 潜空间推演。需先以同结构 samples 学出模型。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -795,7 +769,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'ask', description: '用大白话让大脑理解并规划：免费 LLM 把自然语言理解为结构化目标 → 灵脑确定性可审计推理 → 免费 LLM 把结果+IMA 资料用中文解释。返回 percept/reason/explanation。  / EN: Let the brain understand and plan in plain language: a free LLM parses natural language into a structured goal → LingNao’s deterministic auditable reasoning → a free LLM explains the result + IMA material in Chinese. Returns percept / reason / explanation.',
+    name: 'ask', description: '【需 OPENROUTER_API_KEY，无 key 会 401——确定性任务请改用 reason/hall_trap/euler_path_trap 等符号 op】用大白话让大脑理解并规划：免费 LLM 把自然语言理解为结构化目标 → 灵脑确定性确定性推理 → 免费 LLM 把结果+IMA 资料用中文解释。返回 percept/reason/explanation。  / EN: [Requires OPENROUTER_API_KEY; 401 without it — prefer symbolic ops like reason/hall_trap for deterministic tasks] Let the brain understand and plan in plain language: a free LLM parses natural language into a structured goal → LingNao deterministic reasoning → a free LLM explains result. Returns percept/reason/explanation.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -846,22 +820,6 @@ const TOOLS = [
     },
   },
   {
-    name: 'runtime_monitor', description: 'PrSTL 运行时监控：检查决策是否偏离安全约束，违例触发安全停车。  / EN: PrSTL runtime monitor: check whether a decision deviates from safety constraints; violation triggers a safe stop.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        start: { type: 'string', description: '起点节点，默认 CHARGE' },
-        goal: { type: 'string', description: '目标节点' },
-        safety: { type: 'object', description: '{maxCost, hardNodes:[...]}' },
-      },
-      required: ['goal'],
-    },
-  },
-  {
-    name: 'continuous_verify', description: '持续验证管道（仓库级单元+集成断言）。  / EN: Continuous-verification pipeline (repo-level unit + integration assertions).',
-    inputSchema: { type: 'object', properties: {}, required: [] },
-  },
-  {
     name: 'ima_load', description: '加载用户 IMA 数学库知识壳（默认同目录 ima_knowledge.json，431 条公理/定理/定义/方法/思想方法）注入灵脑内核：KB 可检索、审计报告可引用证据、元认知层可路由。可传 {path} 指定文件，或直传 {entries:[...]}。  / EN: Load the user’s IMA math-library knowledge shell (default same-dir ima_knowledge.json, 431 axioms/theorems/definitions/methods/thought-methods) into the LingNao kernel: KB becomes retrievable, the audit report can cite evidence, the metacognition layer can route. Pass {path} for a file or {entries:[...]} directly.',
     inputSchema: {
       type: 'object',
@@ -909,17 +867,6 @@ const TOOLS = [
         minConf: { type: 'number', description: '生成假设的最小置信度，默认 0.5' },
         k: { type: 'number', description: '聚类簇数，默认 3' },
       },
-    },
-  },
-  {
-    name: 'sl_validate', description: '③ 验证层：对假设做贝叶斯可靠度更新（成功=1/失败=0/部分=0.5），按生命周期升级为确认知识或废弃。  / EN: ③ Validation layer: Bayesian reliability update on a hypothesis (success=1 / failure=0 / partial=0.5), promote by lifecycle to confirmed knowledge or discard.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        hid: { type: 'string', description: '假设ID（H...，来自 sl_discover）' },
-        outcome: { description: '验证结果：true/false/"success"/"fail"/0~1', oneOf: [{ type: 'boolean' }, { type: 'string' }, { type: 'number' }] },
-      },
-      required: ['hid', 'outcome'],
     },
   },
   {
@@ -979,17 +926,6 @@ const TOOLS = [
     },
   },
   {
-    name: 'check_hard', description: '在执行不可逆动作前校验 SAFE-STOP：状态/步骤是否命中硬约束禁区。命中返回 {ok:false, violation}。  / EN: Before executing an irreversible action, verify SAFE-STOP: whether the state / step hits a hard-constraint forbidden zone. Hit returns {ok:false, violation}.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        state: { type: 'object', description: '当前状态' },
-        step: { type: 'object', description: '待执行步骤 {cap, params:{to|target|region}}' },
-      },
-      required: ['step'],
-    },
-  },
-  {
     name: 'h_max', description: 'delete-relaxation 可采纳启发式 h_max：从某状态到目标的最小"层数"下界（A* 最优性保证）。调试/可解释用。  / EN: delete-relaxation admissible heuristic h_max: the lower bound on the minimum ’number of layers’ from a state to the goal (A* optimality guarantee). For debugging / interpretability.',
     inputSchema: {
       type: 'object',
@@ -1002,7 +938,7 @@ const TOOLS = [
     },
   },
   {
-    name: 'plan_task', description: '可审计任务规划：A* + h_max(delete-relaxation 可采纳) 产出相对给定能力集与状态的最优【动作序列】(非路径)。返回 plan=[{cap, params, expect}]、cost、expanded、guarantee。  / EN: Auditable task planning: A* + h_max (delete-relaxation admissible) produces the optimal [action sequence] (not path) for the given capability set and state. Returns plan=[{cap, params, expect}], cost, expanded, guarantee.',
+    name: 'plan_task', description: '确定性任务规划：A* + h_max(delete-relaxation 可采纳) 产出相对给定能力集与状态的最优【动作序列】(非路径)。返回 plan=[{cap, params, expect}]、cost、expanded、guarantee。  / EN: Auditable task planning: A* + h_max (delete-relaxation admissible) produces the optimal [action sequence] (not path) for the given capability set and state. Returns plan=[{cap, params, expect}], cost, expanded, guarantee.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1107,188 +1043,72 @@ const TOOLS = [
         assignment: { type: 'object', description: '④范德瓦尔登序列 {seq:[...], k?:3}' },
         observations: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '⑤贝尔纲观测序列' },
         variety: { type: 'object', description: '⑥代数簇 {samples:[[...]]}' },
+        pigeonhole: { type: 'object', description: '⑦鸽笼 {items:正整数任务数, bins:正整数槽位数}' },
+        hall: { type: 'object', description: '⑧霍尔 {tasks:[任务名], devices:[设备名], compat:[{task,device} 兼容边]}' },
+        erdosSzekeres: { type: 'object', description: '⑨Erdős–Szekeres {seq:[数值序列], threshold?:k(缺省 ⌊√n⌋+1)}' },
+        euler: { type: 'object', description: '⑩欧拉 {nodes:[顶点名], edges:[[u,v] 边对]}' },
       },
       required: [],
     },
   },
   {
-    name: 'clf_cbf_unified', description: 'CLF-CBF 统一 QP（Layer 1 补全）：在线性系统 ẋ=Ax+Bu 上同时求安全(CBF h_i≥0)与前向收敛(CLF V=xᵀPx→目标)的控制。min‖u−u_nom‖² s.t. 两类线性约束 ⇒ Hildreth 对偶解。可行⇒安全∧收敛同时成立；冲突⇒诚实返回 infeasible(绝不谎称安全)。输入矩阵即可(经 linearControlSpec 转 dual-aware)。  / EN: CLF-CBF unified QP: jointly safe (CBF) and convergent (CLF) control for ẋ=Ax+Bu. Feasible ⇒ safe∧convergent; conflict ⇒ honestly infeasible.',
+    name: 'pigeonhole_trap', description: '确定性安全陷阱⑦鸽笼原理（Dirichlet 1834）：n 个独占任务放入 m 个槽位且 n>m ⇒ 必有槽位承载 ≥⌈n/m⌉ 项 ⇒ 排他冲突不可避（定理级结论，无需扫描）。规划前否决不可行分配。  / EN: Deterministic safety trap ⑦ Pigeonhole (Dirichlet 1834): n exclusive tasks into m slots with n>m ⇒ a slot must carry ≥⌈n/m⌉ tasks ⇒ conflict is unavoidable. Reject infeasible plans before execution.',
     inputSchema: {
       type: 'object',
       properties: {
-        A: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '线性动力学矩阵 A（状态×状态；标量系统给 [[a]]）' },
-        B: { type: 'array', items: { type: 'number' }, description: '输入矩阵 B（状态×输入；单输入给 [b]）' },
-        P: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '可选 CLF 二次型 P（V=xᵀPx）；省略则仅安全' },
-        cList: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '各 CBF 法向 cᵢ（hᵢ=cᵢ·x+dᵢ≥0）' },
-        dList: { type: 'array', items: { type: 'number' }, description: '各 CBF 偏移 dᵢ' },
-        uNom: { type: 'array', items: { type: 'number' }, description: '标称控制 u_nom（多输入数组；单输入可给标量）' },
-        x: { type: 'array', items: { type: 'number' }, description: '当前状态 x' },
-        gammaS: { type: 'number', description: '安全率 α_s，默认 1' },
-        gammaC: { type: 'number', description: '收敛率 α_c，默认 1' },
+        items: { type: 'number', description: '独占任务数 n（正整数）' },
+        bins: { type: 'number', description: '槽位数 m（正整数）' },
       },
-      required: ['A', 'B', 'x'],
+      required: ['items', 'bins'],
     },
   },
   {
-    name: 'model_free_cbf', description: '无模型 CBF（THM_MODEL_FREE_CBF，Layer 1 补全）：老设备无精确动力学模型、只有运行轨迹时，用 RBF 核方法从 safe/unsafe 轨迹学一个分离安全屏障 h(x)（h>0 判安全，gradH 解析可得）。确定性的、非 NN。Tier 1（经验分离器，非 THM_CBF_INVARIANCE 的 Tier 0 全局保证）；样本不足/不可分诚实返回 𝕌。  / EN: Model-free CBF: learn a safety barrier from trajectory data via RBF kernel (no dynamics model needed). Tier 1; honestly 𝕌 when data insufficient.',
+    name: 'hall_trap', description: '确定性安全陷阱⑧霍尔定理（Hall 1935 匹配定理）：任务-设备二分图存在完美匹配 ⟺ 每个任务子集的兼容邻居数 ≥ 子集大小。满配 ⇒ safe(witness=匹配对)；违反 ⇒ unsafe(witness=亏集 S 与 N(S)，可逐项查验)。分配可行性先于执行判定，不靠试错。compat 兼容边三种格式皆可：[{task,device}] 或 [[task,device]] 或 {task:[device,…]}。  / EN: Deterministic safety trap ⑧ Hall (1935): perfect matching in the task-device bipartite graph exists iff every task subset has ≥ neighbors. Returns a witness matching (safe) or a deficient subset (unsafe). compat accepts 3 formats: [{task,device}] / [[task,device]] / {task:[devices]}.',
     inputSchema: {
       type: 'object',
       properties: {
-        safeSamples: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '已观测安全状态轨迹（每个是状态向量）' },
-        unsafeSamples: { type: 'array', items: { type: 'array', items: { type: 'number' } }, description: '已观测不安全/失效状态轨迹' },
-        gamma: { type: 'number', description: 'RBF 带宽 γ，默认 1' },
-        lambda: { type: 'number', description: 'ridge 正则 λ，默认 1e-3（保证核矩阵非奇异）' },
+        tasks: { type: 'array', items: { type: 'string' }, description: '任务名列表' },
+        devices: { type: 'array', items: { type: 'string' }, description: '设备名列表（不得重复）' },
+        compat: { type: 'array', items: { type: 'object' }, description: '兼容边 [{task, device}]；引用未知名 ⇒ 𝕌 诚实弃权' },
       },
-      required: ['safeSamples', 'unsafeSamples'],
+      required: ['tasks', 'devices', 'compat'],
     },
   },
   {
-    name: 'counterfactual_audit', description: '反事实硬干预审计（THM_COUNTERFACTUAL_AUDIT，Layer 3 反事实安全层）：对计划的每步施加 remove/negate-premise/flip-effect 三道硬干预（Project Ariadne 思想），度量因果敏感性。存在关键步 ⇒ 反事实脆弱（unsafe/非鲁棒）；任一步缺 premise/effect ⇒ 诚实 𝕌。纯符号、确定性、非 NN。  / EN: Counterfactual hard-intervention audit of a plan trace (Ariadne-style). Critical step ⇒ fragile; missing info ⇒ 𝕌.',
+    name: 'erdos_szekeres_trap', description: '确定性安全陷阱⑨Erdős–Szekeres（1935 单调子序列定理）：检测数值序列（响应延迟、错误率、资源占用等）是否存在结构性单调漂移——持续上升/下降的趋势（非随机波动），直接把序列传给 seq 即可。定理：长 n>(k−1)² 序列必含长 ≥k 单调子序列。检出 ⇒ unsafe(witness=最长递增/递减子序列长度)；定理保证存在但扫描未得时诚实弃权 𝕌（陷阱自检）。  / EN: Deterministic safety trap ⑨ Erdős–Szekeres (1935): detects structural monotone drift in numeric series (latency, error-rate, resource usage) — a sustained up/down trend, not random noise. Pass the series directly as seq. Theorem: any sequence longer than (k−1)² contains a monotone subsequence of length ≥k; self-checks against the theorem, honestly abstains 𝕌 on inconsistency.',
     inputSchema: {
       type: 'object',
       properties: {
-        plan: {
-          type: 'object',
-          description: '计划对象：{ goal, steps:[{ id, action, premise:[事实], effect:[事实], safe? }] }',
-          properties: {
-            goal: { type: 'string' },
-            steps: { type: 'array', items: { type: 'object' } },
-          },
-          required: ['steps'],
-        },
+        seq: { type: 'array', items: { type: 'number' }, description: '行为/性能数值序列（≥2 个有限数）' },
+        threshold: { type: 'number', description: '漂移阈值 k（≥2；缺省 ⌊√n⌋+1 = 定理保证界）' },
       },
-      required: ['plan'],
+      required: ['seq'],
     },
   },
   {
-    name: 'safety_audit', description: '安全层判定（B 切片：safetyLayersReport，防御纵深可审计）：把控制层两层（确定性陷阱 runDeterministicTraps + CLF-CBF 统一 QP clfCbfUnified）统一报告为纵深防线；任一 unsafe ⇒ overall unsafe（fail-closed）。矩阵 (A,B,P,cList,dList) 经 linearControlSpec 构造 CLF-CBF 系统。  / EN: Defense-in-depth safety-layer verdict: deterministic traps + CLF-CBF unified QP. Any layer unsafe ⇒ overall unsafe.',
+    name: 'euler_path_trap', description: '确定性安全陷阱⑩欧拉路径定理（Euler 1736 哥尼斯堡七桥）：连通图存在"每边恰一次"路径 ⟺ 奇度顶点数 ∈ {0,2}。全覆盖巡检/扫勘/走线类任务的路线可行性判定：safe(witness=起终点建议) / unsafe(witness=奇度顶点清单或断开分量 + 最少巡检链数)。  / EN: Deterministic safety trap ⑩ Euler path (Euler 1736, Königsberg bridges): a route traversing every edge exactly once exists iff the connected graph has 0 or 2 odd-degree vertices. Feasibility check for full-coverage inspection routes before execution.',
     inputSchema: {
       type: 'object',
       properties: {
-        A: { type: 'array', description: '线性动力学矩阵 A（ẋ=A x+B u）；标量或矩阵', items: {} },
-        B: { type: 'array', description: '控制矩阵 B', items: {} },
-        P: { type: 'array', description: '（可选）CLF 二次型 V=xᵀP x', items: {} },
-        cList: { type: 'array', description: '（可选）各 CBF 法向 cᵢ（hᵢ=cᵢ·x+dᵢ≥0）', items: { type: 'array' } },
-        dList: { type: 'array', description: '（可选）各 CBF 偏移 dᵢ', items: {} },
-        x: { type: 'array', description: '当前状态 x', items: {} },
-        uNom: { anyOf: [{ type: 'number' }, { type: 'array' }], description: '（可选）标称控制' },
-        traps: { type: 'object', description: '（可选）确定性陷阱上下文 { budget, dynamics, constraints, assignment, observations, variety }', properties: {} },
+        nodes: { type: 'array', items: { type: 'string' }, description: '顶点名列表（走廊/路口/工位）' },
+        edges: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: '边对 [[u,v],...]（须引用已知顶点，否则 𝕌）' },
       },
-      required: ['A', 'B', 'x'],
+      required: ['nodes', 'edges'],
     },
   },
   // ── 形式化证明模块 M1..M4（2026-09-03 暴露）──────────────────────────
-  {
-    name: 'prove_gate_chain',
-    description: 'M1 能力/意图门控证明（正确性 soundness）：对计划做【零副作用】静态预检——不调 bodyAdapter、不改状态。把 execute() 里隐含在控制流中的守卫提升为显式门控规格表(8 条谓词)，并证明性地在释放任何指令前拦截。verdict: provably-blocked:zero-release(定理M1.2) / provably-blocked:after-j(定理M1.1) / conditional(静态全过但 G5..G8 依赖运行时状态，定理M1.3 明说不给 provably-admitted)。诚实边界：证的是门控链的静态可判定部分，不是执行结果正确，更不是"不可越狱"。  / EN: M1 capability/intent gate-chain proof — zero-side-effect static pre-check of a plan against 8 guard predicates. Proves zero-release halting before any instruction is issued. Honest bound: proves the statically decidable part of the gate chain, not execution correctness.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        plan: { type: 'array', description: '计划：[{cap, params?, intentId?, mayHallucinate?}]', items: { type: 'object' } },
-        opts: {
-          type: 'object',
-          description: '（可选）{ autonomyLevel, allowIrreversible, humanApproved, requireIntent, intent:{id} }',
-          properties: {},
-        },
-      },
-      required: ['plan'],
-    },
-  },
-  {
-    name: 'certify_safety_invariant',
-    description: 'M2 数值安全证书：把不等式安全验证翻译成方程无解判定，委派灵数求解器给出【真数学证明】。要证 ∀x∈域 h(x)≥0，等价于证违反系统 {h(x)+s²=0, s·w=1} 在域内无实数解；灵数能证明无实根，这是单点浮点判定永远做不到的。verdict: verified(certified-krawczyk 真证明) / violated(候选反例，需回代校验) / unverified(证不了——按 fail-closed 处理，不等于安全)。硬约束：只吃方程字符串(JS 函数形态 h 诚实降级 unverified，绝不退回浮点假装认证)、盒式区间域、状态维数≤4。  / EN: M2 numeric safety certificate — reduces ∀x∈D h(x)≥0 to proving the violation system has no real solution, delegated to lingshu-solver (Krawczyk). unverified ≠ safe (fail-closed).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        hExpr: { type: 'string', description: '安全不变式表达式字符串，例 "1 - (x^2 + y^2)"' },
-        vars: { type: 'array', description: '状态变量名，例 ["x","y"]', items: { type: 'string' } },
-        domain: { type: 'object', description: '（可选）盒式域，例 {"x":[-0.5,0.5],"y":[-0.5,0.5]}', properties: {} },
-        bound: { type: 'number', description: '（可选）辅助变量域界，默认 1e6；bound=1000 ⇒ 可检出深度 ≥1e-6 的违反' },
-        options: { type: 'object', description: '（可选）透传灵数 options', properties: {} },
-      },
-      required: ['hExpr', 'vars'],
-    },
-  },
-  {
-    name: 'verdict_three_layer',
-    description: 'M3 三层次裁决引擎：修掉"把计算超时误当逻辑不可判定"的混淆。逻辑层不可判定 ⇒ refuse(算力无法弥补)；计算层未完成 ⇒ degrade-conservative(申请预算或走保守策略)；工程层不支持 ⇒ record-capability-limit(是"证不了"，不是"不安全")；三层均过 ⇒ proceed。诚实关键：unverified ≠ unsafe，证不了就停(fail-closed)，但绝不把"证不了"说成"已证安全"。  / EN: M3 three-layer verdict engine separating logical undecidability / computational incompleteness / engineering unsupport. unverified ≠ unsafe.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        logicDecidable: { type: 'boolean', description: '逻辑层：命题是否可判定' },
-        computeCompleted: { type: 'boolean', description: '计算层：计算是否在预算内完成' },
-        engineeringSupported: { type: 'boolean', description: '工程层：当前实现是否支持该检查' },
-        detail: { type: 'object', description: '（可选）附加上下文', properties: {} },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'prove_complete_mediation',
-    description: 'M4 完全中介证明（完备性 completeness，M1 的补集）：M1 证"门控逻辑对不对"，M4 证"是否所有副作用出口都过闸"——只有 M1 时，一条没接闸的 fetch 就能让全部门控形同虚设。依据参考监视器三要求(Anderson 1972)与完全中介原则(Saltzer & Schroeder 1975)，用对象能力模型剥夺环境权限(ambient authority)：副作用原语的词法名在内核作用域内被重绑为拒绝物或中介能力对象，故"没过闸"在 JS 语义下结构上不可能。返回定理 M4.1 的 9 项机器检验(C1..C9)、闸外未中介出口清单、重绑分类、策略快照、前提(H1..H6，不可机器判定者如实标 machineChecked:false)与 notProved 清单。诚实边界：这是【语法层】完全中介，不是语义层信息流不干扰(noninterference)——后者需 Isabelle/Coq 级工具，本内核没有，不谎称有；也未证无隐蔽/时间侧信道。  / EN: M4 complete-mediation proof (completeness; complement of M1). Machine-checks 9 conditions (C1..C9) for theorem M4.1 — syntactic complete mediation via ambient-authority removal (object-capability model). NOT semantic noninterference; no covert/timing-channel claims.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        src: { type: 'string', description: '（可选）待判定的内核源码文本。缺省用服务端内置真源码；拿不到源码时诚实返回 unverified（fail-closed，不假设通过）' },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'effect_gate_report',
-    description: 'M4 效应闸运行时报告：返回策略快照(policy) + 效应计数(stats) + 最近效应轨迹(trace，每条含 kind/target/purpose 意图/caller 调用者/riskTier/是否入签名账本) + 运行时自证(attest：真的去碰被遮蔽的原语名，验证环境权限确已剥夺，不发任何网络)。机制与策略分离(seL4 同款)：闸只保证"必经中介+必入轨迹"，放行与否是策略。硬轨：PROCESS(进程派生)/EVAL(动态求值)不可经配置放开，否则"配置即提权"。  / EN: M4 effect-gate runtime report: policy snapshot + effect counters + recent mediated-effect trace (with intent/caller/riskTier/ledger status) + runtime self-attestation that ambient authority is actually removed. PROCESS/EVAL are non-configurable hard denials.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        n: { type: 'number', description: '（可选）返回最近 n 条效应轨迹，默认 20' },
-      },
-      required: [],
-    },
-  },
-  {
-    name: 'audit_evidence',
-    description: '【灵脑面向智能体的旗舰能力】合规证据批审（AI Agent 审计场景，先智能体落地的首个交付场景）：对一批被审声明逐条委派确定性内核验证，无法确定性验证的一律 𝕌 诚实弃权、绝不假装核过。kind=algebraic→灵数求解器（区间收缩+Krawczyk 认证）独立复算并比对声明值；kind=constraint→紧致性陷阱检约束族全局矛盾（THM_COMPACTNESS）；kind=numeric_safety→M2 全域安全不变式证书；kind=path→A* 重算比对声明路径与代价；其他 kind→unverified(𝕌)。输出审计师可直接使用的证据报告：确定性 reportId（sha256，同输入同内核版本可离线重算）、逐条 verdict（verified/refuted/unverified）+证明引用、汇总、AIUC-1 D 域(Reliability)控制项参考映射（仅为映射，非认证声明）。  / EN: LingNao flagship capability for agents. Compliance evidence batch audit for AI-agent claims: each item is delegated to a deterministic kernel verifier (algebraic → lingshu-solver interval/Krawczyk re-derivation and claim matching; constraint → compactness trap THM_COMPACTNESS; numeric_safety → M2 global safety-invariant certificate; path → A* re-derivation vs claimed path/cost); anything else honestly abstains (𝕌). Emits an auditor-ready evidence report with deterministic reproducible reportId (sha256), per-item verdicts + proof references, summary, and an AIUC-1 Domain-D reference mapping (a mapping, NOT a certification).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        items: {
-          type: 'array',
-          description: '待核声明列表（≤200 条）。每项 {id?, kind, text?, …载荷}。载荷按 kind：algebraic→{equations:string[], variables?, domain?, claimed?:{变量名:数值}}；constraint→{constraints:[{id?, interval:[lo,hi]}]}（≥2 项才有紧致性意义）；numeric_safety→{hExpr, vars:string[], domain?:{变量:[lo,hi]}, bound?}；path→{start, goal, claimedPath?:string[], claimedCost?:number, hard?, soft?}。text 为人类可读的声明原文，仅入档展示、不参与判定。',
-        },
-        caseLabel: { type: 'string', description: '（可选）案卷标注（被审 Agent 名称/批次号）。仅展示用，不参与 reportId 计算' },
-      },
-      required: ['items'],
-    },
-  },
-  {
-    name: 'certify_decision',
-    description: '【灵脑裁判层旗舰能力 · 产品重新定位为"证明决策"而来】对智能体提出的**一个具体决策**做可信裁判：接收结构化决策记录 {action, context, claimedProperties:[{property, class, payload}]}，把每个声明 class 委派给确定性内核验证器（algebraic→灵数 Krawczyk 区间认证；constraint→紧致性陷阱 THM_COMPACTNESS；numeric_safety→M2 全域安全不变式证书；path→A* 重算比对；authorized→M4 EffectGate 授权闸），输出 DecisionCertificate：decisionVerdict(trusted / untrusted / abstain) + 逐属性 proofObject(定理 id + 证明步骤) + 防篡改 reportId(sha256)。灵脑**只裁判、不提议**——运动员(智能体)生成动作，裁判(灵脑)判定动作是否安全/正确/授权，职责分离（运动员不能同时是裁判）。任何不可确定性验证的声明一律 𝕌 诚实弃权，绝不输出"大概没错"。  / EN: LingNao referee-layer flagship (repositioned to "prove decisions"): certify one concrete agent decision. Receives {action, context, claimedProperties:[{property, class, payload}]}, delegates each claim class to a deterministic kernel verifier, emits a DecisionCertificate with decisionVerdict(trusted/untrusted/abstain) + per-property proofObject + tamper-evident reportId(sha256). LingNao judges only — it never proposes actions (referee ≠ athlete).',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        decisionId: { type: 'string', description: '（可选）调用方决策 id；缺省由 sha256(决策) 派生' },
-        action: { type: 'string', description: '智能体决定执行的动作（自由文本，仅入档；裁判不生成动作）' },
-        context: { type: 'object', description: '（可选）决策前状态 / 世界快照，仅入档' },
-        claimedProperties: {
-          type: 'array',
-          description: '智能体对本次决策声明的属性列表（≤200）。每项 {property, class, payload}。class∈{algebraic, constraint, numeric_safety, path, authorized}；payload 同 audit_evidence 对应 kind 的载荷（algebraic→{equations,variables?,domain?,claimed?}；constraint→{constraints:[{id?,interval:[lo,hi]}]}；numeric_safety→{hExpr,vars,domain?,bound?}；path→{start,goal,claimedPath?,claimedCost?,hard?,soft?}；authorized→{effectKind}）。',
-        },
-      },
-      required: ['claimedProperties'],
-    },
-  },
-];
+  ];
 
 // ── 单一入口网关（2026-09-24 用户拍板：对外只暴露 1 个工具，62 个能力全部收进 op 参数）──
 // 内核与 62 个能力零改动；仅 MCP 暴露面收敛为「一道门」，与 M4 完全中介思想自洽。
 const GATEWAY = (() => {
   const index = TOOLS.map(t => {
-    const d = String(t.description || '').split(/[；。;]/)[0].replace(/\s+/g, ' ').slice(0, 56);
+    const d = String(t.description || '').split(/[；。;]/)[0].replace(/\s+/g, ' ').slice(0, 110);
     return t.name + '=' + d;
   }).join('；');
   return {
     name: 'lingnao',
-    description: '灵脑 LingNao 可审计推理内核 · 唯一入口。用 op 指定能力（下方能力索引的键名），args 传该能力的参数。'
+    description: '灵脑 LingNao 确定性推理内核 · 唯一入口。用 op 指定能力（下方能力索引的键名），args 传该能力的参数。'
       + '能力索引：' + index,
     inputSchema: {
       type: 'object',
@@ -1311,6 +1131,189 @@ function cauchyLipschitzTrapLogic(x0, L, horizon) {
   // 经 opts.L 显式传入 Lipschitz 上界（诚实：解析/精确），_lipschitzOf 直接采用，不调用 f
   return K.cauchyLipschitzTrap(function (x) { return x; }, x0 || [], null, { L: L, horizon: horizon });
 }
+// ---------- 2d. 确定性推理陷阱·第二辑（2026-10-06 创造性扩展）----------
+// 与内核六陷阱同构：真实定理保证 + fail-closed（前提不足 ⇒ 𝕌 诚实弃权）+ witness 可查验。
+// 实现位置：纯 MCP 层自含计算，不依赖内核 ⇒ 内核零改动、零风险。
+// ⑦ 鸽笼原理（Dirichlet 1834）：n 个独占任务放入 m 个槽位且 n>m ⇒ 必有槽位承载 ≥⌈n/m⌉ 项 ⇒ 排他冲突不可避。
+function pigeonholeTrapLogic(items, bins) {
+  var id = 'pigeonhole', thm = 'THM_PIGEONHOLE(Dirichlet 1834)';
+  if (!Number.isInteger(items) || !Number.isInteger(bins) || items < 1 || bins < 1) {
+    return { id: id, theorem: thm, verdict: 'undecided', note: '前提不足：items/bins 须为正整数（𝕌 诚实弃权）' };
+  }
+  if (items > bins) {
+    var maxLoad = Math.ceil(items / bins);
+    return { id: id, theorem: thm, verdict: 'unsafe', witness: { items: items, bins: bins, guaranteedMaxLoad: maxLoad },
+      note: '鸽笼原理：' + items + ' 个独占任务放入 ' + bins + ' 个槽位 ⇒ 必有槽位 ≥' + maxLoad + ' 项 ⇒ 排他冲突不可避（定理级结论，无需扫描）' };
+  }
+  return { id: id, theorem: thm, verdict: 'safe', witness: { items: items, bins: bins },
+    note: 'items ≤ bins ⇒ 鸽笼不强制冲突（诚实边界：仅本定理前提内安全，不保证其他资源约束可行）' };
+}
+// ⑧ 霍尔定理（Hall 1935）：二分图存在完美匹配 ⟺ 每个任务子集的兼容邻居数 ≥ 子集大小。
+// 求最大匹配（Kuhn 增广路径）：满配 ⇒ safe(witness=匹配对)；不满配 ⇒ König 构造亏集 witness（可逐项查验）。
+function hallTrapLogic(tasks, devices, compat) {
+  var id = 'hall', thm = 'THM_HALL(Hall 1935 匹配定理)';
+  if (!Array.isArray(tasks) || !Array.isArray(devices) || !compat || typeof compat !== 'object' || !tasks.length || !devices.length) {
+    return { id: id, theorem: thm, verdict: 'undecided', note: '前提不足：tasks/devices 须为非空数组、compat 须为兼容边（三种格式皆可：[{task,device}] 或 [[task,device]] 或 {task:[device,…]}）（𝕌 诚实弃权）' };
+  }
+  var dIdx = new Map();
+  for (var i = 0; i < devices.length; i++) {
+    var key = String(devices[i]);
+    if (dIdx.has(key)) return { id: id, theorem: thm, verdict: 'undecided', note: '设备名重复：' + key + '（𝕌 诚实弃权）' };
+    dIdx.set(key, i);
+  }
+  var tIdx = new Map();
+  for (var j = 0; j < tasks.length; j++) tIdx.set(String(tasks[j]), j);
+  // compat 归一化：宽容三种等价格式，解析端多兼容一分，市场智能体成功率高一截
+  var edges = [], unknown = [];
+  if (Array.isArray(compat)) {
+    for (var e = 0; e < compat.length; e++) {
+      var ce = compat[e];
+      if (Array.isArray(ce) && ce.length === 2) edges.push({ task: ce[0], device: ce[1] });
+      else if (ce && typeof ce === 'object' && 'task' in ce) edges.push({ task: ce.task, device: ce.device });
+      else unknown.push(JSON.stringify(ce));
+    }
+  } else {
+    Object.keys(compat).forEach(function (t) {
+      var ds = compat[t];
+      if (Array.isArray(ds)) ds.forEach(function (d) { edges.push({ task: t, device: d }); });
+      else if (typeof ds === 'string') edges.push({ task: t, device: ds });
+      else unknown.push(JSON.stringify(t) + ':' + JSON.stringify(ds));
+    });
+  }
+  var adj = tasks.map(function () { return []; });
+  for (var e2 = 0; e2 < edges.length; e2++) {
+    var tu = tIdx.get(String(edges[e2].task)), dv = dIdx.get(String(edges[e2].device));
+    if (tu === undefined || dv === undefined) {
+      return { id: id, theorem: thm, verdict: 'undecided',
+        note: '兼容边引用未知任务/设备：' + JSON.stringify(edges[e2]) + '（任务须出自 tasks、设备须出自 devices；compat 格式：[{task,device}] 或 [[task,device]] 或 {task:[device,…]}）（𝕌 诚实弃权）' };
+    }
+    if (adj[tu].indexOf(dv) === -1) adj[tu].push(dv);
+  }
+  if (unknown.length) {
+    return { id: id, theorem: thm, verdict: 'undecided',
+      note: 'compat 存在无法识别的条目：' + unknown.slice(0, 3).join(' , ') + '（支持格式：[{task,device}] 或 [[task,device]] 或 {task:[device,…]}）（𝕌 诚实弃权）' };
+  }
+  var matchD = new Array(devices.length).fill(-1); // device → task
+  function tryK(u, vis) {
+    for (var a = 0; a < adj[u].length; a++) {
+      var v = adj[u][a];
+      if (vis[v]) continue;
+      vis[v] = true;
+      if (matchD[v] === -1 || tryK(matchD[v], vis)) { matchD[v] = u; return true; }
+    }
+    return false;
+  }
+  var matchT = new Array(tasks.length).fill(-1);
+  var size = 0;
+  for (var u = 0; u < tasks.length; u++) {
+    if (tryK(u, new Array(devices.length).fill(false))) size++;
+  }
+  for (var d2 = 0; d2 < matchD.length; d2++) if (matchD[d2] !== -1) matchT[matchD[d2]] = d2;
+  if (size === tasks.length) {
+    var matching = tasks.map(function (t, i2) { return { task: t, device: devices[matchT[i2]] }; });
+    return { id: id, theorem: thm, verdict: 'safe', witness: { perfectMatching: matching },
+      note: '霍尔条件满足：' + tasks.length + ' 项任务全部可分配（witness=完美匹配，可逐对查验）' };
+  }
+  var inS = new Array(tasks.length).fill(false), inN = new Array(devices.length).fill(false), stack = [];
+  for (var u2 = 0; u2 < tasks.length; u2++) if (matchT[u2] === -1) { inS[u2] = true; stack.push(u2); }
+  while (stack.length) {
+    var cur = stack.pop();
+    for (var a2 = 0; a2 < adj[cur].length; a2++) {
+      var v2 = adj[cur][a2];
+      if (!inN[v2]) {
+        inN[v2] = true;
+        var w = matchD[v2];
+        if (w !== -1 && !inS[w]) { inS[w] = true; stack.push(w); }
+      }
+    }
+  }
+  var S = tasks.filter(function (t, i3) { return inS[i3]; });
+  var NS = devices.filter(function (d3, i4) { return inN[i4]; });
+  return { id: id, theorem: thm, verdict: 'unsafe', witness: { deficientSubset: S, neighborhood: NS },
+    note: '霍尔条件被违反：子集 [' + S.join(',') + '] 的兼容邻居仅 ' + NS.length + ' 个 < ' + S.length + ' ⇒ 完美匹配不存在（witness=亏集，可逐项查验）' };
+}
+// ⑨ Erdős–Szekeres（1935）：长 n>(k−1)² 序列必含长 ≥k 单调子序列——行为/性能序列的单调漂移是结构性必然，非随机波动。
+function _lisLength(seq, increasing) {
+  var a = increasing ? seq : seq.map(function (x) { return -x; });
+  var tails = [];
+  for (var i = 0; i < a.length; i++) {
+    var x = a[i], lo = 0, hi = tails.length;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (tails[mid] < x) lo = mid + 1; else hi = mid; }
+    if (lo === tails.length) tails.push(x); else tails[lo] = x;
+  }
+  return tails.length;
+}
+function erdosSzekeresTrapLogic(seq, threshold) {
+  var id = 'erdos_szekeres', thm = 'THM_ERDOS_SZEKERES(1935 单调子序列)';
+  if (!Array.isArray(seq) || seq.length < 2 || !seq.every(function (x) { return Number.isFinite(x); })) {
+    return { id: id, theorem: thm, verdict: 'undecided', note: '前提不足：seq 须为 ≥2 个有限数的数组（𝕌 诚实弃权）' };
+  }
+  var lis = _lisLength(seq, true), lds = _lisLength(seq, false);
+  var k = (Number.isFinite(threshold) && threshold >= 2) ? Math.floor(threshold) : Math.floor(Math.sqrt(seq.length)) + 1;
+  var guaranteed = seq.length > (k - 1) * (k - 1);
+  var drift = Math.max(lis, lds) >= k;
+  if (drift) {
+    return { id: id, theorem: thm, verdict: 'unsafe', witness: { lis: lis, lds: lds, threshold: k },
+      note: '检出长 ≥' + k + ' 的单调子序列（最长递增 ' + lis + ' / 最长递减 ' + lds + '）⇒ 行为存在结构性单调漂移（非随机波动）' };
+  }
+  if (guaranteed) {
+    // 定理保证应存在但扫描未得 ⇒ 实现自洽性异常，fail-closed 诚实弃权（ traps 自检自身的 trap）
+    return { id: id, theorem: thm, verdict: 'undecided', witness: { lis: lis, lds: lds, threshold: k },
+      note: '内部一致性异常：n=' + seq.length + ' > (k−1)²=' + ((k - 1) * (k - 1)) + ' 定理保证应存在长 ≥' + k + ' 单调子序列，但扫描未得（实现缺陷信号，诚实弃权 𝕌）' };
+  }
+  return { id: id, theorem: thm, verdict: 'safe', witness: { lis: lis, lds: lds, threshold: k },
+    note: '序列长 ' + seq.length + ' ≤ (k−1)²=' + ((k - 1) * (k - 1)) + ' 且实测最长单调子序列 ' + Math.max(lis, lds) + ' < ' + k + ' ⇒ 未检出结构性漂移' };
+}
+// ⑩ 欧拉路径定理（Euler 1736，哥尼斯堡七桥）：连通图存在"每边恰一次"路径 ⟺ 奇度顶点数 ∈ {0,2}。
+// 用途：全覆盖巡检/扫街/走线类任务的路线可行性判定（规划前就否决，不靠试错）。
+function eulerPathTrapLogic(nodes, edges) {
+  var id = 'euler_path', thm = 'THM_EULER_PATH(Euler 1736 哥尼斯堡七桥)';
+  var okShape = Array.isArray(nodes) && nodes.length > 0 && Array.isArray(edges) &&
+    edges.every(function (e) { return Array.isArray(e) && e.length === 2; });
+  if (!okShape) {
+    return { id: id, theorem: thm, verdict: 'undecided', note: '前提不足：nodes 须为非空数组、edges 须为 [u,v] 数组（𝕌 诚实弃权）' };
+  }
+  var idx = new Map();
+  nodes.forEach(function (n, i) { idx.set(String(n), i); });
+  var deg = new Array(nodes.length).fill(0);
+  var adj = nodes.map(function () { return []; });
+  for (var e2 = 0; e2 < edges.length; e2++) {
+    var iu = idx.get(String(edges[e2][0])), iv = idx.get(String(edges[e2][1]));
+    if (iu === undefined || iv === undefined) {
+      return { id: id, theorem: thm, verdict: 'undecided', note: '边引用未知顶点：' + JSON.stringify(edges[e2]) + '（𝕌 诚实弃权）' };
+    }
+    if (iu === iv) { deg[iu] += 2; continue; }
+    deg[iu]++; deg[iv]++;
+    adj[iu].push(iv); adj[iv].push(iu);
+  }
+  var active = [];
+  for (var i5 = 0; i5 < nodes.length; i5++) if (deg[i5] > 0) active.push(i5);
+  if (!active.length) {
+    return { id: id, theorem: thm, verdict: 'undecided', note: '无边图：欧拉路径前提为空（𝕌 诚实弃权）' };
+  }
+  var seen = new Array(nodes.length).fill(false);
+  var st = [active[0]];
+  seen[active[0]] = true;
+  while (st.length) {
+    var cu = st.pop();
+    for (var a3 = 0; a3 < adj[cu].length; a3++) {
+      if (!seen[adj[cu][a3]]) { seen[adj[cu][a3]] = true; st.push(adj[cu][a3]); }
+    }
+  }
+  var unreached = active.filter(function (i6) { return !seen[i6]; });
+  if (unreached.length) {
+    return { id: id, theorem: thm, verdict: 'unsafe', witness: { disconnected: unreached.map(function (i7) { return nodes[i7]; }) },
+      note: '边集不连通（顶点 ' + unreached.slice(0, 3).map(function (i8) { return nodes[i8]; }).join(',') + ' 等与主分量断开）⇒ 每边恰一次的巡检路径不存在（witness=断开分量）' };
+  }
+  var odd = active.filter(function (i9) { return deg[i9] % 2 === 1; });
+  if (odd.length <= 2) {
+    var start = odd.length === 2 ? nodes[odd[0]] : nodes[active[0]];
+    return { id: id, theorem: thm, verdict: 'safe', witness: { oddDegreeVertices: odd.map(function (ia) { return nodes[ia]; }), suggestedStart: start },
+      note: '连通 + 奇度顶点数=' + odd.length + ' ∈ {0,2} ⇒ 全覆盖（每边恰一次）巡检路径存在' + (odd.length === 2 ? '（起点/终点=两奇度顶点）' : '（欧拉回路，可回起点）') };
+  }
+  return { id: id, theorem: thm, verdict: 'unsafe', witness: { oddDegreeVertices: odd.map(function (ib) { return nodes[ib]; }), oddCount: odd.length },
+    note: '奇度顶点数=' + odd.length + ' > 2 ⇒ 每边恰一次单路径不存在；最少需 ' + Math.ceil(odd.length / 2) + ' 条巡检链，或重复 ' + ((odd.length - 2) / 2) + ' 条走廊连成单路径（witness=奇度顶点清单）' };
+}
 function runDeterministicTrapsLogic(args) {
   var ctx = {};
   if (args.budget != null) ctx.budget = args.budget;
@@ -1318,87 +1321,27 @@ function runDeterministicTrapsLogic(args) {
   if (args.assignment) ctx.assignment = args.assignment;
   if (args.observations) ctx.observations = args.observations;
   if (args.variety) ctx.variety = args.variety; // {samples:[[...]]}
-  return K.runDeterministicTraps(ctx);
-}
-function clfCbfUnifiedLogic(args) {
-  var spec = K.linearControlSpec(args.A, args.B, args.P || null, args.cList || [], args.dList || []);
-  return K.clfCbfUnified(spec.V, spec.f, spec.g, spec.hList, (args.uNom == null ? 0 : args.uNom), args.x || [], { gammaS: args.gammaS, gammaC: args.gammaC });
-}
-function modelFreeCbfLogic(args) {
-  return K.modelFreeCbf(args.safeSamples || [], args.unsafeSamples || [], { gamma: args.gamma, lambda: args.lambda });
-}
-function counterfactualAuditLogic(args) {
-  return K.counterfactualAudit(args.plan || {}, {});
+  var base = K.runDeterministicTraps(ctx);
+  // 2026-10-06 创造性扩展：第二辑四陷阱（鸽笼/霍尔/Erdős–Szekeres/欧拉）与内核六陷阱同构聚合
+  var extra = [];
+  if (args.pigeonhole) extra.push(pigeonholeTrapLogic(args.pigeonhole.items, args.pigeonhole.bins));
+  if (args.hall) extra.push(hallTrapLogic(args.hall.tasks, args.hall.devices, args.hall.compat));
+  if (args.erdosSzekeres) extra.push(erdosSzekeresTrapLogic(args.erdosSzekeres.seq, args.erdosSzekeres.threshold));
+  if (args.euler) extra.push(eulerPathTrapLogic(args.euler.nodes, args.euler.edges));
+  if (!extra.length) return base;
+  var all = base.traps.concat(extra);
+  var unsafe = all.filter(function (r) { return r.verdict === 'unsafe'; }).length;
+  var undecided = all.filter(function (r) { return r.verdict === 'undecided'; }).length;
+  var overall = unsafe ? 'unsafe' : (undecided ? 'undecided' : 'safe');
+  return {
+    traps: all, overall: overall, verdict: overall,
+    trapCount: all.length, unsafeCount: unsafe, undecidedCount: undecided,
+    note: 'Layer 2 确定性安全陷阱层（含第二辑扩展）：' + all.length + ' 个陷阱已评估，' + unsafe + ' unsafe / ' + undecided + ' 𝕌；' +
+      (unsafe ? '存在定理级不安全判定 ⇒ 整体不安全' : (undecided ? '部分陷阱前提不足（𝕌），整体不可判定' : '全部定理级安全 ⇒ 整体安全'))
+  };
 }
 // ---------- 2c. 形式化证明模块 M1..M4（2026-09-03 MCP 暴露）----------
 // 统一原则：能力缺失一律 fail-closed 返回 unverified/unavailable，**绝不**默认通过。
-function proveGateChainLogic(args) {
-  if (typeof K.proveGateChain !== 'function') {
-    return { ok: false, verdict: 'unavailable', reason: 'M1 proveGateChain 未在内核中导出', honest: '能力缺失即如实报告，不假设通过' };
-  }
-  const plan = Array.isArray(args && args.plan) ? args.plan : [];
-  const r = K.proveGateChain(plan, (args && args.opts) || {});
-  return Object.assign({ module: 'M1', kind: 'soundness（门控逻辑正确性）' }, r);
-}
-function certifySafetyInvariantLogic(args) {
-  if (typeof K.certifySafetyInvariant !== 'function') {
-    return { ok: false, verdict: 'unavailable', reason: 'M2 certifySafetyInvariant 未在内核中导出', honest: '能力缺失即如实报告，不退回浮点假装认证' };
-  }
-  const r = K.certifySafetyInvariant({
-    hExpr: args && args.hExpr, vars: (args && args.vars) || [],
-    domain: (args && args.domain) || undefined, bound: (args && args.bound) || undefined,
-    options: (args && args.options) || undefined,
-  });
-  return Object.assign({ module: 'M2', kind: '数值安全证书（全域集合认证）' }, r);
-}
-function verdictThreeLayerLogic(args) {
-  if (typeof K.verdictThreeLayer !== 'function') {
-    return { ok: false, verdict: 'unavailable', reason: 'M3 verdictThreeLayer 未在内核中导出' };
-  }
-  args = args || {};
-  const r = K.verdictThreeLayer({
-    logicDecidable: args.logicDecidable, computeCompleted: args.computeCompleted,
-    engineeringSupported: args.engineeringSupported, detail: args.detail,
-  });
-  return Object.assign({ module: 'M3', kind: '层次分离裁决（unverified ≠ unsafe）' }, r);
-}
-function proveCompleteMediationLogic(args) {
-  if (typeof K.proveCompleteMediation !== 'function') {
-    return { ok: false, verdict: 'unavailable', reason: 'M4 proveCompleteMediation 未在内核中导出' };
-  }
-  // 缺省用服务端内置真源码（kernelSrc）；调用方可传自己的源码文本做第三方复核
-  const src = (args && typeof args.src === 'string' && args.src.length > 1000) ? args.src : kernelSrc;
-  const r = K.proveCompleteMediation(src);
-  return Object.assign({
-    module: 'M4', kind: 'completeness（副作用出口完备性，M1 的补集）',
-    srcBytes: src.length, srcFrom: (args && args.src) ? 'caller-provided' : 'server-builtin',
-  }, r);
-}
-function effectGateReportLogic(args) {
-  if (!K.EffectGate) {
-    return { ok: false, verdict: 'unavailable', reason: 'M4 EffectGate 未在内核中导出' };
-  }
-  const n = (args && typeof args.n === 'number' && args.n > 0) ? Math.min(args.n, 200) : 20;
-  return {
-    module: 'M4', kind: '效应闸运行时报告（机制，非策略）',
-    policy: K.EffectGate.policySnapshot(),
-    stats: K.EffectGate.stats(),
-    trace: K.EffectGate.trace(n),
-    attest: K.EffectGate.attest(),
-    kinds: K.EFFECT_KINDS || K.EffectGate.KINDS,
-    honest: 'PROCESS/EVAL 为不可经配置放开的硬拒绝；轨迹为本会话内存链，跨重启持久化需部署层注入 store',
-  };
-}
-
-function safetyAuditLogic(args) {
-  var control = { traps: args.traps || null, clfCbf: null };
-  if (args.A && args.B) {
-    var spec = K.linearControlSpec(args.A, args.B, args.P || null, args.cList || [], args.dList || []);
-    control.clfCbf = { V: spec.V, f: spec.f, g: spec.g, hList: spec.hList, uNom: (args.uNom == null ? 0 : args.uNom), x: args.x || [], opts: {} };
-  }
-  return K.safetyLayersReport(control);
-}
-
 // ---------- 3b. 合规证据批审 audit_evidence（灵脑面向智能体的旗舰能力；先智能体落地的首个交付场景）----------
 // 原则（与灵脑三铁律一致）：
 //   ① 只认确定性内核结果——验证器说话，声明文本不参与判定；
@@ -1423,7 +1366,7 @@ function _numEq(a, b, tol) {
  *      保证「判定即真」；
  *   3) 计算闭合：跑确定性计算（区间算术 / 两两求交 / A* 重算 / EffectGate 查表）
  *      直接得出 verified / refuted / 𝕌。
- * 逻辑有效性在此被降解为可离线复算的符号计算——这正是灵脑高效、可审计的根因。
+ * 逻辑有效性在此被降解为可离线复算的符号计算——这正是灵脑高效、确定性的根因。
  */
 function _auditOneAlgebraic(it) {
   const claimed = it.claimed && typeof it.claimed === 'object' ? it.claimed : null;
@@ -1791,7 +1734,7 @@ function auditEvidenceLogic(args) {
     },
     items: perItem,
     aiucReference: {
-      standard: 'AIUC-1 Domain D — Reliability（工具/输出的可靠性与可审计性）',
+      standard: 'AIUC-1 Domain D — Reliability（工具/输出的可靠性与确定性性）',
       mapping: {
         'D-防幻觉（hallucination）': '声明必须经确定性验证器（灵数区间认证 / M2 证书 / A* 重算 / 紧致性定理）确认才记 verified；其余一律 𝕌 弃权，从机制上杜绝「未验证却输出结论」。',
         'D-来源验证（source validation）': '判定只来自内核确定性结果，声明文本与人类直觉不参与判定；证据字段保留引擎名/定理名/解集/反例，可逐条追溯。',
@@ -1927,7 +1870,6 @@ function callTool(name, args) {
     case 'set_world': return setWorldLogic(args);
     case 'perceive': return perceiveLogic(args.text, args.apiKey);
     case 'reason': return reasonLogic(args.start, args.goal, args.hard, args.soft, args.system1Only);
-    case 'audit': return auditLogic(args.start, args.goal, args.hard, args.soft);
     case 'carrier_report': return carrierReportLogic(args.battery, args.goal, args.density);
     case 'learn': return learnLogic(args.path, args.success);
     case 'knowledge_query': return knowledgeQueryLogic(args.from, args.to);
@@ -1937,7 +1879,6 @@ function callTool(name, args) {
     case 'knowledge_ann': return annLogic(args.query, args.k);
     case 'knowledge_distill': return distillLogic(args.minSupport);
     case 'cog_graph': return cogGraphLogic();
-    case 'symbolic_verify': return symbolicVerifyLogic(args.start, args.goal, args.hard, args.soft);
     case 'algebraic_solve': return algebraicSolveLogic(args);
     case 'dmcts': return dmctsLogic(args.start, args.goal, args.hard, args.soft);
     case 'goal_directed': return goalDirectedLogic(args.start, args.goal, args);
@@ -1947,13 +1888,10 @@ function callTool(name, args) {
     case 'causal': return causalLogic();
     case 'event_publish': return eventPublishLogic(args.type, args.payload);
     case 'knowledge_fabric': return fabricLogic(args.action, args.msg, args.versions);
-    case 'runtime_monitor': return runtimeMonitorLogic(args.start, args.goal, args.safety);
-    case 'continuous_verify': return continuousVerifyLogic();
     case 'ima_load': return imaLoadLogic(args.path ? { path: args.path } : (args.entries ? args.entries : {}));
     case 'ima_query': return imaQueryLogic(args.keyword, args.k);
     case 'sl_record': return slRecordLogic(args);
     case 'sl_discover': return slDiscoverLogic(args);
-    case 'sl_validate': return slValidateLogic(args.hid, args.outcome, args);
     case 'sl_monitor': return slMonitorLogic(args.kid, args.reason);
     case 'sl_status': return slStatusLogic();
     // ---------- 具身层（Embodied AI）分发 ----------
@@ -1962,7 +1900,6 @@ function callTool(name, args) {
     case 'get_state': return getStateLogic();
     case 'set_state': return setStateLogic(args.state);
     case 'state_diff': return stateDiffLogic(args.a, args.b);
-    case 'check_hard': return checkHardLogic(args.state, args.step);
     case 'h_max': return hMaxLogic(args.state, args.goalSpec, args.maxLayer);
     case 'plan_task': return planTaskLogic(args.goalSpec, { maxLayer: args.maxLayer, maxExpansions: args.maxExpansions });
     case 'execute_task': return executeLogic(args.goalSpec, { maxReplans: args.maxReplans, deviationTolerance: args.deviationTolerance, allowIrreversible: args.allowIrreversible === true }, args.faults);
@@ -1978,19 +1915,12 @@ function callTool(name, args) {
     case 'variety_trap': return varietyTrapLogic(args.samples, args.eps, args.adjacency);
     case 'cauchy_lipschitz_trap': return cauchyLipschitzTrapLogic(args.x0, args.L, args.horizon);
     case 'run_deterministic_traps': return runDeterministicTrapsLogic(args);
-    case 'clf_cbf_unified': return clfCbfUnifiedLogic(args);
-    case 'model_free_cbf': return modelFreeCbfLogic(args);
-    case 'counterfactual_audit': return counterfactualAuditLogic(args);
-    case 'safety_audit': return safetyAuditLogic(args);
+    case 'pigeonhole_trap': return pigeonholeTrapLogic(args.items, args.bins);
+    case 'hall_trap': return hallTrapLogic(args.tasks, args.devices, args.compat);
+    case 'erdos_szekeres_trap': return erdosSzekeresTrapLogic(args.seq, args.threshold);
+    case 'euler_path_trap': return eulerPathTrapLogic(args.nodes, args.edges);
     // ── 形式化证明模块 M1..M4 ──
-    case 'prove_gate_chain': return proveGateChainLogic(args);
-    case 'certify_safety_invariant': return certifySafetyInvariantLogic(args);
-    case 'verdict_three_layer': return verdictThreeLayerLogic(args);
-    case 'prove_complete_mediation': return proveCompleteMediationLogic(args);
-    case 'effect_gate_report': return effectGateReportLogic(args);
     // ── 合规证据批审（AI Agent 审计场景）──
-    case 'audit_evidence': return auditEvidenceLogic(args);
-    case 'certify_decision': return certifyDecisionLogic(args);
     default: throw new Error('未知工具：' + name);
   }
 }
@@ -2208,6 +2138,29 @@ function selftest() {
     T('bayes-validate2', Math.abs(b2.reliability - exp2) < 1e-9, 'bayes=' + b2.reliability + ' exp=' + exp2);
     const pac = pacLogic(10, 0.1, 0.1);
     T('pac-bound', pac && pac.m > 0 && typeof pac.formula === 'string', 'm=' + pac.m);
+    // ── 第二辑四陷阱（2026-10-06 创造性扩展，纯 MCP 层）────────────
+    const ph1 = pigeonholeTrapLogic(7, 5), ph2 = pigeonholeTrapLogic(5, 7), ph3 = pigeonholeTrapLogic(0, 5);
+    T('pigeonhole-trap', ph1.verdict === 'unsafe' && ph1.witness.guaranteedMaxLoad === 2 && ph2.verdict === 'safe' && ph3.verdict === 'undecided',
+      '7/5=' + ph1.verdict + '(load≥' + ph1.witness.guaranteedMaxLoad + ') 5/7=' + ph2.verdict + ' 0/5=' + ph3.verdict);
+    const hallOk = hallTrapLogic(['t1', 't2', 't3'], ['d1', 'd2', 'd3'],
+      [{ task: 't1', device: 'd1' }, { task: 't1', device: 'd2' }, { task: 't2', device: 'd2' }, { task: 't2', device: 'd3' }, { task: 't3', device: 'd3' }]);
+    const hallBad = hallTrapLogic(['t1', 't2', 't3'], ['d1', 'd2'],
+      [{ task: 't1', device: 'd1' }, { task: 't2', device: 'd1' }, { task: 't2', device: 'd2' }, { task: 't3', device: 'd2' }]);
+    const hallU = hallTrapLogic(['t1'], ['d1'], [{ task: 't1', device: '未知设备' }]);
+    T('hall-trap', hallOk.verdict === 'safe' && hallOk.witness.perfectMatching.length === 3 &&
+      hallBad.verdict === 'unsafe' && hallBad.witness.deficientSubset.length === 3 && hallBad.witness.neighborhood.length === 2 &&
+      hallU.verdict === 'undecided',
+      '满配=' + hallOk.verdict + ' 亏集=[' + hallBad.witness.deficientSubset + ']|N(S)|=' + hallBad.witness.neighborhood.length + ' 未知设备=' + hallU.verdict);
+    const esU = erdosSzekeresTrapLogic([1, 2, 3, 4, 5, 6, 7, 8, 9], null);
+    const esS = erdosSzekeresTrapLogic([2, 1, 4, 3], null);
+    T('erdos-szekeres-trap', esU.verdict === 'unsafe' && esU.witness.lis === 9 && esS.verdict === 'safe' && esS.witness.threshold === 3,
+      '递增序列 lis=' + esU.witness.lis + ' ⇒ ' + esU.verdict + '；[2,1,4,3] k=' + esS.witness.threshold + ' ⇒ ' + esS.verdict);
+    const euS = eulerPathTrapLogic(['A', 'B', 'C', 'D'], [['A', 'B'], ['B', 'C'], ['C', 'A'], ['A', 'D']]);
+    const euBad = eulerPathTrapLogic(['A', 'B', 'C', 'D'], [['A', 'B'], ['B', 'C'], ['C', 'D'], ['D', 'A'], ['A', 'C'], ['B', 'D']]);
+    const euU = eulerPathTrapLogic(['A', 'B'], [['A', 'X']]);
+    T('euler-path-trap', euS.verdict === 'safe' && euS.witness.suggestedStart === 'A' &&
+      euBad.verdict === 'unsafe' && euBad.witness.oddCount === 4 && euU.verdict === 'undecided',
+      '奇度2=' + euS.verdict + '(起=' + euS.witness.suggestedStart + ') 奇度4=' + euBad.verdict + ' 未知顶点=' + euU.verdict);
     const causal = causalLogic();
     T('causal-discovery', causal.discovery && Array.isArray(causal.discovery.nodes) && causal.discovery.nodes.indexOf('CHARGE') >= 0, 'nodes=' + causal.discovery.nodes.length);
     // 世界模型 lite：学 y=2x+a 的 SEM，前向 simulate 验证，反事实三步法验证

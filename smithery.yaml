@@ -2,12 +2,12 @@
 # 提交方式：在 smithery.ai 选 "Add Server" → 粘贴本仓库 GitHub URL，
 # 或待 Smithery Key 就绪后由维护者后台导入。
 name: lingnao
-displayName: 灵脑 LingNao（可审计·不幻觉通用大脑）
+displayName: 灵脑 LingNao（任意智能体的确定性·不幻觉推理服务）
 description: >-
-  本地确定性、可审计的推理大模型（非概率生成式 LLM）。对外以 MCP stdio 暴露唯一 lingnao 网关工具
-  （op 参数收编 64 项能力，含决策裁判 certify_decision）：免费 LLM 感知(NL→JSON) / 世界图 / A* 可审计推理 / 七段审计+霍尔证明 /
-  代数方程求解(委派灵数求解器) / 因果 do 演算 / 元认知 / 具身层(规划-执行-安全停车-重规划闭环)。
-  零依赖、零安装、不幻觉。
+  面向任意智能体的本地确定性、不幻觉推理服务（非概率生成式 LLM、无神经网络在环）。对外以 MCP stdio 暴露唯一 lingnao 网关工具
+  （op 参数收编 51 项推理能力）：深思规划(A*/确定性 MCTS/RSG) / 因果推理(do-演算、Pearl 因果阶梯) / 不确定性理论(PAC 样本界)
+  / 数学健全性压力测试(Baire 纲·紧致性·代数簇·范德瓦尔登·柯西-利普希茨·Bertrand，均有真实定理保证) / 世界模型与反事实 / 元认知与自演化 / 具身决策(规划-执行-安全停车-重规划闭环)。
+  零依赖、零安装、不幻觉、可复现。方法学与数学定理见 docs/00-推理引擎原理与方法学.md。
 startCommand:
   type: stdio
   command: npx

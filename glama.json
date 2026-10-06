@@ -1,14 +1,14 @@
 {
   "$schema": "https://glama.ai/mcp/schema/manifest.json",
   "name": "LingNao",
-  "description": "灵脑 LingNao — 可审计、确定性的通用大脑推理引擎（非概率生成式 LLM、不幻觉）。本地 A* 可审计推理 + 世界图 + 七段审计/霍尔证明 + 代数方程求解（委派灵数求解器）+ 因果 do 演算 + 元认知 + 具身层（规划-执行-安全停车-重规划闭环）。以 MCP stdio 暴露唯一 lingnao 网关工具（op 参数收编 64 项能力，含合规证据批审 audit_evidence 与决策裁判 certify_decision）。授权：商业授权 / 非商业免费 —— 个人学习、研究、教学及非营利内部使用免费；任何商业使用须事先取得书面授权（联系 553420544@qq.com）。安装即用最新稳定版：npx -y lingnao-mcp。",
+  "description": "灵脑 LingNao —— 面向所有智能体的确定性推理引擎（非概率生成式 LLM、不幻觉、无神经网络在环）。覆盖五大推理前沿：① 深思规划 reason(A*/RSG)/dmcts(确定性 MCTS)/plan_task/goal_directed；② 因果推理 causal/causal_effect/counterfactual（do-演算、Pearl 因果阶梯三档）；③ 不确定性理论 pac_bound（PAC 样本复杂度界，VC 维）；④ 数学健全性压力测试 *_trap（Baire 纲/紧致性/代数簇/范德瓦尔登/柯西-利普希茨/Bertrand/鸽笼/霍尔匹配/Erdős–Szekeres/欧拉路径——均由真实定理保证并给 witness）；⑤ 世界模型与反事实 world_model + 元认知与自演化 meta/knowledge_*/sl_* + 具身决策 attach_body/execute_task。以 MCP stdio 暴露唯一 lingnao 网关工具（op 参数收编 51 项推理能力）。确定性、可复现、fail-closed。授权：商业授权 / 非商业免费 —— 个人学习、研究、教学及非营利内部使用免费；任何商业使用须事先取得书面授权（联系 553420544@qq.com）。方法学与数学定理见 docs/00-推理引擎原理与方法学.md。安装即用最新稳定版：npx -y lingnao-mcp。",
   "homepage": "https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html",
   "repository": {
     "type": "git",
     "url": "https://github.com/genesis-plan/lingnao"
   },
   "license": "SEE LICENSE IN LICENSE",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "mcpServers": {
     "lingnao": {
       "type": "stdio",

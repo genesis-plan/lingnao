@@ -2,13 +2,13 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.genesis-plan/lingnao",
   "title": "LingNao",
-  "description": "AI number verification API: your AI computes the numbers, LingNao recomputes them independently and returns verified / refuted / unverifiable. No second model in the loop, fail-closed, ~3ms.",
+  "description": "LingNao — a deterministic reasoning SERVICE for ANY AI agent or robot. One MCP gateway `lingnao` (op + args → structured verdict) gives any agent deterministic, hallucination-free, reproducible reasoning: deliberate planning (A*/RSG + deterministic MCTS), causal inference (do-calculus, Pearl's ladder), PAC uncertainty bounds, and mathematical soundness stress-tests (Baire category / compactness / algebraic variety / van der Waerden / Cauchy-Lipschitz — each backed by a real theorem). No neural network in the loop, fully reproducible, fail-closed. Method & theorem basis: docs/00. Zero dependencies.",
   "version": "1.3.0",
   "repository": {
     "url": "https://github.com/genesis-plan/lingnao",
     "source": "github"
   },
-  "websiteUrl": "https://hongchenlingjing.com/verify/",
+  "websiteUrl": "https://hongchenlingjing.com/reason/",
   "packages": [
     {
       "registryType": "npm",

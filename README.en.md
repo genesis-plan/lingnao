@@ -1,74 +1,98 @@
-# LingNao — AI number verification API
+# LingNao · Deterministic Reasoning Engine
 
 [中文文档](README.md)
 
-Your AI computes numbers. LingNao **recomputes them independently** — no second model, no confidence scores — and returns one of three verdicts: **verified / refuted / unverifiable**. A fail-closed verification API, ~3 ms per call.
+> **LingNao is a deterministic reasoning engine for all agents and robots — it does NOT verify, does NOT audit, it only reasons.**
+> It sits at the intersection of three frontiers: **deliberate planning** (A*/MCTS), **causal inference** (do-calculus), and **neuro-symbolic determinism** (no neural net → no hallucination, fully reproducible).
+> No "probably right" — only "right / wrong / can't (honest abstain 𝕌)".
+> Ships as **MCP stdio (`npx lingnao-mcp`) / web playground / Node library**. Zero dependencies · non-commercial free, commercial by agreement.
 
-```
-agent / LLM produces numbers
-        │
-        ▼
-   LingNao API  ──verified──▶  continue & archive the proof id
-        │
-        ├──refuted──▶  stop, discard, fix the prompt
-        └─unverified─▶  route to a human
-```
+- Repo: `genesis-plan/lingnao` · npm: `lingnao-mcp` · Try: [playground](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/playground.html) ／ [console](https://hclj-1409755229.cos.ap-guangzhou.myqcloud.com/lingnao/lingnao-console.html)
 
-**There is no fourth verdict.** No "probably fine", no confidence score.
+| | Notes |
+|---|---|
+| **Is** | A **deterministic reasoning engine**: symbolic reasoning over planning, causality, world models, and mathematical soundness; identical input → identical output; honestly returns 𝕌 when undecidable |
+| **Is not** | A language model, a verifier, an auditor, a "provably safe" prover, a general theorem prover (Coq/Lean), or a verification/adjudication layer |
 
-- `verified` — a deterministic checker confirmed the claim (e.g. the claimed root is a certified real root).
-- `refuted` — a deterministic checker disproved it.
-- `unverified` — it honestly abstains when it cannot deterministically judge.
+## Positioning (root purpose)
 
-## Two ways to plug it in
+LingNao is a **reasoning substrate** — concretely the **deterministic reasoning engine** for autonomous agents and robots: it reasons about planning, causality, and world models so that every step an agent takes is *thought-through correctly, explainable, and not confabulated*. It does **not** verify, audit, or adjudicate other agents' decisions. Division of labour: **LingShu = computation (numerical solving); LingNao = reasoning (pure inference)**.
 
-### HTTP
+## Five reasoning frontiers
 
-```bash
-curl -X POST https://hongchenlingjing.com/verify \
-  -H "Content-Type: application/json" \
-  -d '{"caseLabel":"invoice-check",
-       "items":[{"id":"i1","kind":"algebraic",
-                 "payload":{"equations":["x+2=5"],
-                            "claimed":{"x":3}}}]}'
-```
+| # | Frontier | Academic anchors | LingNao capabilities |
+|---|---|---|---|
+| ① | **Deliberate planning** | A*/RSG; MCTS (Kocsis & Szepesvári 2006, UCB1); deterministic MCTS; delete-relaxation admissible heuristic | `reason`(A*+RSG) · `dmcts` · `plan_task` · `h_max` · `goal_directed` · `execute_task` |
+| ② | **Causal inference** | Pearl's ladder; do-calculus (back/front-door, Shpitser & Pearl 2006); counterfactual 3-step | `causal`(PC-lite+do) · `causal_effect`(ACE) · `counterfactual` |
+| ③ | **Uncertainty theory** | PAC learning (Valiant 1984); VC-dimension sample bound m ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε² | `pac_bound` |
+| ④ | **Mathematical soundness stress-tests** | Baire category (1899) · compactness/Heine-Borel · algebraic variety/Zariski · van der Waerden (1927) · Cauchy-Lipschitz/Picard-Lindelöf · Bertrand's postulate (Chebyshev 1852) · Pigeonhole (Dirichlet 1834) · Hall's matching (1935) · Erdős–Szekeres (1935) · Euler path (1736) | `baire_trap` · `compactness_trap` · `variety_trap` · `van_der_waerden_trap` · `cauchy_lipschitz_trap` · `bertrand_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps` |
+| ⑤ | **World model / counterfactual / metacognition / self-evolution** | SEM + Pearl counterfactual framework; knowledge entropy H(K)/consistency; experience-base lifecycle | `world_model` · `perceive_belief`(Bayesian+Banach) · `meta` · `knowledge_*` · `sl_record`/`sl_discover`/`sl_monitor`/`sl_status` · `ima_load`/`ima_query` |
+| ＋ | **Embodied decision** | declarative capability contract; plan→execute→SAFE-STOP→bounded-replan | `attach_body` · `get_state`/`set_state`/`state_diff` · `positioning` · `carrier_report` |
 
-Response (measured, abridged):
+> **Method & theorem basis:** the precise method, every theorem cited above, and the per-`op` mapping are documented in [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md). That doc is the mathematical ground that lets LingNao serve *any* agent deterministically.
 
+## 30-second start
+
+**① MCP (recommended)** — no server, no local install:
 ```json
-{
-  "ok": true,
-  "reportId": "7c7aff229293858f",
-  "summary": { "verified": 1, "refuted": 0, "unverified": 0 },
-  "kernel": { "deterministic": true, "offline": true },
-  "items": [ { "verdict": "verified",
-               "evidence": { "solutions": [ { "values": [3], "tier": "proven", "certified": true } ] },
-               "proofObject": { "scope": "...", "limitations": "..." } } ]
-}
+{ "mcpServers": { "lingnao": { "command": "npx", "args": ["github:genesis-plan/lingnao"], "env": { "OPENROUTER_API_KEY": "your free key (optional)" } } } }
 ```
+npm stable: `{ "command": "npx", "args": ["-y", "lingnao-mcp"] }` (see `mcp.json`).
 
-Full integration guide with the verdict semantics and refusal policy: **[hongchenlingjing.com/verify/integrate.html](https://hongchenlingjing.com/verify/integrate.html)**
+**② Zero-install web** — double-click `playground.html` (A* planning + causality + soundness traps, offline), or `lingnao-console.html`.
 
-### MCP (stdio)
-
+**③ Developer**
 ```bash
-npx lingnao-mcp
+git clone https://github.com/genesis-plan/lingnao && cd lingnao
+node lingnao-mcp.js --selftest      # zero-dependency self-test
+node build-umd.js                   # rebuild UMD from the real kernel source
 ```
 
-One gateway tool `lingnao` (64 capabilities under the hood), for agent frameworks that speak MCP.
+## Capability boundary (honest)
 
-## What it refuses — by design
+| Dimension | Notes |
+|---|---|
+| Decision/planning | A* optimal path + hard/soft constraints + RSG; System-1 high-confidence fast path; **identical input → identical output** |
+| Causality | do-calculus (back/front-door) effect estimation, counterfactual inference; deterministic causal graph, no LLM fabrication |
+| Soundness | ten deterministic traps (Baire/compactness/variety/van der Waerden/Cauchy-Lipschitz/Bertrand/Pigeonhole/Hall matching/Erdős–Szekeres/Euler path), guaranteed by real theorems |
+| No hallucination | LLM only at perception (NL→JSON) and explanation, forced `UNVERIFIED_LLM` + `mayHallucinate`, **never in the reasoning chain** |
+| Embodied | declarative capability contract; plan → SAFE-STOP → execute → bounded replan loop |
+| Tool exposure | **1 gateway tool `lingnao`** (`op` parameter, 51 reasoning capabilities); 6 need KB attached (listed honestly, not counted as passing) |
+| Self-test | `--selftest` → core pass + 6 honestly-disclosed unimplemented (KB not attached) |
+| Dependencies | zero third-party runtime deps; LingShu solver is **optional** (`algebraic_solve` degrades honestly if absent) |
 
-Medical, mental-health, education & training, investment or financial advice, and legal advice are refused with HTTP 422 (`compliance:true`). A verification service must refuse what it cannot check. Inside scope: everyday numbers, formulas, algebraic constraints, logic.
+**Not guaranteed**: absolute safety, absolute correctness, completeness, connectivity to all real hardware. These are honest design boundaries, not defects.
 
-## Why not just ask the model again?
+## Capability catalogue (51 reasoning ops, single gateway `lingnao`)
 
-Asking the model again gives you a second opinion, not a verification. LingNao's kernel is independent and offline: same input, same verdict, with a proof id you can archive for audit-ready workflows. Your payload is not stored.
+`world_info` · `set_world` · `perceive` · `reason` · `carrier_report` · `learn` · `knowledge_query` · `knowledge_add` · `meta` · `perceive_belief` · `knowledge_ann` · `knowledge_distill` · `cog_graph` · `algebraic_solve` · `world_model` · `counterfactual` · `causal_effect` · `dmcts` · `goal_directed` · `pac_bound` · `ask` · `explain` · `causal` · `event_publish` · `knowledge_fabric` · `ima_load` · `ima_query` · `sl_record` · `sl_discover` · `sl_monitor` · `sl_status` · `attach_body` · `capabilities` · `get_state` · `set_state` · `state_diff` · `h_max` · `plan_task` · `execute_task` · `positioning` · `bertrand_trap` · `compactness_trap` · `van_der_waerden_trap` · `baire_trap` · `variety_trap` · `cauchy_lipschitz_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`
 
-## Pricing
+## Two separate products (do not confuse)
 
-Browser playground is free. Hosted API: self-service key, ¥0.01 per call — [hongchenlingjing.com/pay/en.html](https://hongchenlingjing.com/pay/en.html).
+| Product | What it is | Repo | npm |
+|---|---|---|---|
+| **LingNao** (this) | **reasoning engine**: perception / planning / causality / world model / soundness / embodied decision | genesis-plan/lingnao | lingnao-mcp |
+| **LingShu** | **solver**: real roots of equation systems (interval contraction + Krawczyk) | genesis-plan/lingshu-solver | lingshu-solver |
 
-## Licence
+LingNao reimplements no solving logic: `algebraic_solve` **delegates** to LingShu. LingShu is an **optional dependency**.
 
-Non-commercial use (personal, study, teaching, non-profit internal) is **free**. Commercial use requires prior written licence — 广州市红尘灵境数字科技有限公司 (Guangzhou Hongchen Lingjing Digital Technology Co., Ltd.).
+## License (summary)
+
+**Non-commercial free + commercial by written agreement** (own "LingNao Commercial License Agreement", **not an open-source license**):
+- Non-commercial free: personal study / research / teaching / evaluation; non-profit & educational internal use; teams with annual revenue ≤ ¥1M (≤ 3 instances). Copyright & license notice must be retained.
+- Commercial use requires prior written agreement: any for-profit product/service, SaaS/cloud/API exposure (paid or not), embedding in commercial distribution, redistribution/resale.
+- "LingNao / 灵脑" is a trademark; this license grants no trademark rights.
+
+Full terms: [LICENSE](LICENSE) ｜ commercial: [docs/06-商业授权与收费.md](docs/06-商业授权与收费.md)
+
+## Contact
+
+- Business / license / feedback: 553420544@qq.com (or repo Issues)
+- Copyright: Guangzhou Hongchen Lingjing Digital Technology Co., Ltd.
+
+## Honest notes (known follow-ups)
+
+- `knowledge_query` / `knowledge_add` / `knowledge_ann` / `knowledge_distill` / `cog_graph` need the KB attached; return `available:false` until then.
+- Of 30 physical-access protocols, only `ws` / `modbus-tcp` / `mqtt` have real drivers; others are filed-only.
+- `docs/` 01–11 still use the old "audit/verify" wording and need a sync pass (follow-up).
+- Verification/audit capabilities (`audit`/`certify`/`verify`/`prove`/`runtime_monitor` …) have been **removed from the public gateway** — LingNao reasons only, it does not verify or audit.
