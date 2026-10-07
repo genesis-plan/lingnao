@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>灵脑 · AI 数字结论验真器</title>
+<style>
+  :root{ --ink:#1c1c1e; --muted:#6b6b70; --line:#e4e4e8; --red:#b3261e; --green:#0a7d33; --amber:#8a6d00; --blue:#0b57d0; --bg:#fafafa; }
+  *{box-sizing:border-box}
+  body{font-family:"Microsoft YaHei",system-ui,-apple-system,sans-serif;max-width:860px;margin:0 auto;padding:18px 16px 60px;color:var(--ink);background:var(--bg);line-height:1.65}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .moat{background:#fff7e6;border:1px solid #ffe08a;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#7a5b00;margin:14px 0}
+  .moat b{color:#5c4300}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  select,input,textarea{width:100%;padding:9px 10px;font-size:14px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit}
+  textarea{font-family:Consolas,Menlo,monospace;min-height:74px;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:120px}
+  button{margin-top:14px;background:var(--ink);color:#fff;border:0;border-radius:9px;padding:11px 18px;font-size:15px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .verdict{font-size:16px;font-weight:700;border-radius:9px;padding:11px 14px;margin:6px 0}
+  .verdict .mean{font-size:13px;font-weight:400;margin-top:5px;display:block}
+  .v-verified{background:#e6f6ea;border:1px solid var(--green);color:var(--green)}
+  .v-refuted{background:#fdeceb;border:1px solid var(--red);color:var(--red)}
+  .v-unverified{background:#fdf6dd;border:1px solid #f0d860;color:var(--amber)}
+  .meta{font-size:12px;color:var(--muted);margin:6px 0}
+  .solve{background:#f3f6ff;border:1px solid #c7d2fe;border-radius:8px;padding:8px 12px;font-size:13px;margin-top:6px}
+  .proof{font-size:12px;color:#444;margin:6px 0 0 16px;padding:0}
+  details{margin-top:8px}summary{cursor:pointer;color:var(--blue);font-size:12px}
+  pre{background:#f6f6f6;border:1px solid #e3e3e3;border-radius:6px;padding:8px;max-height:200px;overflow:auto;font-size:11px;white-space:pre-wrap}
+  .summary-bar{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;margin:6px 0 12px}
+  .pill{padding:4px 10px;border-radius:20px;font-weight:600}
+  .pill-v{background:#e6f6ea;color:var(--green)} .pill-r{background:#fdeceb;color:var(--red)} .pill-u{background:#fdf6dd;color:var(--amber)}
+  .rid{font-family:Consolas,monospace;font-size:12px;background:#f0f0f3;border:1px solid var(--line);border-radius:6px;padding:6px 9px;display:inline-block;margin-top:4px}
+  .err{background:#fdeceb;border:1px solid var(--red);color:var(--red);border-radius:9px;padding:11px 14px;font-size:14px;margin:10px 0}
+  .foot{font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:24px;padding-top:12px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+  .tab{padding:7px 13px;border:1px solid var(--line);border-radius:20px;font-size:13px;cursor:pointer;background:#fff}
+  .tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:2px}
+</style>
+</head>
+<body>
+<h1>灵脑 · AI 数字结论验真器</h1>
+<div class="sub">你（或你用的任何 AI）给了一个带数字 / 公式 / 逻辑的结论？贴进来，灵脑用<b>确定性内核独立复算</b>，告诉你「对 / 错 / 证不了」——不靠再问一个 AI。</div>
+
+<div class="moat">
+  <b>只验什么：</b>日常数字、算式、逻辑、安全边界的对错。<br>
+  <b>不验什么：</b>医疗 / 心理 / 教育 / 金融建议 / 法律 —— 这些在国内需持牌，灵脑<b>绝不进那四格</b>。事实、主观、因果类结论，灵脑诚实说「证不了（𝕌）」，不瞎猜。灵脑自己不生成答案，只当裁判抓错。
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-tab="scene">场景模板</div>
+  <div class="tab" data-tab="free">自由算式</div>
+</div>
+
+<!-- 场景模板 -->
+<div id="panel-scene" class="card">
+  <label>选一个贴近你的场景</label>
+  <select id="scenario"></select>
+  <div id="fields"></div>
+  <button id="btnVerify">验一下</button>
+</div>
+
+<!-- 自由算式 -->
+<div id="panel-free" class="card" style="display:none">
+  <label>方程（每行一个，用 = 连接，变量用字母）</label>
+  <textarea id="eqs" placeholder="3 * x = 987&#10;y + 2 = 10"></textarea>
+  <div class="row">
+    <div><label>要核验的变量名</label><input id="cvar" placeholder="x"></div>
+    <div><label>你（或 AI）说它等于</label><input id="cval" placeholder="320" type="number" step="any"></div>
+  </div>
+  <div class="hint">例：方程写 <code>3 * x = 987</code>，变量填 <code>x</code>，声称值填 <code>320</code> → 灵脑复算得 x=329，判「错」。</div>
+  <button id="btnVerifyFree">验一下</button>
+</div>
+
+<div id="result"></div>
+
+<div class="foot">
+  每份报告带可离线重算的防篡改报告号（reportId = sha256(输入+内核版本)）：同输入同内核版本，谁都能重算核对，报告改没改一查便知。<br>
+  本工具不构成任何认证、合规或专业结论；无法确定性验证的内容一律如实弃权（𝕌）。灵脑 = 通用「AI 数字结论验真器」，由 灵脑 LingNao 确定性内核驱动。
+</div>
+
+<script>
+// ── 场景定义：每个场景把填好的数字编译成 algebraic 载荷 ──
+const SCENES = {
+  split:   { group:'消费算账', name:'多人平摊', fields:[['N','人数',3],['M','总金额(元)',987],['x','声称每人应付(元)',320]],
+             build:f=>({equations:[`${f.N} * x = ${f.M}`], claimed:{x:f.x}, text:`${f.N} 人平摊 ${f.M} 元，声称每人 ${f.x} 元`}) },
+  discount:{ group:'消费算账', name:'满减/折扣后应付', fields:[['p','单价(元)',25],['q','数量',10],['d','优惠/减免(元)',30],['pay','声称应付(元)',220]],
+             build:f=>({equations:[`qty * price - disc = pay`,`qty = ${f.q}`,`price = ${f.p}`,`disc = ${f.d}`], claimed:{pay:f.pay}, text:`单价 ${f.p} × ${f.q} 件，减 ${f.d}，声称应付 ${f.pay} 元`}) },
+  refund:  { group:'消费算账', name:'退款/到账', fields:[['paid','实付(元)',500],['ref','退款(元)',120],['got','声称到账(元)',380]],
+             build:f=>({equations:[`paid - ref = got`,`paid = ${f.paid}`,`ref = ${f.ref}`], claimed:{got:f.got}, text:`实付 ${f.paid}，退款 ${f.ref}，声称到账 ${f.got} 元`}) },
+  fx:      { group:'消费算账', name:'汇率换算', fields:[['amt','本金',1000],['rate','汇率',7.18],['conv','声称换得',7180]],
+             build:f=>({equations:[`amt * rate = conv`,`amt = ${f.amt}`,`rate = ${f.rate}`], claimed:{conv:f.conv}, text:`本金 ${f.amt} × 汇率 ${f.rate}，声称换得 ${f.conv}`}) },
+  ledger:  { group:'个人账税', name:'记账对账(收入-支出=结余)', fields:[['inc','收入(元)',8000],['exp','支出(元)',5200],['bal','声称结余(元)',2800]],
+             build:f=>({equations:[`inc - exp = bal`,`inc = ${f.inc}`,`exp = ${f.exp}`], claimed:{bal:f.bal}, text:`收入 ${f.inc}，支出 ${f.exp}，声称结余 ${f.bal} 元`}) },
+  tax:     { group:'个人账税', name:'个税算术核验(只验算术)', fields:[['inc','应纳税所得额(元)',30000],['rate','税率(%)',10],['quick','速算扣除数(元)',2520],['tax','声称应纳税额(元)',480]],
+             build:f=>({equations:[`base * r - q = tax`,`base = ${f.inc}`,`r = ${f.rate/100}`,`q = ${f.quick}`], claimed:{tax:f.tax}, text:`应税 ${f.inc} × 税率 ${f.rate}% − 速算 ${f.quick}，声称税额 ${f.tax} 元（灵脑只验算术对不对，不咨询税务）`}) },
+};
+
+// 合规护城河（与后端同形，前端即时拦一下；后端为权威）
+const RED_FLAGS = ['医疗','医院','医生','诊断','处方','服药','治疗','病情','症状','疾患','体检','心理','抑郁','焦虑','心理咨询','心理辅导','情绪疏导','作业','补习','培训','考试辅导','课程辅导','家教','股票','基金','理财','投资','保险','贷款','证券','避税','节税','税务筹划','合理避税','法律咨询','律师','起诉','诉讼'];
+function redFlag(text){ if(!text) return null; for(const k of RED_FLAGS) if(text.indexOf(k)>=0) return k; return null; }
+
+// ── 渲染场景下拉 ──
+const sel = document.getElementById('scenario');
+(function(){
+  const groups = {};
+  for(const k in SCENES){ (groups[SCENES[k].group]=groups[SCENES[k].group]||[]).push(k); }
+  for(const g in groups){
+    const og = document.createElement('optgroup'); og.label = g;
+    groups[g].forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=SCENES[k].name; og.appendChild(o); });
+    sel.appendChild(og);
+  }
+})();
+
+function renderFields(){
+  const k = sel.value, s = SCENES[k];
+  const box = document.getElementById('fields'); box.innerHTML='';
+  s.fields.forEach(([name,label,def])=>{
+    const l=document.createElement('label'); l.textContent=label;
+    const inp=document.createElement('input'); inp.id='f_'+name; inp.type='number'; inp.step='any'; inp.value=def;
+    box.appendChild(l); box.appendChild(inp);
+  });
+}
+sel.addEventListener('change', renderFields); renderFields();
+
+// ── Tab 切换 ──
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
+  const tab=t.dataset.tab;
+  document.getElementById('panel-scene').style.display = tab==='scene'?'block':'none';
+  document.getElementById('panel-free').style.display = tab==='free'?'block':'none';
+}));
+
+// ── 结果渲染 ──
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+const V = {
+  verified:['✓ 验对 · 数字没错','v-verified'],
+  refuted:['✗ 抓错 · 数字算错了','v-refuted'],
+  unverified:['𝕌 证不了 · 我不瞎猜','v-unverified'],
+};
+function renderItem(it){
+  const cls = V[it.verdict]?V[it.verdict][1]:'v-unverified';
+  const label = V[it.verdict]?V[it.verdict][0]:it.verdict;
+  const po = it.proofObject||{};
+  const ev = it.evidence||{};
+  let solveHtml='';
+  if(ev && Array.isArray(ev.solutions) && ev.solutions.length){
+    solveHtml = '<div class="solve">确定性复算结果：'+esc(ev.solutions.map(s=>s.text).join('；'))+'</div>';
+  }
+  let proofHtml='';
+  if(Array.isArray(po.proof)) proofHtml='<ul class="proof">'+po.proof.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>';
+  const flag = redFlag(it.text);
+  return '<div class="verdict '+cls+'">'+label+'<span class="mean">'+esc(it.reason||'')+'</span></div>'
+    + (flag?'<div class="err">命中持牌领域「'+esc(flag)+'」，该内容不在服务范围。</div>':'')
+    + (it.text?'<div class="meta">你贴的：'+esc(it.text)+'</div>':'')
+    + solveHtml
+    + (po.theorem?'<div class="meta">判定依据：'+esc(po.theorem)+' · 引擎 '+esc(it.engine||'')+'</div>':'')
+    + proofHtml
+    + (it.verdict==='unverified'?'<div class="meta">这不是可形式化的数字/算式/逻辑属性，灵脑不靠猜，直接说证不了。需要你用自己的判断。</div>':'')
+    + '<details><summary>证据原文（可离线重算）</summary><pre>'+esc(JSON.stringify(ev,null,2)).slice(0,1200)+'</pre></details>';
+}
+function renderResult(rep){
+  const r=document.getElementById('result');
+  if(!rep.ok){ r.innerHTML='<div class="err">'+esc(rep.error||'核验失败')+'</div>'; return; }
+  const s=rep.summary||{};
+  let h='<div class="summary-bar">'
+    + (s.verified?'<span class="pill pill-v">验对 '+s.verified+'</span>':'')
+    + (s.refuted?'<span class="pill pill-r">抓错 '+s.refuted+'</span>':'')
+    + (s.unverified?'<span class="pill pill-u">证不了 '+s.unverified+'</span>':'')
+    + '</div>';
+  h += (rep.items||[]).map(renderItem).join('');
+  h += '<div class="meta">报告号（可离线重算，防篡改）：</div><span class="rid">'+esc(rep.reportIdFull||rep.reportId||'')+'</span>';
+  r.innerHTML=h;
+}
+
+async function postVerify(items){
+  const res=await fetch('/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items,caseLabel:'C端验真'})});
+  const data=await res.json();
+  if(!res.ok){ document.getElementById('result').innerHTML='<div class="err">'+(data.error||'核验失败')+'</div>'; return; }
+  renderResult(data);
+}
+
+document.getElementById('btnVerify').addEventListener('click',()=>{
+  const k=sel.value,s=SCENES[k]; const f={};
+  s.fields.forEach(([name])=>{ f[name]=Number(document.getElementById('f_'+name).value); });
+  const item=s.build(f);
+  const flag=redFlag(item.text);
+  if(flag){ document.getElementById('result').innerHTML='<div class="err">命中持牌领域「'+flag+'」，该内容不在灵脑服务范围。灵脑只验日常数字/公式/逻辑对错。</div>'; return; }
+  postVerify([item]);
+});
+document.getElementById('btnVerifyFree').addEventListener('click',()=>{
+  const eqs=document.getElementById('eqs').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const v=document.getElementById('cvar').value.trim();
+  const val=Number(document.getElementById('cval').value);
+  if(!eqs.length||!v){ document.getElementById('result').innerHTML='<div class="err">请填写方程与要核验的变量名。</div>'; return; }
+  const item={ kind:'algebraic', text:'自由算式：'+eqs.join('；')+'，声称 '+v+'='+val, equations:eqs, claimed:{} };
+  item.claimed[v]=val;
+  const flag=redFlag(item.text);
+  if(flag){ document.getElementById('result').innerHTML='<div class="err">命中持牌领域「'+flag+'」，不在服务范围。</div>'; return; }
+  postVerify([item]);
+});
+</script>
+</body>
+</html>

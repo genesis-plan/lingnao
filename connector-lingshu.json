@@ -1,0 +1,63 @@
+{
+  "connector": {
+    "id": "lingshu-solver",
+    "name": "灵数求解器 Lingshu",
+    "displayName": "灵数求解器 · 确定性实数方程组求解",
+    "version": "1.0.10",
+    "category": "AI 能力 / 数学工具",
+    "subcategory": "确定性求解 · 代数 · 区间认证",
+    "description": "确定性实数方程组求解 MCP 工具（≤6 变量）：区间收缩 + Krawczyk 认证，离线零依赖零数据，诚实标记 truncated。不是 LLM、不猜、不幻觉——已验证解数学保真 + 全局穷尽尽力而为。\n\n暴露工具：\n• solve —— 求解方程组，返回结构化结果（含可信层级 tier 与 truncated 标记）；\n• give_feedback —— 供 AI 智能体主动回报卡点或建议。\n\n适合被任何 MCP 宿主（Cursor / Claude Code / Cline / VS Code Copilot / 自研 agent / 灵脑）作为「算得准的数学手」插入。本地 stdio 永久免费；另有常驻托管端点（按次 ¥0.01/次，支持 honorPaid 免费放行）。",
+    "tags": ["mcp", "math", "solver", "equation", "algebra", "non-llm", "deterministic", "interval-arithmetic", "krawczyk", "offline", "agent-tool"],
+    "repository": "https://github.com/genesis-plan/lingshu-solver",
+    "homepage": "https://genesis-plan.github.io/lingshu-solver/",
+    "docs": "https://github.com/genesis-plan/lingshu-solver",
+    "license": "SEE LICENSE IN LICENSE（商用需授权）",
+    "pricing": {
+      "model": "open-core / 免费分发",
+      "connectorFree": true,
+      "note": "本地 stdio 永久免费。常驻托管端点按次 ¥0.01/次（固定 1 分、不预充、无套餐），支持 honorPaid 免费放行——付费自愿、非强制。营收主要来自 B2B 年授权，不在连接器内强制收费。"
+    },
+    "mcp": {
+      "transport": "stdio",
+      "server": {
+        "command": "npx",
+        "args": ["-y", "@genesis-plan/lingshu-solver"],
+        "env": {}
+      },
+      "fallbackLocal": {
+        "command": "node",
+        "args": ["<本地仓库路径>/mcp-server.js"]
+      },
+      "remoteEndpoint": {
+        "url": "https://hongchenlingjing.com/mcp",
+        "note": "常驻托管 HTTP-MCP 端点（按次计费，honorPaid 可免费放行）"
+      }
+    },
+    "tools": [
+      {
+        "name": "solve",
+        "description": "求解方程组，返回结构化结果（解、可信层级 tier、truncated 标记、残差）"
+      },
+      {
+        "name": "give_feedback",
+        "description": "供 AI 智能体主动回报卡点或建议"
+      }
+    ],
+    "capabilities": [
+      "确定性实数方程组求解（≤6 变量）",
+      "区间收缩 + Krawczyk 认证",
+      "离线零依赖零数据",
+      "诚实标记 truncated（不可解时明说，不伪报）",
+      "结构化错误（不泄露内部堆栈）"
+    ],
+    "compliance": {
+      "pii": "不收集任何个人身份信息；调用日志仅记元数据（不记方程内容）",
+      "dataEgress": "本地 stdio 零数据上云；托管端点仅记订单号+SHA-256+次数+时间戳+来源IP",
+      "honesty": "已验证解数学保真 + 全局穷尽尽力而为；不承诺绝对不漏解"
+    },
+    "auth": {
+      "required": false,
+      "note": "无账号、无密钥即可本地运行；托管端点按次计费为独立商务，不在连接器内强制"
+    }
+  }
+}

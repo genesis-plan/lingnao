@@ -1,6 +1,6 @@
 {
   "name": "lingnao-mcp",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "mcpName": "io.github.genesis-plan/lingnao",
   "description": "LingNao - a deterministic reasoning SERVICE for ANY AI agent: deliberate planning (A*/deterministic MCTS), causal inference (do-calculus), PAC bounds, and mathematical soundness stress-tests (Baire/compactness/variety/van der Waerden/Cauchy-Lipschitz/Bertrand - each a real theorem). No neural net in the loop, no hallucination, reproducible. Single MCP gateway `lingnao`, zero dependencies.",
   "keywords": [
@@ -25,6 +25,8 @@
   "files": [
     "lingnao-mcp.js",
     "lingshu-bridge.js",
+    "lingnao-lite-math.js",
+    "lingnao-verify-server.js",
     "server.json",
     "灵脑.html",
     "lingnao.umd.js",

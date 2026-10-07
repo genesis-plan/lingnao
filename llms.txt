@@ -1,151 +1,150 @@
-# LingNao — a deterministic reasoning SERVICE for ANY agent
+# 灵脑 LingNao — a deterministic, auditable decision kernel for AI agents and robots
 
-> LingNao is NOT a language model, NOT a verifier, NOT an auditor. It is a zero-dependency,
-> deterministic reasoning service: it does **deliberate planning, causal inference, and mathematical
-> soundness checks** — deterministically, reproducibly, with no neural network in the loop (so no hallucination).
+> LingNao is NOT a language model. It is a zero-dependency, deterministic kernel that
+> decides **whether an action may be taken** and returns a traceable proof chain.
 > When a question is undecidable it honestly returns U instead of guessing.
-> LLM output is confined to perception/explanation and never enters the reasoning chain.
->
-> **For ANY agent:** whether your agent runs on Claude, GPT, a self-built agent, or a robot controller,
-> as long as it can make an MCP call it reaches the same gateway `lingnao`
-> (`op` + `args` → structured conclusion) and gets deterministic, non-hallucinating, reproducible reasoning.
-> Full method & theorem basis: [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md).
-
-## Why ANY agent can use it (interface + kernel properties)
-| Property | Meaning | For any agent |
-|---|---|---|
-| **Single gateway** | Only 1 tool `lingnao`, dispatching 51 ops via `op` | Any MCP client connects with one config line — no per-vendor customization |
-| **Agent-agnostic semantics** | Structured JSON in/out, stable `op` keys | No language/framework/LLM binding required |
-| **Deterministic kernel** | Same input ⇒ same output | Reproducible, comparable, drops straight into any decision loop |
-| **No NN in the loop** | Reasoning is all symbolic/numeric; LLM only at perception NL→JSON & explanation, flagged `UNVERIFIED_LLM`, never in the chain | No hallucination, no prompt-injection rewriting the answer |
-| **Three-valued honesty** | true / false / U (abstain), fail-closed | Agent gets machine-consumable verdicts, not prose to re-judge |
-| **Reproducible ledger** | Reasoning chain closed by Hoare logic (proof ledger) | Any agent can fetch the verifiable "why" trail |
+> LLM output is confined to perception/explanation and never enters the decision or proof chain.
 
 ## Positioning (root purpose)
-LingNao is a **reasoning substrate** — concretely the **deterministic reasoning service for autonomous
-agents and robots**: it reasons about planning, causality, world models, and mathematical soundness so that
-every step an agent takes is *thought-through correctly, explainable, and not confabulated*.
-It does **not** verify, audit, certify, or adjudicate other agents' decisions. Division of labour:
-**LingShu = computation (numerical solving); LingNao = reasoning (pure inference).**
+LingNao is, first and foremost, **a general-purpose AI numeric-conclusion verifier**: paste in any numeric / formula / logic conclusion your AI (Doubao / DeepSeek / ChatGPT) gave you, and LingNao deterministically re-derives and tells you *right / wrong / unprovable* — without asking another AI (which would also hallucinate). Under the hood it is the same **certified reasoning substrate** — concretely also the **trust arbiter for agent decisions**: it judges whether each agent output/action is safe / correct / authorized and issues a machine-checkable, post-hoc auditable certificate. It does not decide for the agent (referee, not athlete). Other tools (Coq/Lean) prove *theorems* from axioms; LingNao *verifies numeric conclusions* and proves *decisions*. **Compliance moat:** it only verifies concrete numeric / formula / logic / safety-boundary claims; medical / psychological / education / financial-advice / legal domains require licenses in China and are explicitly out of scope (rejected on match). Factual / subjective / causal claims honestly return 𝕌.
+actions are provably safe / correct / authorized. **Roadmap: agents first, robots later** — the first
+shippable scenario is AI-agent compliance audit (AIUC-1 mandatory controls + offline re-checkable
+`reportId` evidence, via the `audit_evidence`, `certify_decision` op). It is an embeddable trust anchor, not a standalone SaaS.
+LingJing (cognitive OS) is the orchestrator that embeds LingNao as its certified-reasoning layer.
 
-## Methods & theorems (the mathematical basis)
-LingNao's reasoning is backed by **real theorems**, not heuristic scoring:
-- **① Deliberative planning** — A* (optimal under admissible heuristic); deterministic MCTS (UCB1, Kocsis & Szepesvári 2006, fixed-seed ⇒ reproducible); Bellman value iteration. Ops: `reason` · `dmcts` · `plan_task` · `h_max` · `goal_directed` · `execute_task`.
-- **② Causal inference** — Pearl's ladder (association → intervention do-calculus → counterfactual, 2009); do-calculus back/front-door (Shpitser & Pearl 2006); counterfactual 3-step. LLM causal-decoupling failure ρ≈0.77 (Project Ariadne, arXiv 2601.02314) is exactly what a deterministic causal graph fixes. Ops: `causal` · `causal_effect` · `counterfactual`.
-- **③ Uncertainty theory** — PAC learning (Valiant 1984) + VC dimension: `m ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε²`; conformal marginal/pointwise risk bounds. Op: `pac_bound`.
-- **④ Mathematical soundness stress-tests** — real theorems guarantee soundness: **Baire category (1899)**, **compactness / interval analysis**, **algebraic variety / Zariski**, **van der Waerden (1927, Ramsey)**, **Cauchy–Lipschitz / Picard–Lindelöf**, **Bertrand's postulate (Chebyshev 1852)**, **Pigeonhole (Dirichlet 1834)**, **Hall's matching theorem (1935)**, **Erdős–Szekeres (1935)**, **Euler path (1736, Königsberg bridges)**. Ops: `baire_trap` · `compactness_trap` · `variety_trap` · `van_der_waerden_trap` · `cauchy_lipschitz_trap` · `bertrand_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`.
-- **⑤ World model / counterfactual / metacognition / self-evolution** — structural-equation model (SEM) + Pearl counterfactual; Banach fixed point (perceive_belief contraction ⇒ convergence); Hoare logic `{P}C{Q}` (proof ledger); formal concept analysis FCA / Galois. Ops: `world_model` · `perceive_belief` · `meta` · `knowledge_*` · `sl_*` · `ima_*` · `cog_graph`.
-- **+ Embodied decision** — declarative capability contract; plan→execute→SAFE-STOP→bounded-replan (`maxReplans`). Ops: `attach_body` · `get_state`/`set_state`/`state_diff` · `positioning` · `carrier_report`.
-
-Per-theorem guarantees and `op` mapping: [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md).
+## Why use it
+- **Deterministic & reproducible** — identical input always yields identical output.
+- **No hallucination** — the LLM only parses intent; planning is symbolic and auditable.
+- **Mathematically grounded** — axioms → theorems → proof chains; every guarantee is traceable.
+- **Safety stack** — CBF-QP safety filter, zonotope reachability, STL robustness, abstract interpretation.
+- **Body-agnostic** — attach any robot via a declarative capability contract.
 
 ## Three ways to connect
-1. **MCP (recommended)** — `npx -y lingnao-mcp`; works with Claude Desktop, Cursor, Cline, and ANY MCP client.
+1. **MCP (recommended)** — `npx -y lingnao-mcp`; config: see `mcp.json` / `mcp.example.json`.
+   Works with Claude Desktop, Cursor, Cline, and any MCP client.
 2. **Node library** — `const K = require('../lingnao-mcp'); K.reason(start, goal)` (no server started).
 3. **Browser** — `<script src="lingnao.umd.js"></script>` then `window.LingNao` (zero install).
 
 ## Two separate products (do not confuse)
 | Product | What it is | Repo | npm |
 |---|---|---|---|
-| **LingNao** (this) | **the reasoning SERVICE** — planning, causality, world model, soundness, embodied decision | genesis-plan/lingnao | lingnao-mcp |
-| **LingShu** | **the solver** — real roots of equation systems (interval contraction + Krawczyk) | genesis-plan/lingshu-solver | lingshu-solver |
+| **LingNao** (this) | **the brain** — perception, planning, audit, learning, embodied arbitration | genesis-plan/lingnao | lingnao-mcp |
+| **LingShu** | **the solver** — real roots of equation systems (interval contraction + Krawczyk certification) | genesis-plan/lingshu-solver | lingshu-solver |
 
 LingNao reimplements no solving logic: `algebraic_solve` **delegates** to LingShu.
 LingShu is an **optional dependency** — without it LingNao still works, that one tool degrades honestly.
 
-## Tools (single gateway `lingnao`, 51 reasoning ops)
+## Tools (single gateway `lingnao`, 64 ops)
 MCP exposes **1 tool** `lingnao`: `arguments = { "op": capabilityName, "args": params }`.
 Calling legacy tool names directly is rejected with guidance.
-`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `pigeonhole_trap`, `hall_trap`, `erdos_szekeres_trap`, `euler_path_trap`, `run_deterministic_traps`
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`, `audit_evidence`, `certify_decision`
+
+`audit_evidence`, `certify_decision` (compliance evidence batch audit, for AI-agent auditing): each claim is delegated to a
+deterministic kernel verifier (algebraic → lingshu interval/Krawczyk re-derivation; constraint → compactness
+theorem; numeric_safety → M2 safety certificate; path → A* re-derivation); anything else honestly abstains as
+`unverified(𝕌)`. Emits an auditor-ready report with deterministic `reportId` (sha256, offline re-checkable)
+and an AIUC-1 Domain-D reference mapping (a mapping, NOT a certification).
+
+`certify_decision` (decision trust arbiter, the "prove decisions" repositioning flagship): certifies ONE concrete agent decision. Receives `{action, context, claimedProperties:[{property, class, payload}]}`; each claim class is delegated to the same deterministic verifiers (algebraic / constraint / numeric_safety / path / authorized→M4 EffectGate), and emits a `DecisionCertificate` with `decisionVerdict` (`trusted` / `untrusted` / `abstain`), per-property `proofObject`, and a tamper-evident `reportId` (sha256). LingNao **judges only — it never proposes actions** (referee ≠ athlete). Any claim not deterministically verifiable honestly abstains as `𝕌`.
 
 ### Recommended call sequence (plain reasoning)
 1. `world_info` — inspect the world graph
 2. `set_world` — (optional) load your own scenario
 3. `carrier_report` — report physical state (battery/density) to derive hard/soft constraints
-4. `reason` — deliberate optimal plan (System 1 fast path + System 2 A* + RSG)
-5. `dmcts` — (optional) deterministic MCTS multi-candidate exploration
-6. `causal` / `causal_effect` / `counterfactual` — causal & counterfactual inference
-7. `pac_bound` — estimate required sample size (uncertainty theory)
-8. `learn` — feed the real outcome back; confidence flows into future planning
+4. `reason` — auditable optimal plan (System 1 fast path + System 2 A* + RSG)
+5. `audit` — seven-section audit report with proof certificate
+6. `learn` — feed the real outcome back; confidence updates and flows into future planning
 
 ### Recommended call sequence (embodied / robots)
-`attach_body` → `plan_task` → `execute_task` (SAFE-STOP before each irreversible action) →
-`state_diff` → replan (bounded by `maxReplans`)
+`attach_body` → `plan_task` → `check_hard` (SAFE-STOP before irreversible actions) →
+`execute_task` → `state_diff` → replan (bounded by `maxReplans`)
 
 ## Honest limits
 - No world knowledge, no open-domain language ability; perception degrades offline.
 - World model is a lite linear SEM; causality is PC-lite; planning runs on finite graphs.
-- Verification/audit capabilities (`audit`/`certify`/`verify`/`prove`/`runtime_monitor` …) have been
-  **removed from the public gateway** — LingNao does reasoning only, not verification or auditing.
-- 8 mathematical areas are not yet implemented (MPC, SOS/SDP barrier certificates, general LP solver, …).
+- Eight mathematical areas are not yet implemented (MPC, SOS/SDP barrier certificates,
+  general LP solver, general nonlinear reachability, …).
 
 ---
 
-# 灵脑 LingNao —— 面向「任意智能体」的确定性推理服务
+# 灵脑 LingNao —— 面向 AI Agent 与机器人的确定性可审计决策内核
 
-> 灵脑不是语言模型，不是验证器，不是审计器。它是一个零依赖的确定性推理服务：做**深思规划、因果推理、
-> 数学健全性检验**——确定性、可复现、无神经网络在环（所以不幻觉）。不可判定时诚实返回 𝕌，绝不编造。
-> 大模型输出被严格限制在感知/解释两端，不进入推理链。
->
-> **面向任意智能体**：无论你的智能体跑在 Claude、GPT、自研 agent 还是机器人控制器上，只要能发 MCP 调用，
-> 就能用同一个网关 `lingnao`（`op` + `args` → 结构化结论）拿到确定性、不幻觉、可复现的推理。
-> 完整方法学与定理清单见 [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md)。
-
-## 为什么「任意智能体」都能用（接口 + 内核性质）
-| 性质 | 含义 | 对任意智能体的意义 |
-|---|---|---|
-| **单一网关** | 只暴露 1 个工具 `lingnao`，靠 `op` 分派 51 项能力 | 任何 MCP 客户端一行配置即可接入，无需为某家定制 |
-| **智能体无关语义** | 入参/出参都是结构化 JSON，`op` 是稳定键名 | 不要求智能体说中/英、不绑定任何框架、不依赖特定模型 |
-| **确定性内核** | 同输入 ⇒ 同输出 | 推理可复现、可比对，能直接集成进任何决策回路 |
-| **无神经网络在环** | 推理全是符号/数值确定性计算；可选 LLM 仅在感知/解释两端，强制标 `UNVERIFIED_LLM`，绝不进入推理链 | 不幻觉、不编造、不被 prompt 注入改写出错答案 |
-| **三态诚实语义** | 真 / 假 / 想不了（𝕌 弃权），fail-closed | 智能体拿到的是"可被机器消费"的结论，而非需再判断的自然语言 |
-| **可复现推理账本** | 推理链由 Hoare 逻辑闭合（proof ledger） | 任意智能体都能拿到"为何得此结论"的可验证轨迹 |
+> 灵脑不是语言模型，而是一个零依赖的确定性内核：它裁决「这个动作能不能做」，
+> 并给出可追溯的证明链；不可判定时诚实返回 𝕌，绝不编造。
+> 大模型输出被严格限制在感知/解释两端，不进入决策链与证明链。
 
 ## 产品定位（根目的）
-灵脑是一个「不自欺的推理核（reasoning substrate）」—— 落到产品上，它是智能体/机器人的**确定性推理服务**：
-对每一步规划、因果判断、世界模型「想得对、可解释、不瞎编」。**不做验证、不做审计、不做裁判**——
-灵脑只做推理。分工：**灵数 = 计算极致，灵脑 = 推理极致（纯推理）**。
+灵脑首先是一个**通用 AI 数字结论验真器**：你（或你用的任何 AI）得到的数字 / 公式 / 逻辑结论，贴给灵脑，它用确定性内核独立复算并告诉你「对 / 错 / 证不了」，不靠再问一个 AI。底层是同一颗「可证明、不自欺的推理核（certified reasoning substrate）」—— 落到产品上，它也是智能体的**可信裁判层（decision trust arbiter）**：对智能体的每个输出/决策做可信判定（安全 / 正确 / 授权），签发可机检、事后可审计的证书。供自主行动的智能体与机器人调用，**不当运动员、不替智能体做主**——**合规护城河**：只验具体数字 / 算式 / 逻辑 / 安全边界对错；医疗 / 心理 / 教育 / 金融建议 / 法律须持牌，灵脑绝不进那四格（命中即拒）；事实 / 主观 / 因果类诚实 𝕌。
+让动作「安全 / 正确 / 授权」可被证明。**落地顺序：先智能体，后机器人** —— 当前首个可交付场景是
+智能体合规审计（AIUC-1 强制控制项 + 可离线重算的 `reportId` 证据，已有 `audit_evidence`, `certify_decision`）。
+它是嵌入到别人产品里的信任锚，不是独立 SaaS；灵境（认知 OS）是编排主体，灵脑是被嵌入的认证推理层。
 
-## 方法学与数学定理（地基）
-灵脑的推理能力由**真实数学定理**支撑，不是启发式打分：
-- **① 深思规划**：A\*（可采纳启发式下最优）；确定性 MCTS（UCB1，Kocsis & Szepesvári 2006，固定种子可复现）；Bellman 值迭代。能力：`reason` · `dmcts` · `plan_task` · `h_max` · `goal_directed` · `execute_task`。
-- **② 因果推理**：Pearl 因果阶梯（关联→干预 do-演算→反事实，2009）；后门/前门准则（Shpitser & Pearl 2006）；反事实三步法。LLM 因果解耦失败率 ρ≈0.77（Project Ariadne, arXiv 2601.02314）正需确定性因果图来补。能力：`causal` · `causal_effect` · `counterfactual`。
-- **③ 不确定性理论**：PAC 学习（Valiant 1984）+ VC 维：`m ≥ (d_VC·ln(1/ε)+ln(1/δ))/ε²`；保角预测边际/逐点风险界。能力：`pac_bound`。
-- **④ 数学健全性压力测试**：真实定理保证——**Baire 纲(1899) / 紧致性(区间法) / 代数簇(Zariski) / 范德瓦尔登(1927, Ramsey) / Cauchy–Lipschitz(Picard–Lindelöf) / Bertrand 假定(1852) / 鸽笼原理(Dirichlet 1834) / 霍尔匹配定理(Hall 1935) / Erdős–Szekeres(1935) / 欧拉路径(Euler 1736 哥尼斯堡七桥)**。能力：`baire_trap` · `compactness_trap` · `variety_trap` · `van_der_waerden_trap` · `cauchy_lipschitz_trap` · `bertrand_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`。
-- **⑤ 世界模型 / 反事实 / 元认知 / 自演化**：结构方程模型(SEM)+Pearl 反事实；Banach 不动点（感知信念为收缩映射⇒收敛）；Hoare 逻辑 `{P}C{Q}`（proof ledger）；形式概念分析 FCA / Galois。能力：`world_model` · `perceive_belief` · `meta` · `knowledge_*` · `sl_*` · `ima_*` · `cog_graph`。
-- **＋ 具身决策**：声明式能力契约；规划→执行→SAFE-STOP→有界重规划（`maxReplans`）。能力：`attach_body` · `get_state`/`set_state`/`state_diff` · `positioning` · `carrier_report`。
-
-逐条定理出处、保证内容与能力映射见 [docs/00-推理引擎原理与方法学.md](docs/00-推理引擎原理与方法学.md)。
+## 核心特性
+- **确定性可复现**：同样输入必得同样输出
+- **不幻觉**：LLM 只解析意图，规划与审计全在本地符号内核
+- **数学可证**：公理 → 定理 → 证明链，每条保证可回溯
+- **安全栈**：CBF-QP 安全滤子 / Zonotope 可达集 / STL 鲁棒度 / 抽象解释
+- **具身无关**：用声明式能力契约接入任意物理身体
 
 ## 三种接入方式
-1. **MCP（推荐）**：`npx -y lingnao-mcp`，适用于 Claude Desktop、Cursor、Cline 及**任意 MCP 客户端**
+1. **MCP（推荐）**：`npx -y lingnao-mcp`，配置见 `mcp.json`
 2. **Node 库**：`const K = require('../lingnao-mcp')`（不自启服务）
 3. **浏览器**：引入 `lingnao.umd.js`，零安装
 
 ## 两个独立产品，分属两个仓库
 | 产品 | 是什么 | 仓库 | npm |
 |---|---|---|---|
-| **灵脑 LingNao**（本仓库） | **推理服务**：规划 / 因果 / 世界模型 / 数学健全性 / 具身决策 | genesis-plan/lingnao | lingnao-mcp |
-| **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk） | genesis-plan/lingshu-solver | lingshu-solver |
+| **灵脑 LingNao**（本仓库） | **大脑**：感知 / 规划 / 审计 / 学习 / 具身裁决 | genesis-plan/lingnao | lingnao-mcp |
+| **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk 认证） | genesis-plan/lingshu-solver | lingshu-solver |
 
-灵脑不重写求解逻辑：`algebraic_solve` 委派给灵数真引擎。灵数是**可选依赖**，不装它灵脑其余能力照常运行，仅该项诚实降级。
+灵脑不重写求解逻辑：`algebraic_solve` 委派给灵数真引擎。灵数是**可选依赖**，
+不装它灵脑其余能力照常运行，仅该项诚实降级。
 
-## 工具（唯一网关 lingnao，内含 51 项推理能力）
+## 工具（唯一网关 lingnao，内含 64 项能力）
 MCP 对外只暴露 **1 个工具** `lingnao`：`arguments = { "op": 能力名, "args": 参数 }`，
 `op` 取下表能力名（即原工具名），按旧名直调会被拒绝并返回指引。
 `{"name":"lingnao","arguments":{"op":"reason","args":{"start":"A","goal":"C"}}}`
 
 能力目录（`op` 取值）：
-`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `pigeonhole_trap`, `hall_trap`, `erdos_szekeres_trap`, `euler_path_trap`, `run_deterministic_traps`
+`world_info`, `set_world`, `perceive`, `reason`, `carrier_report`, `audit`, `learn`, `knowledge_query`, `knowledge_add`, `meta`, `perceive_belief`, `knowledge_ann`, `knowledge_distill`, `cog_graph`, `symbolic_verify`, `algebraic_solve`, `world_model`, `counterfactual`, `causal_effect`, `dmcts`, `goal_directed`, `pac_bound`, `ask`, `explain`, `causal`, `event_publish`, `knowledge_fabric`, `runtime_monitor`, `continuous_verify`, `ima_load`, `ima_query`, `sl_record`, `sl_discover`, `sl_validate`, `sl_monitor`, `sl_status`, `attach_body`, `capabilities`, `get_state`, `set_state`, `state_diff`, `check_hard`, `h_max`, `plan_task`, `execute_task`, `positioning`, `bertrand_trap`, `compactness_trap`, `van_der_waerden_trap`, `baire_trap`, `variety_trap`, `cauchy_lipschitz_trap`, `run_deterministic_traps`, `clf_cbf_unified`, `model_free_cbf`, `counterfactual_audit`, `safety_audit`, `prove_gate_chain`, `certify_safety_invariant`, `verdict_three_layer`, `prove_complete_mediation`, `effect_gate_report`, `audit_evidence`, `certify_decision`
+
+`audit_evidence`, `certify_decision`（合规证据批审，面向 AI Agent 审计）：对一批被审声明逐条走确定性验证
+（algebraic→灵数区间认证复算 / constraint→紧致性定理检矛盾 / numeric_safety→M2 安全证书 / path→A\* 重算），
+无法确定性验证的一律 `unverified(𝕌)` 诚实弃权；输出带确定性 `reportId`（sha256，可离线重算防篡改）的证据报告，
+含 AIUC-1 D 域(Reliability)控制项**参考映射**（仅为映射，非认证声明）。
+
+`certify_decision`（决策可信裁判层，产品定位"证明决策"后的旗舰能力）：对智能体提出的**一份具体决策**做裁判。接收 `{action, context, claimedProperties:[{property, class, payload}]}`，每个声明 class 委派给同一组确定性验证器（algebraic / constraint / numeric_safety / path / authorized→M4 EffectGate），输出 `DecisionCertificate`：`decisionVerdict`（`trusted` / `untrusted` / `abstain`）+ 逐属性 `proofObject` + 防篡改 `reportId`（sha256）。**灵脑只裁判、不提议动作**（裁判≠运动员）。任何不可确定性验证的声明一律 `𝕌` 诚实弃权。
 
 ## 诚实边界
 - 无世界知识、无开放域语言能力；离线时感知降级
 - 世界模型为 lite（线性 SEM）、因果为 PC-lite、规划基于有限图
-- 验证/审计类能力（`audit`/`certify`/`verify`/`prove`/`runtime_monitor` …）已**从对外网关移除**——灵脑对外只做推理
 - 8 类数学尚未实装（MPC、SOS/SDP 障碍证书、一般 LP 求解器、一般非线性可达集等）
 
+## 诚实注记（Honest notes）
+- 64 项中 `knowledge_query` / `knowledge_add` / `knowledge_ann` / `knowledge_distill` / `cog_graph` 需接入 KB 知识库，
+  未接入时恒返 `available:false`；自测中如实单列为「已知未实现能力」，不计入绿色通过。
+- 物理接入模块 30 条协议中仅 `ws` / `modbus-tcp` / `mqtt` 已实装真实驱动，其余为「仅建档、需硬件」。
+- 本内核为确定性、可审计系统，不声称「绝对安全」；M2 数值证书带 h ≥ −1/B² 辅助域松弛。
+
 ## 更多
-- 方法学地基文档: ./docs/00-推理引擎原理与方法学.md
 - 项目说明: ./README.md
+- 形式化证明规格: ./docs/10-形式化证明规格.md
 - 技术参考（含物理接入模块）: ./docs/04-技术参考.md
 - 机器与协议目录: ./docs/11-机器与协议目录.md
+
+## audit_evidence v1.4 — the judgement contract (verified / refuted / unverified only)
+Five decidable claim kinds: `algebraic`, `membership`, `entail`, `consistency`, `constraint`.
+`entail` reverses the quantifier for real: verified = `∀s∈S` satisfies the boundary (genuine implication);
+refuted = `∃s∈S` a certified counterexample; S=∅ ⇒ vacuously true but flagged `vacuous:true` — "no solutions" is never read as "safe".
+`consistency` checks pairwise numerical exclusivity across ≥2 statements (the highest-frequency LLM error class: one variable given two values) — coverage was zero before v1.4.
+
+Two auditable bound quantities:
+- `items[].tol` — relative tolerance `|a-b| ≤ tol·max(1,|a|,|b|)`, default `1e-6`, caller-declared, **capped at `1e-3`**.
+- request-level `budget` κ (default 200 primitive evaluations). If it runs out, the remaining items abstain as `abstainedBy:"budget"`; the part that did finish is never passed off as the whole verdict.
+
+Composition law Φ: `∃ refuted ⇒ overall=refuted`; else `∀ verified ⇒ overall=verified`; else `overall=unverified(𝕌)`.
+`items[].depends:[id]` forms a DAG (Kahn topological order, cycles ⇒ fail-closed refusal to evaluate). A dependency that is unresolved or refuted blocks its dependent from being judged on its own.
+
+Three soundness lines, each fail-closed: a truncated solution set cannot degrade into refuted; an uncertified solution set cannot yield verified or refuted; and an empty solution set returned by the solver when the equations contain multi-character identifiers is **`engine_unsupported_identifier` (𝕌)** — it is an engine limitation, not "no solution".
+
+**Known engine limitation (documented, not hidden):** the LingShu solver cannot parse multi-character variable names (`total` / `subtotal` / `aa`) and returns an empty solution set. Use single-character names (`x` / `y` / `z`), or judge the numbers pairwise with `kind:"consistency"`. This is a solver-side bug to fix, not a LingNao judgement boundary.

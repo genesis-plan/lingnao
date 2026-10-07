@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LingNao — AI number &amp; logic verdict checker</title>
+<meta name="description" content="Paste a conclusion that contains numbers or formulas — LingNao recomputes it deterministically and tells you right / wrong / unverifiable. No second AI in the loop.">
+<style>
+  :root{ --ink:#1c1c1e; --muted:#6b6b70; --line:#e4e4e8; --red:#b3261e; --green:#0a7d33; --amber:#8a6d00; --blue:#0b57d0; --bg:#fafafa; }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;max-width:860px;margin:0 auto;padding:18px 16px 60px;color:var(--ink);background:var(--bg);line-height:1.65}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .moat{background:#fff7e6;border:1px solid #ffe08a;border-radius:10px;padding:10px 14px;font-size:12.5px;color:#7a5b00;margin:14px 0}
+  .moat b{color:#5c4300}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin:14px 0}
+  label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+  select,input,textarea{width:100%;padding:9px 10px;font-size:14px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-family:inherit}
+  textarea{font-family:Consolas,Menlo,monospace;min-height:74px;resize:vertical}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:120px}
+  button{margin-top:14px;background:var(--ink);color:#fff;border:0;border-radius:9px;padding:11px 18px;font-size:15px;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .verdict{font-size:16px;font-weight:700;border-radius:9px;padding:11px 14px;margin:6px 0}
+  .verdict .mean{font-size:13px;font-weight:400;margin-top:5px;display:block}
+  .v-verified{background:#e6f6ea;border:1px solid var(--green);color:var(--green)}
+  .v-refuted{background:#fdeceb;border:1px solid var(--red);color:var(--red)}
+  .v-unverified{background:#fdf6dd;border:1px solid #f0d860;color:var(--amber)}
+  .meta{font-size:12px;color:var(--muted);margin:6px 0}
+  .solve{background:#f3f6ff;border:1px solid #c7d2fe;border-radius:8px;padding:8px 12px;font-size:13px;margin-top:6px}
+  .proof{font-size:12px;color:#444;margin:6px 0 0 16px;padding:0}
+  details{margin-top:8px}summary{cursor:pointer;color:var(--blue);font-size:12px}
+  pre{background:#f6f6f6;border:1px solid #e3e3e3;border-radius:6px;padding:8px;max-height:200px;overflow:auto;font-size:11px;white-space:pre-wrap}
+  .summary-bar{display:flex;gap:10px;flex-wrap:wrap;font-size:13px;margin:6px 0 12px}
+  .pill{padding:4px 10px;border-radius:20px;font-weight:600}
+  .pill-v{background:#e6f6ea;color:var(--green)} .pill-r{background:#fdeceb;color:var(--red)} .pill-u{background:#fdf6dd;color:var(--amber)}
+  .rid{font-family:Consolas,monospace;font-size:12px;background:#f0f0f3;border:1px solid var(--line);border-radius:6px;padding:6px 9px;display:inline-block;margin-top:4px}
+  .err{background:#fdeceb;border:1px solid var(--red);color:var(--red);border-radius:9px;padding:11px 14px;font-size:14px;margin:10px 0}
+  .foot{font-size:12px;color:var(--muted);border-top:1px solid var(--line);margin-top:24px;padding-top:12px}
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+  .tab{padding:7px 13px;border:1px solid var(--line);border-radius:20px;font-size:13px;cursor:pointer;background:#fff}
+  .tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:2px}
+</style>
+</head>
+<body>
+<h1>LingNao — AI number &amp; logic verdict checker</h1>
+<div class="sub">You (or any AI you use) gave a conclusion containing numbers, formulas or logic? Paste it here. LingNao recomputes it with a deterministic kernel and tells you <b>right / wrong / unverifiable</b> — without asking a second AI.</div>
+
+<div class="moat">
+  <b>What it checks:</b> arithmetic, everyday math, formulas, logic and safety boundaries.<br>
+  <b>What it never checks:</b> medical, mental-health, education and training, investment or financial advice, legal advice — these are licensed areas and LingNao does not enter them. For opinions, facts and causality it honestly reports <b>unverifiable (𝕌)</b> rather than guessing. LingNao never produces the answer itself; it is the referee, not the player.
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-tab="scene">Preset scenarios</div>
+  <div class="tab" data-tab="free">Free-form equations</div>
+</div>
+
+<!-- 场景模板 -->
+<div id="panel-scene" class="card">
+  <label>Pick a scenario close to what you have</label>
+  <select id="scenario"></select>
+  <div id="fields"></div>
+  <button id="btnVerify">Check it</button>
+</div>
+
+<!-- 自由算式 -->
+<div id="panel-free" class="card" style="display:none">
+  <label>Equations (one per line, separated by =, letters are variables)</label>
+  <textarea id="eqs" placeholder="3 * x = 987&#10;y + 2 = 10"></textarea>
+  <div class="row">
+    <div><label>Variable to check</label><input id="cvar" placeholder="x"></div>
+    <div><label>Claimed value</label><input id="cval" placeholder="320" type="number" step="any"></div>
+  </div>
+  <div class="hint">Example: write <code>3 * x = 987</code>, variable <code>x</code>, claimed <code>320</code> → LingNao recomputes x = 329 and reports <b>wrong</b>.</div>
+  <button id="btnVerifyFree">Check it</button>
+</div>
+
+<div id="result"></div>
+
+<div class="foot">
+  Every report carries a tamper-evident report number that can be recomputed offline (reportId = sha256 of input + kernel version): same input, same kernel version ⇒ anyone can re-derive it and see whether the report was edited.<br>
+  This tool issues no certification, compliance or professional conclusions; anything that cannot be verified deterministically it abstains from honestly (𝕌). LingNao is a general-purpose AI verdict checker for numbers, formulas, logic and safety boundaries.
+</div>
+
+<div class="foot">
+  © 2026 Guangzhou Hongchen Lingjing (广州红尘灵境). This service is operated from mainland China and carries the operator's filing numbers:
+  <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener" style="color:var(--blue)">粤ICP备2026031206号-3</a> ·
+  <a href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44011402001444" target="_blank" rel="noopener" style="color:var(--blue)">粤公网安备44011402001444号</a>
+</div>
+
+<script>
+// ── 场景定义：每个场景把填好的数字编译成 algebraic 载荷 ──
+// ⚠️ 变量一律用单字母（x, y, a, b, c, d, n, m, p, q, r, t …）：
+// 确定性引擎的标识符解析一次只读一个字符，"total" 会被拆成 t/o/a/l 四个变量、
+// "cost" 会被当成 cos(...)。这是引擎既有边界，不是 bug，故产品侧约束用单字母。
+const SCENES = {
+  split:   { group:'Everyday money', name:'Splitting a bill', fields:[['N','people',3],['M','total amount',100],['x','claimed per person',40]],
+             build:f=>({equations:[`${f.N} * x = ${f.M}`], claimed:{x:f.x}, text:`${f.N} people split ${f.M}; claimed ${f.x} each`}) },
+  discount:{ group:'Everyday money', name:'Discount after coupon', fields:[['p','unit price',80],['q','quantity',5],['d','discount amount',20],['t','claimed payable',380]],
+             build:f=>({equations:[`q * p - d = t`,`q = ${f.q}`,`p = ${f.p}`,`d = ${f.d}`], claimed:{t:f.t}, text:`${f.q} units at ${f.p}, minus ${f.d} off, claimed payable ${f.t}`}) },
+  refund:  { group:'Everyday money', name:'Refund received', fields:[['p','amount paid',500],['r','refund',120],['g','claimed received',380]],
+             build:f=>({equations:[`p - r = g`,`p = ${f.p}`,`r = ${f.r}`], claimed:{g:f.g}, text:`paid ${f.p}, refund ${f.r}, claimed received ${f.g}`}) },
+  fx:      { group:'Everyday money', name:'Currency conversion', fields:[['a','amount',100],['r','rate',7.1],['c','claimed result',730]],
+             build:f=>({equations:[`a * r = c`,`a = ${f.a}`,`r = ${f.r}`], claimed:{c:f.c}, text:`${f.a} at rate ${f.r} claimed ${f.c}`}) },
+  // 注意：变量 e 不能用——引擎会把孤立的 e 当成自然常数/科学计数法标记吞掉。
+  ledger:  { group:'Personal accounts', name:'Income minus spending equals balance', fields:[['i','income',8000],['s','spending',5200],['b','claimed balance',2800]],
+             build:f=>({equations:[`i - s = b`,`i = ${f.i}`,`s = ${f.s}`], claimed:{b:f.b}, text:`income ${f.i}, spending ${f.s}, claimed balance ${f.b}`}) },
+  tax:     { group:'Personal accounts', name:'Income-tax arithmetic only', fields:[['b','taxable income',30000],['r','rate %',10],['q','quick deduction',2520],['t','claimed tax',480]],
+             build:f=>({equations:[`b * r / 100 - q = t`,`b = ${f.b}`,`r = ${f.r}`,`q = ${f.q}`], claimed:{t:f.t}, text:`${f.b} at ${f.r}% minus quick deduction ${f.q}, claimed tax ${f.t} (arithmetic only — this is not tax advice)`}) },
+};
+
+// 多字母标识符检测：引擎一次只吃一个字符，给个明确提示而不是"算不出"
+const ONE_LETTER_FUNCS = new Set(['sin','cos','tan','ln','exp','sqrt','log','log10','abs','diff','int','ode','lim','cot','sec','csc','arcsin','arccos','arctan','sinh','cosh','tanh','floor','ceil','gamma','log2','mod']);
+function badMultiLetter(eqs, vars) {
+  const seen = new Set();
+  const scan = (src, isEq) => {
+    // 只扫等式两侧，跳过函数名后面的括号内容
+    let s = String(src).replace(/[()]/g, ' ');
+    const re = /[A-Za-z_][A-Za-z_0-9]*/g; let m;
+    while ((m = re.exec(s))) {
+      const w = m[0];
+      if (ONE_LETTER_FUNCS.has(w)) continue;          // 真函数（后面本该有括号）
+      if (isEq && m.index > 0 && s[m.index - 1] === '=') { /* 等式左端变量名 */ }
+      if (w.length > 1) seen.add(w);
+    }
+  };
+  eqs.forEach((e) => scan(e, true));
+  (vars || []).forEach((v) => { if (String(v).length > 1) seen.add(String(v)); });
+  return seen.size ? Array.from(seen).join(', ') : '';
+}
+
+// 合规护城河（与后端同形，前端即时拦一下；后端为权威）
+const RED_FLAGS = ['medical','medicine','diagnos','prescription','medication','doctor','hospital','patient','symptom','treatment','therapy','pill','drug','clinic','disease',
+  'psycholog','therapist','psychotherapy','depress','anxiety','counsel','mental health','emotional support',
+  'homework','tutoring','tutor','exam prep','coursework','lesson plan','classroom',
+  'stock','stocks','dividend','portfolio','invest','insurance','mortgage','securit','trading','crypto','bitcoin','broker',
+  'tax advice','tax evasion','tax avoidance','tax planning','evade taxes',
+  'legal advice','lawyer','attorney','lawsuit','litigation'];
+function redFlag(text){ if(!text) return null; const t=String(text).toLowerCase(); for(const k of RED_FLAGS) if(t.indexOf(k)>=0) return k; return null; }
+
+// ── 渲染场景下拉 ──
+const sel = document.getElementById('scenario');
+(function(){
+  const groups = {};
+  for(const k in SCENES){ (groups[SCENES[k].group]=groups[SCENES[k].group]||[]).push(k); }
+  for(const g in groups){
+    const og = document.createElement('optgroup'); og.label = g;
+    groups[g].forEach(k=>{ const o=document.createElement('option'); o.value=k; o.textContent=SCENES[k].name; og.appendChild(o); });
+    sel.appendChild(og);
+  }
+})();
+
+function renderFields(){
+  const k = sel.value, s = SCENES[k];
+  const box = document.getElementById('fields'); box.innerHTML='';
+  s.fields.forEach(([name,label,def])=>{
+    const l=document.createElement('label'); l.textContent=label;
+    const inp=document.createElement('input'); inp.id='f_'+name; inp.type='number'; inp.step='any'; inp.value=def;
+    box.appendChild(l); box.appendChild(inp);
+  });
+}
+sel.addEventListener('change', renderFields); renderFields();
+
+// ── Tab 切换 ──
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
+  const tab=t.dataset.tab;
+  document.getElementById('panel-scene').style.display = tab==='scene'?'block':'none';
+  document.getElementById('panel-free').style.display = tab==='free'?'block':'none';
+}));
+
+// ── 结果渲染 ──
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+const V = {
+  verified:['✓ Right — the numbers check out','v-verified'],
+  refuted:['✗ Wrong — the arithmetic does not hold','v-refuted'],
+  unverified:['𝕌 Unverifiable — I will not guess','v-unverified'],
+};
+function renderItem(it){
+  const cls = V[it.verdict]?V[it.verdict][1]:'v-unverified';
+  const label = V[it.verdict]?V[it.verdict][0]:it.verdict;
+  const po = it.proofObject||{};
+  const ev = it.evidence||{};
+  let solveHtml='';
+  if(ev && Array.isArray(ev.solutions) && ev.solutions.length){
+    solveHtml = '<div class="solve">Deterministic recomputation: '+esc(ev.solutions.map(s=>s.text).join(';'))+'</div>';
+  }
+  let proofHtml='';
+  if(Array.isArray(po.proof)) proofHtml='<ul class="proof">'+po.proof.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul>';
+  const flag = redFlag(it.text);
+  return '<div class="verdict '+cls+'">'+label+'<span class="mean">'+esc(it.reason||'')+'</span></div>'
+    + (flag?'<div class="err">A licensed topic was detected (“'+esc(flag)+'”). That content is outside the service.</div>':'')
+    + (it.text?'<div class="meta">You pasted: '+esc(it.text)+'</div>':'')
+    + solveHtml
+    + (po.theorem?'<div class="meta">Basis: '+esc(po.theorem)+' · engine '+esc(it.engine||'')+'</div>':'')
+    + proofHtml
+    + (it.verdict==='unverified'?'<div class="meta">This is not a formal numeric, formula or logical property, so LingNao does not guess and says unverifiable. Use your own judgement here.</div>':'')
+    + '<details><summary>Raw evidence (recomputable offline)</summary><pre>'+esc(JSON.stringify(ev,null,2)).slice(0,1200)+'</pre></details>';
+}
+function renderResult(rep){
+  const r=document.getElementById('result');
+  if(!rep.ok){ r.innerHTML='<div class="err">'+esc(rep.error||'check failed')+'</div>'; return; }
+  const s=rep.summary||{};
+  let h='<div class="summary-bar">'
+    + (s.verified?'<span class="pill pill-v">right '+s.verified+'</span>':'')
+    + (s.refuted?'<span class="pill pill-r">wrong '+s.refuted+'</span>':'')
+    + (s.unverified?'<span class="pill pill-u">unverifiable '+s.unverified+'</span>':'')
+    + '</div>';
+  h += (rep.items||[]).map(renderItem).join('');
+  h += '<div class="meta">Report number (recomputable offline, tamper-evident):</div><span class="rid">'+esc(rep.reportIdFull||rep.reportId||'')+'</span>';
+  r.innerHTML=h;
+}
+
+async function postVerify(items){
+  const res=await fetch('/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items,caseLabel:'C-end verdict'})});
+  const data=await res.json();
+  if(!res.ok){ document.getElementById('result').innerHTML='<div class="err">'+(data.error||'check failed')+'</div>'; return; }
+  renderResult(data);
+}
+
+document.getElementById('btnVerify').addEventListener('click',()=>{
+  const k=sel.value,s=SCENES[k]; const f={};
+  s.fields.forEach(([name])=>{ f[name]=Number(document.getElementById('f_'+name).value); });
+  const item=s.build(f);
+  const multi=badMultiLetter(item.equations,Object.keys(item.claimed));
+  if(multi){ document.getElementById('result').innerHTML='<div class="err">Those names ('+multi+') are more than one letter. This engine reads one character at a time as a variable — “total” becomes four variables t, o, a, l. Please use single-letter names: a, b, c, d, n, p, q, r, t, x, y.</div>'; return; }
+  const flag=redFlag(item.text);
+  if(flag){ document.getElementById('result').innerHTML='<div class="err">A licensed topic was detected (“'+flag+'”). That content is outside LingNao’s scope. LingNao only checks everyday numbers, formulas, logic and safety boundaries.</div>'; return; }
+  postVerify([item]);
+});
+document.getElementById('btnVerifyFree').addEventListener('click',()=>{
+  const eqs=document.getElementById('eqs').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  const v=document.getElementById('cvar').value.trim();
+  const val=Number(document.getElementById('cval').value);
+  if(!eqs.length||!v){ document.getElementById('result').innerHTML='<div class="err">Please enter equations and the variable to check.</div>'; return; }
+  const multiF=badMultiLetter(eqs,[v]);
+  if(multiF){ document.getElementById('result').innerHTML='<div class="err">Those names ('+multiF+') are more than one letter. This engine reads one character at a time as a variable — “total” becomes four variables t, o, a, l and “cost” is read as cos(t). Please use single-letter names: a, b, c, d, n, p, q, r, t, x, y.</div>'; return; }
+  const item={ kind:'algebraic', text:'Free-form: '+eqs.join(';')+' — claimed '+v+'='+val, equations:eqs, claimed:{} };
+  item.claimed[v]=val;
+  const flag=redFlag(item.text);
+  if(flag){ document.getElementById('result').innerHTML='<div class="err">A licensed topic was detected (“'+flag+'”), which is outside the service.</div>'; return; }
+  postVerify([item]);
+});
+</script>
+</body>
+</html>

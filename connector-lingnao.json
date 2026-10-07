@@ -1,0 +1,61 @@
+{
+  "connector": {
+    "id": "lingnao",
+    "name": "灵脑 LingNao",
+    "displayName": "灵脑 LingNao · 智能体决策可信裁判层",
+    "version": "1.2.0",
+    "category": "AI 能力 / 智能体基础设施",
+    "subcategory": "可信推理 · 合规审计 · 认证数学",
+    "description": "本地确定性、可审计的「认证推理核」（非概率生成式 LLM）。对外以 MCP stdio 暴露唯一 lingnao 网关工具（op 参数收编 64 项能力），是智能体与机器人调用的一层「信任与审计」能力——证明某一步动作是否安全/正确/授权，且结论可被离线重算、可被审计。\n\n核心裁判能力：\n• certify_decision —— 对单个决策判 trusted / untrusted / abstain（trusted 唯一构造点在 Φ 验证，确定性、可离线重算 reportId）；\n• audit_evidence —— 合规证据批审（AIUC-1 映射，四条确定性路径 + 其余诚实 𝕌 弃权）；\n• 因果 do-calculus 验证器（后门/前门准则，d-分离直接路径枚举）；\n• split conformal 分位数引理验证器（带量化风险界 α 的诚实弃权）；\n• 免费 NL→JSON 感知（OpenRouter 可选，留空则 100% 确定性降级运行）。\n\n零依赖、零安装、不幻觉。适合被任何 MCP 宿主（Cursor / Claude Code / Cline / VS Code Copilot / 自研 agent）作为「裁判模块」插入。",
+    "tags": ["mcp", "agent", "trustworthy-ai", "audit", "formal-verification", "causal", "conformal", "non-llm", "deterministic", "offline"],
+    "repository": "https://github.com/genesis-plan/lingnao",
+    "homepage": "https://github.com/genesis-plan/lingnao",
+    "docs": "https://github.com/genesis-plan/lingnao/blob/main/README.md",
+    "license": "UNLICENSED（商用需授权；开源钩子路线待定）",
+    "pricing": {
+      "model": "open-core / 免费分发",
+      "connectorFree": true,
+      "note": "本连接器本身免费安装与使用（本地 stdio，零数据上云）。营收来自 B2B 年授权与 AIUC-1 合规生态，不在连接器内收费；不内置任何付费墙或套餐措辞。"
+    },
+    "mcp": {
+      "transport": "stdio",
+      "server": {
+        "command": "npx",
+        "args": ["-y", "github:genesis-plan/lingnao"],
+        "env": {
+          "OPENROUTER_API_KEY": "可选：OpenRouter 免费档 Key；留空则大脑以结构化输入降级运行"
+        }
+      },
+      "fallbackLocal": {
+        "command": "node",
+        "args": ["<本地仓库路径>/lingnao-mcp.js"]
+      }
+    },
+    "tools": [
+      {
+        "name": "lingnao",
+        "description": "唯一网关工具，op 参数收编 64 项能力（含 certify_decision / audit_evidence / causal / conformal / world_graph / a_star / algebra_solve 等）",
+        "keyOps": ["certify_decision", "audit_evidence", "causal_identify", "conformal_bound"]
+      }
+    ],
+    "capabilities": [
+      "决策可信裁判（trusted/untrusted/abstain，确定性）",
+      "合规证据批审（AIUC-1 映射）",
+      "因果可识别性验证（do-calculus 后门/前门）",
+      "conformal 风险界验证（split conformal 分位数引理）",
+      "免费 NL→JSON 感知（可选 LLM）",
+      "世界图 / A* 可审计推理 / 七段审计 + 霍尔证明",
+      "代数方程求解（委派灵数求解器）",
+      "元认知 / 具身层规划-执行-安全停车-重规划"
+    ],
+    "compliance": {
+      "pii": "不收集任何个人身份信息；调用仅记元数据（不记决策内容）",
+      "dataEgress": "默认零数据上云；仅当配置 OPENROUTER_API_KEY 时文本经 OpenRouter",
+      "honesty": "不可证即 abstain/𝕌，不虚构可信结论"
+    },
+    "auth": {
+      "required": false,
+      "note": "无账号、无密钥即可本地运行；B2B 授权为线下商务，不在连接器内"
+    }
+  }
+}
