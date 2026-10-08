@@ -96,19 +96,19 @@ node build-umd.js                   # 从内核真源重建 UMD（导出 250）
 | 数学健全性 | 十类确定性陷阱（Baire/紧致/代数簇/范德瓦尔登/柯西-利普希茨/Bertrand/鸽笼/霍尔匹配/Erdős–Szekeres/欧拉路径），**真实定理保证** |
 | 不幻觉 | LLM 只在感知（NL→JSON）与解释两端，强制标 `UNVERIFIED_LLM` + `mayHallucinate`，**绝不进入推理链** |
 | 具身 | 声明式能力契约接入任意身体；规划 → SAFE-STOP → 执行 → 有界重规划闭环 |
-| 工具暴露 | **1 个网关工具 `lingnao`**（`op` 参数收编 51 项推理能力）；其中 6 项需接入 KB 才可用，**如实单列不计入绿色通过** |
+| 工具暴露 | **1 个网关工具 `lingnao`**（`op` 参数收编推理子能力：规划 / 因果 / 数学健全性 / 具身决策等）；灵脑 = 推理-only，不含计算 |
 | 自测 | `--selftest` → 核心通过 + 如实披露 6 项已知未实现能力（KB 未接入） |
-| 依赖 | 零第三方运行时依赖；灵数求解器为**可选**依赖（缺失时 `algebraic_solve` 单项诚实降级） |
+| 依赖 | 零第三方运行时依赖；灵脑 = 推理-only，**不接入、不委派任何计算引擎**（方程求解 / 验真归灵数 lingshu-solver 独立产品） |
 
 **不保证**：绝对安全、绝对正确、不漏解、能连所有真机。这是设计上的诚实边界，不是待修缺陷。
 
 ---
 
-## 能力目录（51 项推理能力，单网关 `lingnao`）
+## 推理能力（单网关 `lingnao`，`op` 参数分派）
 
 MCP 对外只暴露 **1 个工具** `lingnao`：`arguments = { "op": 能力名, "args": 参数 }`，按旧名直调会被拒绝并返回指引。
 
-`world_info` · `set_world` · `perceive` · `reason` · `carrier_report` · `learn` · `knowledge_query` · `knowledge_add` · `meta` · `perceive_belief` · `knowledge_ann` · `knowledge_distill` · `cog_graph` · `algebraic_solve` · `world_model` · `counterfactual` · `causal_effect` · `dmcts` · `goal_directed` · `pac_bound` · `ask` · `explain` · `causal` · `event_publish` · `knowledge_fabric` · `ima_load` · `ima_query` · `sl_record` · `sl_discover` · `sl_monitor` · `sl_status` · `attach_body` · `capabilities` · `get_state` · `set_state` · `state_diff` · `h_max` · `plan_task` · `execute_task` · `positioning` · `bertrand_trap` · `compactness_trap` · `van_der_waerden_trap` · `baire_trap` · `variety_trap` · `cauchy_lipschitz_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`
+`world_info` · `set_world` · `perceive` · `reason` · `carrier_report` · `learn` · `knowledge_query` · `knowledge_add` · `meta` · `perceive_belief` · `knowledge_ann` · `knowledge_distill` · `cog_graph` · `world_model` · `counterfactual` · `causal_effect` · `dmcts` · `goal_directed` · `pac_bound` · `ask` · `explain` · `causal` · `event_publish` · `knowledge_fabric` · `ima_load` · `ima_query` · `sl_record` · `sl_discover` · `sl_monitor` · `sl_status` · `attach_body` · `capabilities` · `get_state` · `set_state` · `state_diff` · `h_max` · `plan_task` · `execute_task` · `positioning` · `bertrand_trap` · `compactness_trap` · `van_der_waerden_trap` · `baire_trap` · `variety_trap` · `cauchy_lipschitz_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`
 
 ### 推荐调用序列（纯推理）
 
@@ -134,7 +134,7 @@ MCP 对外只暴露 **1 个工具** `lingnao`：`arguments = { "op": 能力名, 
 | **灵脑 LingNao**（本仓库） | **推理服务**：感知 / 规划 / 因果 / 世界模型 / 数学健全性 / 具身决策 | `genesis-plan/lingnao` | `lingnao-mcp` |
 | **灵数 LingShu** | **求解器**：方程组实数解（区间收缩 + Krawczyk） | `genesis-plan/lingshu-solver` | `lingshu-solver` |
 
-灵脑**不重写求解逻辑**：`algebraic_solve` **委派**给灵数真引擎。灵数是**可选依赖** —— 不装它，其余能力照常运行，仅该项诚实降级。
+灵脑 = **推理-only**：感知 / 规划 / 因果 / 数学健全性 / 具身决策，全程不计算、不求解、不委派。方程求解 / 验真归**灵数 lingshu-solver**（独立产品），两者互不耦合、互不委派。
 
 ---
 

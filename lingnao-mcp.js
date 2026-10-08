@@ -16,7 +16,7 @@
 /**
  * ── 信任架构铁律（de Bruijn 准则的灵脑版本）──
  * 本文件中的 `certifyDecisionLogic` 与其调用的七类确定性验证器 `V_c`
- * （_auditOneAlgebraic / _auditOneConstraint / _auditOneNumericSafety /
+ * （_auditOneConstraint / _auditOneNumericSafety /
  *  _auditOnePath / _auditOneAuthorized / _auditOneCausal / _auditOneConformal）是灵脑**唯一可信内核**。
  * 其中 `_auditOneCausal` 用 do-calculus（后门/前门准则）判定因果效应可识别性，
  * `_auditOneConformal` 用 split conformal 分位数引理把「无知弃权 𝕌」升级为「带量化风险界 α 的诚实弃权」。
@@ -34,13 +34,9 @@ const crypto = require('crypto');
 const HTML = process.env.LINGNAO_HTML || process.env.LINGJING_HTML || path.join(__dirname, '灵脑.html');
 const SELFTEST = process.argv.includes('--selftest');
 
-// 灵数求解器委派桥（Node 端，复用桌面真源 solver-core → index.html 核心脚本）
-let lingShuBridge;
-try {
-  lingShuBridge = require('./lingshu-bridge');
-} catch (e) {
-  lingShuBridge = { available: false, algebraicSolve: () => ({ available: false, error: 'lingshu-bridge 未载入：' + (e && e.message) }) };
-}
+// 灵脑 = 推理-only（2026-10-07 裁定）：不接入计算引擎、不委派灵数。计算归灵数 lingshu-solver 独立产品。
+// 内核若误调 algebraicSolve，拿到永久不可用的诚实降级桩（fail-closed：不计算、不幻觉）。
+let lingShuBridge = { available: false, algebraicSolve: () => ({ available: false, error: '灵脑=推理-only：不接入计算引擎（计算归灵数 lingshu-solver 独立产品）' }) };
 
 // ---------- 1. 抽取并实跑内核（复用浏览器内已验证逻辑，不重写） ----------
 function extractKernel(h) {
@@ -82,7 +78,7 @@ sandbox.self = sandbox;
 sandbox.globalThis = sandbox;
 // 自测模式：在 vm 运行前把 mock fetch 注入为 sandbox.fetch，确保 perceiveLLM 走模拟链路（运行后再设 sandbox.fetch 不生效）
 if (SELFTEST) sandbox.fetch = mockFetchOpenRouter;
-sandbox.__LINGSHU__ = lingShuBridge;   // 注入真引擎桥，供内核 algebraicSolve 委派（无 Node 时桥为 available:false 诚实降级）
+sandbox.__LINGSHU__ = lingShuBridge;   // 灵脑=推理-only：注入永久不可用的计算桩（内核若调 algebraicSolve 将诚实降级 𝕌，不计算）
 const ctx = vm.createContext(sandbox);
   vm.runInContext(
   kernelSrc + '\nglobalThis.__exp = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport, metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable, identifiabilityID, counterfactualIdentifiable, learnWorldModel, simulate, counterfactual, SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus, EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED, explainWithLLM, askBrain, causalEffect, groundingMeta, GROUNDING, validateWorld, Memory, bootMemory, confirmObservation, exploreAlternatives, Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch, planTransport, applyAllocations, allPairsCost, reconstructPath, transportation, quantifyUncertainty, Brain, Layers, brainManifest, evaluateProposition, edgeHolds, attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, getBody};',
@@ -320,10 +316,7 @@ function symbolicVerifyLogic(start, goal, hard, soft) {
   if (r.status !== 'optimal') return { verified: false, reason: '路径不可判定' };
   return K.verifyHoarePath(r, K.getWorld());
 }
-// 委派给真引擎「灵数求解器」(lingshu-solver)：区间收缩 + Krawczyk 认证，离线确定性
-function algebraicSolveLogic(args) {
-  return K.algebraicSolve(args || {});
-}
+// 灵脑=推理-only（2026-10-07）：algebraicSolveLogic 已移除（计算归灵数 lingshu-solver 独立产品）。
 function dmctsLogic(start, goal, hard, soft) {
   return K.dmcts(start || 'CHARGE', goal, { hard: hard || [], soft: soft || [], iterations: 80 });
 }
@@ -706,24 +699,7 @@ const TOOLS = [
       required: ['goal'],
     },
   },
-  {
-    name: 'algebraic_solve', description: '代数方程系统求解 —— 真正委派给灵数求解器(lingshu-solver)真引擎（区间收缩 + Krawczyk 认证，离线、确定性、可复现；非手写 lite）。  / EN: Algebraic equation-system solver — genuinely delegates to the lingshu-solver engine (interval contraction + Krawczyk certification; offline, deterministic, reproducible; not a hand-written lite).' +
-      '输入：equations 为含 "=" 的方程字符串数组，如 ["x^2+y^2=25","x+y=7"]；支持 + - * / ^ sqrt log sin cos tan exp abs 及 in-text 域约束 "x ∈ [-30,30]"。' +
-      'variables 可选（不填自动识别，≤6）；domain 可选 {"x":[-30,30]}（exp/sinh 等快增长函数建议显式给定）；fastMode 可选；options 可选 {budget,maxDepth}。' +
-      '输出：resultTypeName=empty(严格证无实数解)/finite(有限已验证解)/infinite(无限解集，仅给距原点最近推荐解)；solutionCount；certified=是否全部 Krawczyk 认证；solutions[] 每解含 values[](6位小数)、tier(proven/likely/candidate)、certified、text(如"x=4.000000, y=3.000000")、residual、certifiedRadius；truncated=true 表示预算内未穷尽（多数情况真解已全找到，极端病态可能遗漏个别，可缩 domain/提 budget 重试）。' +
-      '硬限制：变量 ≤6；方程 1–64 且 ≥ 变量数。相同输入永远返回完全相同结果。',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        equations: { type: 'array', items: { type: 'string' }, description: '方程字符串数组，如 ["x^2 + y^2 = 25", "x + y = 7"]' },
-        variables: { type: 'array', items: { type: 'string' }, description: '变量名数组（可选，不填自动识别，≤6）' },
-        domain: { type: 'object', description: '显式搜索域（可选），如 {"x":[-30,30],"y":[-30,30]}' },
-        fastMode: { type: 'boolean', description: '快速模式（默认 false）' },
-        options: { type: 'object', description: '高级选项（可选），如 {budget:500000, maxDepth:28}' },
-      },
-      required: ['equations'],
-    },
-  },
+  // 灵脑=推理-only（2026-10-07）：algebraic_solve 工具已移除，计算归灵数 lingshu-solver 独立产品。
   {
     name: 'world_model', description: '世界模型（lite）：从观测轨迹样本学结构方程模型 SEM（手写最小二乘），并前向模拟下一状态。文档 3.4 给的 VAE/ADM-v2 需神经网络+大数据（无定义），本实装为诚实 lite 等价（线性 SEM + Pearl 反事实框架），确定性、可复现、可审计。  / EN: World model (lite): learn a structural-equation model (SEM) from observed trajectory samples (hand-written least squares) and forward-simulate the next state. The VAE/ADM-v2 from doc §3.4 needs neural nets + big data (undefined), so this is an honest lite equivalent (linear SEM + Pearl counterfactual framework): deterministic, reproducible, auditable.' +
       'samples 为轨迹数组，每项 {state:{变量:值}, action:{变量:值}, next:{变量:值}}；提供 state+action 则同时返回 simulate 预测 next。' +
@@ -1258,13 +1234,13 @@ const TOOLS = [
   },
   {
     name: 'audit_evidence',
-    description: '【灵脑面向智能体的旗舰能力】合规证据批审（AI Agent 审计场景，先智能体落地的首个交付场景）：对一批被审声明逐条委派确定性内核验证，无法确定性验证的一律 𝕌 诚实弃权、绝不假装核过。kind=algebraic→灵数求解器（区间收缩+Krawczyk 认证）独立复算并比对声明值；kind=constraint→紧致性陷阱检约束族全局矛盾（THM_COMPACTNESS）；kind=numeric_safety→M2 全域安全不变式证书；kind=path→A* 重算比对声明路径与代价；其他 kind→unverified(𝕌)。输出审计师可直接使用的证据报告：确定性 reportId（sha256，同输入同内核版本可离线重算）、逐条 verdict（verified/refuted/unverified）+证明引用、汇总、AIUC-1 D 域(Reliability)控制项参考映射（仅为映射，非认证声明）。**护栏：被审声明必须是可验证的数学属性（等式/约束/安全不变式/路径/授权），灵脑不对任何非数学判断或决策智慧做背书——凡不可确定性验证的一律 𝕌，绝不假装核过。**  / EN: LingNao flagship capability for agents. Compliance evidence batch audit for AI-agent claims: each item is delegated to a deterministic kernel verifier (algebraic → lingshu-solver interval/Krawczyk re-derivation and claim matching; constraint → compactness trap THM_COMPACTNESS; numeric_safety → M2 global safety-invariant certificate; path → A* re-derivation vs claimed path/cost); anything else honestly abstains (𝕌). Emits an auditor-ready evidence report with deterministic reproducible reportId (sha256), per-item verdicts + proof references, summary, and an AIUC-1 Domain-D reference mapping (a mapping, NOT a certification).',
+    description: '【灵脑面向智能体的旗舰能力】合规证据批审（AI Agent 审计场景，先智能体落地的首个交付场景）：对一批被审声明逐条委派确定性内核验证，无法确定性验证的一律 𝕌 诚实弃权、绝不假装核过。kind=constraint→紧致性陷阱检约束族全局矛盾（THM_COMPACTNESS）；kind=numeric_safety→M2 全域安全不变式证书；kind=path→A* 重算比对声明路径与代价；其他 kind→unverified(𝕌)。输出审计师可直接使用的证据报告：确定性 reportId（sha256，同输入同内核版本可离线重算）、逐条 verdict（verified/refuted/unverified）+证明引用、汇总、AIUC-1 D 域(Reliability)控制项参考映射（仅为映射，非认证声明）。**灵脑=推理-only：方程求解/验真（algebraic/membership/entail）归灵数 lingshu-solver 独立产品，本工具只做推理原语核验。**  / EN: LingNao flagship capability for agents (reasoning-only). Compliance evidence batch audit: each item delegated to a deterministic kernel verifier (constraint → compactness trap THM_COMPACTNESS; numeric_safety → M2 global safety-invariant certificate; path → A* re-derivation vs claimed path/cost); anything else honestly abstains (𝕌). Equation solving/verification is 灵数 lingshu-solver\'s job, not LingNao\'s.',
     inputSchema: {
       type: 'object',
       properties: {
         items: {
           type: 'array',
-          description: '待核声明列表（≤200 条）。每项 {id?, kind, text?, …载荷}。载荷按 kind：algebraic→{equations:string[], variables?, domain?, claimed?:{变量名:数值}}；constraint→{constraints:[{id?, interval:[lo,hi]}]}（≥2 项才有紧致性意义）；numeric_safety→{hExpr, vars:string[], domain?:{变量:[lo,hi]}, bound?}；path→{start, goal, claimedPath?:string[], claimedCost?:number, hard?, soft?}。text 为人类可读的声明原文，仅入档展示、不参与判定。',
+          description: '待核声明列表（≤200 条）。每项 {id?, kind, text?, …载荷}。载荷按 kind：constraint→{constraints:[{id?, interval:[lo,hi]}]}（≥2 项才有紧致性意义）；numeric_safety→{hExpr, vars:string[], domain?:{变量:[lo,hi]}, bound?}；path→{start, goal, claimedPath?:string[], claimedCost?:number, hard?, soft?}。text 为人类可读的声明原文，仅入档展示、不参与判定。',
         },
         caseLabel: { type: 'string', description: '（可选）案卷标注（被审 Agent 名称/批次号）。仅展示用，不参与 reportId 计算' },
       },
@@ -1273,7 +1249,7 @@ const TOOLS = [
   },
   {
     name: 'certify_decision',
-    description: '【灵脑裁判层旗舰能力 · 产品重新定位为"证明决策"而来】对智能体提出的**一个具体决策**做可信裁判：接收结构化决策记录 {action, context, claimedProperties:[{property, class, payload}]}，把每个声明 class 委派给确定性内核验证器（algebraic→灵数 Krawczyk 区间认证；constraint→紧致性陷阱 THM_COMPACTNESS；numeric_safety→M2 全域安全不变式证书；path→A* 重算比对；authorized→M4 EffectGate 授权闸），输出 DecisionCertificate：decisionVerdict(trusted / untrusted / abstain) + 逐属性 proofObject(定理 id + 证明步骤) + 防篡改 reportId(sha256)。灵脑**只裁判、不提议**——运动员(智能体)生成动作，裁判(灵脑)判定动作是否安全/正确/授权，职责分离（运动员不能同时是裁判）。任何不可确定性验证的声明一律 𝕌 诚实弃权，绝不输出"大概没错"。**护栏：灵脑只证动作的安全/正确/授权/因果/风险等可验证数学属性，不评价决策的商业智慧或任何非数学判断——大模型日常决策（写邮件、选供应商等）本就不是数学，灵脑不对此负责。**  / EN: LingNao referee-layer flagship (repositioned to "prove decisions"): certify one concrete agent decision. Receives {action, context, claimedProperties:[{property, class, payload}]}, delegates each claim class to a deterministic kernel verifier, emits a DecisionCertificate with decisionVerdict(trusted/untrusted/abstain) + per-property proofObject + tamper-evident reportId(sha256). LingNao judges only — it never proposes actions (referee ≠ athlete).',
+    description: '【灵脑裁判层旗舰能力 · 推理-only】对智能体提出的**一个具体决策**做可信裁判：接收结构化决策记录 {action, context, claimedProperties:[{property, class, payload}]}，把每个声明 class 委派给确定性内核验证器（constraint→紧致性陷阱 THM_COMPACTNESS；numeric_safety→M2 全域安全不变式证书；path→A* 重算比对；authorized→M4 EffectGate 授权闸），输出 DecisionCertificate：decisionVerdict(trusted / untrusted / abstain) + 逐属性 proofObject(定理 id + 证明步骤) + 防篡改 reportId(sha256)。灵脑**只裁判、不提议**——运动员(智能体)生成动作，裁判(灵脑)判定动作是否安全/正确/授权，职责分离（运动员不能同时是裁判）。**灵脑=推理-only：方程求解/验真（algebraic）归灵数 lingshu-solver 独立产品，本工具不计算。** 任何不可确定性验证的声明一律 𝕌 诚实弃权，绝不输出"大概没错"。**护栏：灵脑只证动作的安全/正确/授权/因果/风险等可验证数学属性，不评价决策的商业智慧或任何非数学判断——大模型日常决策（写邮件、选供应商等）本就不是数学，灵脑不对此负责。**  / EN: LingNao referee-layer flagship (reasoning-only). Certify one concrete agent decision. Delegates each claim class to a deterministic kernel verifier; equation solving/verification is 灵数 lingshu-solver\'s job, not LingNao\'s.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1282,7 +1258,7 @@ const TOOLS = [
         context: { type: 'object', description: '（可选）决策前状态 / 世界快照，仅入档' },
         claimedProperties: {
           type: 'array',
-          description: '智能体对本次决策声明的属性列表（≤200）。每项 {property, class, payload}。class∈{algebraic, constraint, numeric_safety, path, authorized}；payload 同 audit_evidence 对应 kind 的载荷（algebraic→{equations,variables?,domain?,claimed?}；constraint→{constraints:[{id?,interval:[lo,hi]}]}；numeric_safety→{hExpr,vars,domain?,bound?}；path→{start,goal,claimedPath?,claimedCost?,hard?,soft?}；authorized→{effectKind}）。',
+          description: '智能体对本次决策声明的属性列表（≤200）。每项 {property, class, payload}。class∈{constraint, numeric_safety, path, authorized}；payload 同 audit_evidence 对应 kind 的载荷（constraint→{constraints:[{id?,interval:[lo,hi]}]}；numeric_safety→{hExpr,vars,domain?,bound?}；path→{start,goal,claimedPath?,claimedCost?,hard?,soft?}；authorized→{effectKind}）。',
         },
       },
       required: ['claimedProperties'],
@@ -1477,163 +1453,6 @@ function _engineEmptyUntrustworthy(eqs, aso) {
   };
 }
 
-/**
- * ── 决策版反射证明（proof by reflection, decision edition）──
- * 下列五个 _auditOne* 与 Coq 的 `ring` 战术**结构同构**：
- *   1) reify（反射）：把智能体的声明属性 pᵢ 反射成可计算的语法对象（payload）；
- *   2) 正确性定理：底层数学定理（Krawczyk / Helly / CBF / A* / 完全中介）
- *      保证「判定即真」；
- *   3) 计算闭合：跑确定性计算（区间算术 / 两两求交 / A* 重算 / EffectGate 查表）
- *      直接得出 verified / refuted / 𝕌。
- * 逻辑有效性在此被降解为可离线复算的符号计算——这正是灵脑高效、可审计的根因。
- */
-function _auditOneAlgebraic(it) {
-  const claimed = it.claimed && typeof it.claimed === 'object' ? it.claimed : null;
-  if (!Array.isArray(it.equations) || !it.equations.length) {
-    return { verdict: 'unverified', U: true, reason: 'algebraic 载荷缺 equations（非空字符串数组）⇒ 无可复核对象 ⇒ 𝕌', engine: null };
-  }
-  const aso = K.algebraicSolve({ equations: it.equations, variables: it.variables, domain: it.domain });
-  if (!aso || aso.available !== true) {
-    return { verdict: 'unverified', U: true, reason: '灵数求解器不可用 ⇒ 无法独立复算（fail-closed，不假装通过）', engine: null, detail: aso && aso.error };
-  }
-  const evidence = { engine: aso.engine, resultTypeName: aso.resultTypeName, solutionCount: aso.solutionCount, certified: !!aso.certified, solutions: aso.solutions };
-  if (!claimed) {
-    return { verdict: 'unverified', U: true, reason: '未提供 claimed（被审声明值）⇒ 解出了真解集但无可比对对象 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
-  }
-  const _lsGuard = _engineEmptyUntrustworthy(it.equations, aso); if (_lsGuard) return _lsGuard;
-  if (aso.resultTypeName === 'empty') {
-    return { verdict: 'refuted', U: false, reason: '灵数严格证明该方程组无实数解 ⇒ 声明的任何取值组合均不可能成立（engine: ' + aso.engine + '）', engine: aso.engine, evidence: evidence, theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'no-real-root', proof: ['Krawczyk 认证：X∩K(X)=∅ ⇒ 方程组无实数解', '声明假定存在实数解组合 ⇒ 与认证空集矛盾 ⇒ 被证伪'] };
-  }
-  if (!aso.certified) {
-    return { verdict: 'unverified', U: true, reason: '解集未全部通过 Krawczyk 认证（tier 非 proven）⇒ 不足以支撑 verified 或 refuted（fail-closed）', engine: aso.engine, evidence: evidence };
-  }
-  // 逐变量比对：claimed 中每个变量名须在某个认证解里取值一致（相对容差 tol；默认 1e-6，调用方可经 it.tol 显式声明，上限 1e-3）
-  const t0 = _normalizeTol(it);
-  const numericBlock = _numericBlock(it);
-  const varNames = Array.isArray(aso.varNames) && aso.varNames.length ? aso.varNames : (aso.solutions[0] ? aso.solutions[0].text.split(',').map(s => s.split('=')[0].trim()) : []);
-  const missing = Object.keys(claimed).filter(cn => varNames.indexOf(cn) < 0);
-  if (missing.length) {
-    return { verdict: 'unverified', U: true, reason: 'claimed 含解集变量之外的键：' + missing.join(',') + '（解集变量：' + varNames.join(',') + '）⇒ 比对无意义 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
-  }
-  let matched = null;
-  for (const sol of aso.solutions) {
-    let ok = true;
-    for (const cn of Object.keys(claimed)) {
-      const vi = varNames.indexOf(cn);
-      if (!_numEq(sol.values[vi], claimed[cn], t0)) { ok = false; break; }
-    }
-    if (ok) { matched = sol; break; }
-  }
-  if (matched) {
-    return { verdict: 'verified', U: false, reason: '灵数独立复算（区间收缩+Krawczyk 认证）得到完整认证解集，声明值与其中一解一致（' + matched.text + '）', engine: aso.engine, evidence: evidence, numeric: numericBlock, theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'no-real-root', proof: ['灵数对方程组做区间收缩 + Krawczyk 算子认证', '得到 certified=true 的完整认证解集（逐解 residual 通过，truncated=false）', '声明值与认证解集中某一解逐变量一致(相对容差 ' + t0 + ') ⇒ 声明被确认'] };
-  }
-  // ⚠️ soundness 洞（1.4.0 修补）：解集若在预算内被截断（truncated=true），「所有解都不含声明值」这一
-  // **全称命题并未被穷尽证实** ⇒ 只能诚实弃权 𝕌（abstainedBy=truncated_solution_set）。
-  // 写死成可检查的必要条件：只有 (a) 解集完整 truncated=false 且 (b) 全认证 certified=true，才允许 refuted。
-  if (aso.truncated === true || aso.truncated === 'true') {
-    return { verdict: 'unverified', U: true, abstainedBy: 'truncated_solution_set', reason: '灵数解集在预算内未穷尽（truncated=true；solutionCount=' + aso.solutionCount + '）：全称命题「所有解均不含声明值」未被穷尽证实 ⇒ 诚实弃权 𝕌，绝不可用截断解集冒充「已证伪」（fail-closed）', engine: aso.engine, evidence: evidence, numeric: numericBlock, budgetHint: { action: '提高 it.budget / it.maxDepth 或缩小 it.domain 后重试', truncated: true } };
-  }
-  return { verdict: 'refuted', U: false, reason: '灵数独立复算得到完整认证解集（truncated=false, certified=true，共 ' + aso.solutionCount + ' 解），穷尽比对其中不含声明值组合 ⇒ 声明被确定性证伪', engine: aso.engine, evidence: evidence, numeric: numericBlock, theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'no-real-root', proof: ['灵数独立复算得到完整(未截断)且全部 Krawczyk 认证的解集', '穷尽比对该解集 ⇒ 不含声明值组合 ⇒ 全称命题「所有解均不满足声明」已被穷尽证实', '声明被确定性证伪'] };
-}
-/* ── 三个新判定原语（1.4.0）──────────────────────────────────────────────────────────
- * 诚实说明：这三个原语**不引入新数学地基**。
- *   · membership  —— 与 algebraic 同源（同一个 K.algebraicSolve + Krawczyk 认证），只是把
- *                    「∃ 解匹配声明值」以**集合归属 ∈** 的措辞显式暴露给调用方，certKind 不同。
- *   · entail      —— 量化方向真的反了：从 ∃ 变 ∀（「是否所有解都被这条边界约束住」）。这是真新增。
- *   · consistency —— 多条声明关于同一变量给出的数值是否两两可同时成立；手工两两比对，
- *                    判的是**跨声明的数值互斥**（LLM/智能体最高频的自相矛盾错误：同一变量两个值、
- *                    预算表加不平、报价与合同数字对不上）——此前 0 覆盖。
- * 三者共同守同一条铁律：只在确定性内核给出「完整 + 认证」的结果时才给 ✓/✗，其余一律 𝕌。
- */
-function _auditOneMembership(it) {
-  const claimed = it.claimed && typeof it.claimed === 'object' ? it.claimed : null;
-  if (!Array.isArray(it.equations) || !it.equations.length) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'underdetermined', reason: 'membership 载荷需 equations（非空字符串数组）+ claimed（被审取值对象）⇒ 无可归属的检查对象 𝕌', engine: null };
-  }
-  const aso = K.algebraicSolve({ equations: it.equations, variables: it.variables, domain: it.domain, opts: (typeof it.budget === 'number' || typeof it.maxDepth === 'number') ? { budget: it.budget, maxDepth: it.maxDepth } : undefined });
-  if (!aso || aso.available !== true) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'engine_unavailable', reason: '灵数求解器不可用 ⇒ 无法独立复算（fail-closed）', engine: null, detail: aso && aso.error };
-  }
-  const evidence = { engine: aso.engine, resultTypeName: aso.resultTypeName, solutionCount: aso.solutionCount, certified: !!aso.certified, truncated: !!aso.truncated, solutions: aso.solutions };
-  const _lsGuard = _engineEmptyUntrustworthy(it.equations, aso); if (_lsGuard) return _lsGuard;
-  if (aso.resultTypeName === 'empty') {
-    return { verdict: 'refuted', U: false, reason: 'S = ∅ 经 Krawczyk 认证严格证明（无实数解）⇒ 声明值 ∉ S 被确定性证伪', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it), theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'membership', proof: ['认证：方程组解集 S=∅', '∅ 不承载任何点 ⇒ 声明值 ∉ S 被严格证明'] };
-  }
-  if (!aso.certified || aso.truncated) {
-    return { verdict: 'unverified', U: true, abstainedBy: aso.truncated ? 'truncated_solution_set' : 'certification_incomplete', reason: 'membership 要求 S 完整且全认证：certified=' + !!aso.certified + ', truncated=' + !!aso.truncated + ' ⇒ 「声明值 ∈ S」既未证实也未否证 ⇒ 𝕌（fail-closed）', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it) };
-  }
-  if (!claimed) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'underdetermined', reason: '未给 claimed ⇒ S 已算清但无归属检查对象 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
-  }
-  const tol = _normalizeTol(it);
-  const varNames = Array.isArray(aso.varNames) && aso.varNames.length ? aso.varNames : [];
-  const missing = Object.keys(claimed).filter(cn => varNames.indexOf(cn) < 0);
-  if (missing.length) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'underdetermined', reason: 'claimed 含解集变量之外的键：' + missing.join(',') + '（解集变量：' + varNames.join(',') + '）⇒ 归属比对无意义 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
-  }
-  const hit = aso.solutions.filter(function (sol) {
-    return Object.keys(claimed).every(function (cn) { return _numEq(sol.values[varNames.indexOf(cn)], claimed[cn], tol); });
-  })[0];
-  if (hit) {
-    return { verdict: 'verified', U: false, reason: '声明值 ∈ S：S 的完整认证解集含该点（' + hit.text + '）', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it), theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'membership', proof: ['灵数给出 S 的完整认证解集（truncated=false, certified=true）', '声明值逐变量落在该解集内（相对容差 ' + tol + '）⇒ 声明值 ∈ S 成立'] };
-  }
-  return { verdict: 'refuted', U: false, reason: '声明值 ∉ S：S 的完整认证解集（' + aso.solutionCount + ' 解）穷尽比对不含该点 ⇒ 声明被确定性证伪', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it), theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'membership', proof: ['灵数给出 S 的完整认证解集（未截断、全认证）', '穷尽比对不含该点 ⇒ 声明值 ∉ S 被确定性证伪'] };
-}
-/** entail（1.4.0）：判定「S 中的所有解都被边界 B 约束住」，即 P ⊨ (x ≤ B)。
- *  载荷：{ equations, variables?, domain?, op: '<=', bound: {x: 5} }
- *  数学（量化方向务必看清）：
- *    verified = ∀s∈S: s 满足边界   —— S 是认证解集，故这是**真蕴含**，不是置信度；
- *    refuted  = ∃s∈S: s 违反边界   —— S 中确有（认证的）真反例，蕴含不成立；判定强度高于「找不到匹配值」；
- *    𝕌        = S 未完整/未认证    —— 宁可不说，也不假装证了。
- *  S=∅ 时 ∀s∈S 空真成立 ⇒ 记 verified 但置 vacuous=true 并明写，避免把「没有解」误读成「很安全」。 */
-function _auditOneEntail(it) {
-  const bound = it.bound && typeof it.bound === 'object' ? it.bound : null;
-  const op = String(it.op || '').toLowerCase();
-  if (!Array.isArray(it.equations) || !it.equations.length || !bound || !Object.keys(bound).length || (op !== '<=' && op !== '>=' && op !== '<' && op !== '>')) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'underdetermined', reason: 'entail 载荷需 equations（非空）+ op（<= / >= / < / >）+ bound（如 {x: 5}）⇒ 无可判定的边界命题 𝕌', engine: null };
-  }
-  const aso = K.algebraicSolve({ equations: it.equations, variables: it.variables, domain: it.domain, opts: (typeof it.budget === 'number' || typeof it.maxDepth === 'number') ? { budget: it.budget, maxDepth: it.maxDepth } : undefined });
-  if (!aso || aso.available !== true) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'engine_unavailable', reason: '灵数求解器不可用 ⇒ 无法独立复算（fail-closed）', engine: null, detail: aso && aso.error };
-  }
-  const evidence = { engine: aso.engine, resultTypeName: aso.resultTypeName, solutionCount: aso.solutionCount, certified: !!aso.certified, truncated: !!aso.truncated, solutions: aso.solutions };
-  const tol = _normalizeTol(it);
-  if (!aso.certified || aso.truncated) {
-    return { verdict: 'unverified', U: true, abstainedBy: aso.truncated ? 'truncated_solution_set' : 'certification_incomplete', reason: 'entail 要求完整认证解集：certified=' + !!aso.certified + ', truncated=' + !!aso.truncated + ' ⇒ 蕴含既未证实也未否证 ⇒ 𝕌', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it) };
-  }
-  const varNames = Array.isArray(aso.varNames) && aso.varNames.length ? aso.varNames : [];
-  const nv = Object.keys(bound).filter(function (v) {
-    const raw = bound[v];
-    const num = (typeof raw === 'number') ? raw : ((raw && typeof raw === 'object') ? raw.value : NaN);
-    return varNames.indexOf(v) >= 0 && isFinite(num);
-  });
-  if (!nv.length) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'underdetermined', reason: 'bound 变量不在解集变量内（解集变量：' + (varNames.join(',') || '空') + '）⇒ 边界命题无对象 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
-  }
-  const _lsGuard = _engineEmptyUntrustworthy(it.equations, aso); if (_lsGuard) return _lsGuard;
-  if (aso.resultTypeName === 'empty') {
-    return { verdict: 'verified', U: false, vacuous: true, reason: 'S = ∅ 经认证 ⇒ ∀s∈S: s 满足边界**空真成立**（vacuous=true：结论为真是因为根本无解，不代表「很安全」）', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it), theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'entail', proof: ['认证：S=∅', '∀s∈∅ 空真成立 ⇒ 边界对所有解都满足（vacuous）'] };
-  }
-  const viol = []; let okAll = true;
-  for (const sol of aso.solutions) {
-    for (const v of nv) {
-      const raw = bound[v];
-      const B = (typeof raw === 'number') ? raw : ((raw && typeof raw === 'object') ? raw.value : NaN);
-      const val = sol.values[varNames.indexOf(v)];
-      if (!isFinite(val) || !isFinite(B)) { okAll = false; continue; }
-      const slack = tol * Math.max(1, Math.abs(B));
-      const violated = (op === '<=' || op === '<') ? (val > B + slack) : (val < B - slack);
-      if (violated) { viol.push({ var: v, value: val, bound: B, op: op }); okAll = false; }
-    }
-  }
-  if (viol.length) {
-    return { verdict: 'refuted', U: false, evidence: Object.assign({}, evidence, { counterexample: viol }), reason: 'entail 不成立：认证解集中存在**真反例**（' + viol.map(function (x) { return x.var + '=' + x.value + ' 不满足 ' + x.op + ' ' + x.bound; }).join('；') + '）⇒ P ⊨ 边界 被确定性证伪', engine: aso.engine, counterexample: viol, numeric: _numericBlock(it), theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'entail', proof: ['灵数给出 S 的完整认证解集', '解集中存在认证的真实反例', '「所有解都满足边界」为假 ⇒ 蕴含不成立，被确定性证伪'] };
-  }
-  if (!okAll) {
-    return { verdict: 'unverified', U: true, abstainedBy: 'numeric_only', reason: '解集中存在非有限值 / 边界非数字 ⇒ 无法完备判定 ⇒ 𝕌', engine: aso.engine, evidence: evidence };
-  }
-  return { verdict: 'verified', U: false, reason: 'entail 成立：S 的完整认证解集（' + aso.solutionCount + ' 解）全部满足边界（' + nv.map(function (v) { return v + ' ' + op + ' ' + bound[v]; }).join('；') + '）⇒ P ⊨ 边界 是真蕴含', engine: aso.engine, evidence: evidence, numeric: _numericBlock(it), theorem: 'THM_KRAWCZYK_CERTIFY', certKind: 'entail', proof: ['灵数给出 S 的完整认证解集（未截断、全认证）', '逐解核验：全部满足边界', '∀s∈S: s 满足边界 成立 ⇒ P ⊨ 边界'] };
-}
 /** consistency（1.4.0）：多条声明能否同时成立。多声明互斥是 LLM/智能体最高频的自相矛盾错误
  *  （同一变量给了两个值、预算表加不平、报价与合同数字对不上）——此前 0 覆盖。
  *  载荷：{ statements: [{ id?, label?, values: {var: num} }]，tol? }，≥2 条。
@@ -1956,9 +1775,6 @@ function _auditOneConformal(it) {
 }
 
 var _KIND_CERTKIND = {
-  algebraic: 'no-real-root',
-  membership: 'membership',
-  entail: 'entail',
   consistency: 'consistency',
   constraint: 'constraint-feasibility',
   numeric_safety: 'safety-invariant',
@@ -1967,9 +1783,6 @@ var _KIND_CERTKIND = {
   conformal: 'conformal-risk',
 };
 var _KIND_SCOPE = {
-  algebraic: '方程组实数解集的 Krawczyk 区间认证；覆盖所提供变量在给定盒式域内的代数(多项式/有理)约束。',
-  membership: '声明值是否属于方程组解集 S（S 经 Krawczyk 认证）；量的是集合归属 ∈，不是「大致接近」。',
-  entail: '解集 S 是否整体被边界约束住（P ⊨ x≤B 的 ∀ 形式）；refuted 意味着 S 中有认证真反例，判定强度高于「没找到匹配值」。',
   consistency: '多条声明在共有变量上的取值是否两两可同时成立（互斥检出）；覆盖 LLM/agent 最高频的自相矛盾错误。',
   constraint: '约束族作为区间集合的可满足性 / 矛盾检测；仅当约束均为 1D 区间时可定判。',
   numeric_safety: '盒式域内安全不变式 h≥-1/B² 的 Krawczyk 认证；提供动力学时追加前向不变性(CBF)认证。',
@@ -1978,9 +1791,6 @@ var _KIND_SCOPE = {
   conformal: '给定校准分数集与 α 的 split conformal 边际覆盖风险界；诚实区分边际覆盖与逐点覆盖（Angelopoulos&Bates 2021）。',
 };
 var _KIND_LIMITS = {
-  algebraic: '依赖灵数求解器可用；解集未全认证(tier≠proven)时诚实弃权，不出 verified/refuted；不声称对超越/非多项式方程全局完备；比对容差 1e-6。',
-  membership: '依赖灵数求解器可用；要求解集完整(truncated=false)且全认证(certified=true)，否则 𝕌；与 algebraic 共用同一判定地基，差别只是量化措辞与 certKind；比对容差默认 1e-6 可调(上限 1e-3)。',
-  entail: '要求解集完整且全认证，否则 𝕌；S=∅ 时 verified 属**空真**(vacuous=true)而非「全局安全」，报告不隐藏这一点；容差 1e-6 可调。',
   consistency: '只覆盖**数值型**声明（非有限值/缺值进 skipped 而非静默吞掉）；字符串、日期、布尔、单位不统一的声明不覆盖，一律 𝕌 不硬判；两两比对随声明数 O(n²)，过多建议分批。',
   constraint: '仅覆盖 1D 区间约束；R^d(d≥2) 一般约束 Helly 条件不足，内核 fail-closed 为 𝕌；不覆盖非线性/逻辑组合约束。',
   numeric_safety: '维数上限 6 状态+2 辅助变量；带 -1/B² 辅助域松弛(非纯 h≥0)；未给动力学时只证「集合非负」非「轨迹留内」；候选反例需回代校验。',
@@ -2040,16 +1850,13 @@ function auditEvidenceLogic(args) {
     budgetUsed.n += 1;
     let core;
     try {
-      if (it.kind === 'algebraic') core = _auditOneAlgebraic(it);
-      else if (it.kind === 'membership') core = _auditOneMembership(it);
-      else if (it.kind === 'entail') core = _auditOneEntail(it);
-      else if (it.kind === 'consistency') core = _auditOneConsistency(it);
+      if (it.kind === 'consistency') core = _auditOneConsistency(it);
       else if (it.kind === 'constraint') core = _auditOneConstraint(it);
       else if (it.kind === 'numeric_safety') core = _auditOneNumericSafety(it);
       else if (it.kind === 'path') core = _auditOnePath(it);
       else if (it.kind === 'causal') core = _auditOneCausal(it);
       else if (it.kind === 'conformal') core = _auditOneConformal(it);
-      else core = { verdict: 'unverified', U: true, abstainedBy: 'unsupported_kind', reason: 'kind="' + String(it.kind) + '" 无对应确定性验证能力 ⇒ 诚实弃权 𝕌（可核 kind：algebraic / membership / entail / consistency / constraint / numeric_safety / path / causal / conformal）', engine: null };
+      else core = { verdict: 'unverified', U: true, abstainedBy: 'unsupported_kind', reason: 'kind="' + String(it.kind) + '" 无对应确定性验证能力 ⇒ 诚实弃权 𝕌（灵脑=推理-only：可核 kind：consistency / constraint / numeric_safety / path / causal / conformal；方程求解/验真归灵数 lingshu-solver 独立产品）', engine: null };
     } catch (e) {
       core = { verdict: 'unverified', U: true, abstainedBy: 'evaluation_exception', reason: '验证过程异常 ⇒ fail-closed 弃权（异常已留痕）：' + (e && e.message), engine: null };
     }
@@ -2115,9 +1922,6 @@ function auditEvidenceLogic(args) {
       proves: 'agent-declared numeric / logical claims — NOT mathematical theorems',
       notA: '数学定理证明器（如 Coq / Lean / Isabelle）—— 它们从公理证明数学定理；灵脑判定的是智能体的具体声明，方程/区间/CBF 只是判定声明的底层手段，不为任意命题做机器证明',
       claimClasses: {
-        'no-real-root': { theorem: 'THM_KRAWCZYK_CERTIFY', via: 'algebraic', meaning: '方程组无实数解 / 声明值属于认证解集' },
-        'membership': { theorem: 'THM_KRAWCZYK_CERTIFY', via: 'membership', meaning: '声明值 ∈ 认证解集 S' },
-        'entail': { theorem: 'THM_KRAWCZYK_CERTIFY', via: 'entail', meaning: '∀ 解满足边界（P ⊨ 边界），refuted 需有认证真反例' },
         'consistency': { theorem: 'PAIRWISE_VALUE_EQUIVALENCE', via: 'consistency', meaning: '多条声明在共有变量上两两不互斥' },
         'constraint-feasibility': { theorem: 'THM_HELLY_R1 / THM_COMPACTNESS', via: 'constraint', meaning: '1D 区间约束族的可满足性 / 矛盾' },
         'safety-invariant': { theorem: 'THM_KRAWCZYK_CERTIFY / THM_BARRIER_NAGUMO_CBF', via: 'numeric_safety', meaning: '盒式域内安全不变式 / 前向不变性(CBF)' },
@@ -2137,7 +1941,7 @@ function auditEvidenceLogic(args) {
 
 // ---------- 3c. 决策可信裁判 certify_decision（产品重新定位为"证明决策"后的一等公民；运动员提议、裁判判定）----------
 // 数学（#378 落点）：决策 D = (action, context, P)，P={p_i} 为智能体对决策的声明属性集；
-//   每 p_i 有 class c_i ∈ {algebraic, constraint, numeric_safety, path, authorized}，对应确定性验证器 V_{c_i}；
+//   每 p_i 有 class c_i ∈ {constraint, numeric_safety, path, authorized}，对应确定性验证器 V_{c_i}；
 //   V_{c_i}: payload → {verified, refuted, unverified(𝕌)} 为全纯函数（非 LLM、可离线重算）；
 //   决策 verdict Φ(D) 为结构性函数（非概率）：∃ refuted ⇒ untrusted；∀ 可判 verified 且无证伪 ⇒ trusted；否则 abstain。
 //   信任是结构性的，不是 [0,1] 置信——避免"概率化可信"陷阱。
@@ -2155,17 +1959,14 @@ function certifyDecisionLogic(args) {
     const pl = (it.payload && typeof it.payload === 'object') ? it.payload : {};
     let core;
     try {
-      if (cls === 'algebraic') core = _auditOneAlgebraic(pl);
-      else if (cls === 'membership') core = _auditOneMembership(pl);
-      else if (cls === 'entail') core = _auditOneEntail(pl);
-      else if (cls === 'consistency') core = _auditOneConsistency(pl);
+      if (cls === 'consistency') core = _auditOneConsistency(pl);
       else if (cls === 'constraint') core = _auditOneConstraint(pl);
       else if (cls === 'numeric_safety') core = _auditOneNumericSafety(pl);
       else if (cls === 'path') core = _auditOnePath(pl);
       else if (cls === 'authorized') core = _auditOneAuthorized(pl);
       else if (cls === 'causal') core = _auditOneCausal(pl);
       else if (cls === 'conformal') core = _auditOneConformal(pl);
-      else core = { verdict: 'unverified', U: true, reason: 'class="' + cls + '" 无对应确定性裁判能力 ⇒ 诚实弃权 𝕌（可裁判 class：algebraic / membership / entail / consistency / constraint / numeric_safety / path / authorized / causal / conformal）', engine: null };
+      else core = { verdict: 'unverified', U: true, reason: 'class="' + cls + '" 无对应确定性裁判能力 ⇒ 诚实弃权 𝕌（灵脑=推理-only：可裁判 class：consistency / constraint / numeric_safety / path / authorized / causal / conformal；方程求解/验真归灵数 lingshu-solver 独立产品）', engine: null };
     } catch (e) {
       core = { verdict: 'unverified', U: true, reason: '裁判异常 ⇒ fail-closed 弃权（异常已留痕）：' + (e && e.message), engine: null };
     }
@@ -2217,7 +2018,6 @@ function certifyDecisionLogic(args) {
       proves: 'agent decisions (safe / correct / authorized) — NOT mathematical theorems',
       notA: '数学定理证明器（Coq / Lean / Isabelle）—— 它们从公理证明数学定理；灵脑证明的是智能体的具体决策，方程/区间/CBF 只是判定决策的底层手段',
       decisionClasses: {
-        'no-real-root': { theorem: 'THM_KRAWCZYK_CERTIFY', via: 'algebraic' },
         'constraint-feasibility': { theorem: 'THM_HELLY_R1 / THM_COMPACTNESS', via: 'constraint' },
         'safety-invariant': { theorem: 'THM_KRAWCZYK_CERTIFY / THM_BARRIER_NAGUMO_CBF', via: 'numeric_safety' },
         'optimal-path': { theorem: 'THM_ASTAR_OPTIMAL', via: 'path' },
@@ -2255,7 +2055,7 @@ function callTool(name, args) {
     case 'knowledge_distill': return distillLogic(args.minSupport);
     case 'cog_graph': return cogGraphLogic();
     case 'symbolic_verify': return symbolicVerifyLogic(args.start, args.goal, args.hard, args.soft);
-    case 'algebraic_solve': return algebraicSolveLogic(args);
+    // 灵脑=推理-only：algebraic_solve 已移除（计算归灵数 lingshu-solver 独立产品）
     case 'dmcts': return dmctsLogic(args.start, args.goal, args.hard, args.soft);
     case 'goal_directed': return goalDirectedLogic(args.start, args.goal, args);
     case 'pac_bound': return pacLogic(args.dVC, args.epsilon, args.delta);
@@ -2499,15 +2299,7 @@ function selftest() {
     noteUnimpl('cog-graph', cg);
     const sv = symbolicVerifyLogic('CHARGE', 'C', [], []);
     T('symbolic-verify', sv && sv.verified === true && sv.tool === 'lingnao-hoare-lite', 'steps=' + (sv.steps && sv.steps.length));
-    // 真引擎委派：灵数求解器解 x^2+y^2=25, x+y=7 → 2 解且全部 Krawczyk 认证
-    const aso = algebraicSolveLogic({ equations: ['x^2+y^2=25', 'x+y=7'] });
-    // algebraic_solve 委派给**独立产品「灵数求解器」**（可选依赖，独立仓库）。
-    // 未安装 ⇒ 诚实降级，记入 degraded；已安装 ⇒ 按完整契约严格断言。
-    if (!aso || aso.available !== true) {
-      degraded.push('algebraic-solve :: 可选依赖 lingshu-solver 未安装，该项诚实降级（非内核缺陷）');
-    } else {
-      T('algebraic-solve', aso.solutionCount === 2 && aso.certified === true && aso.solutions[0].values.length === 2, 'sols=' + aso.solutionCount + ' engine=' + aso.engine);
-    }
+    // 灵脑=推理-only（2026-10-07）：algebraic-solve 自测项已移除（计算归灵数 lingshu-solver 独立产品）。
     const dm = dmctsLogic('CHARGE', 'C', [], []);
     T('dmcts', dm && dm.status === 'found' && dm.best && dm.best.path[dm.best.path.length - 1] === 'C' && dm.best.cost <= 3, 'best=' + (dm.best && dm.best.path.join('>')) + ' cost=' + (dm.best && dm.best.cost));
     T('dmcts-ima', dm && dm.note && /ima_292|ima_285/.test(dm.note), 'note=' + (dm && dm.note));
@@ -2569,25 +2361,14 @@ function selftest() {
       'v=' + ae1.summary.verified + '/r=' + ae1.summary.refuted + '/u=' + ae1.summary.unverified + ' rid=' + ae1.reportId);
     const ae2 = auditEvidenceLogic(JSON.parse(JSON.stringify(_aeBase)));
     T('audit-evidence-reproducible', ae2.reportIdFull === ae1.reportIdFull, 'rid=' + ae2.reportId);
-    // algebraic 路径（灵数是可选依赖：在且认证则严格断言，缺则诚实降级不假绿）
-    const _asoProbe = algebraicSolveLogic({ equations: ['x^2+y^2=25', 'x+y=7'] });
-    if (_asoProbe && _asoProbe.available === true && _asoProbe.certified === true) {
-      const ae3 = auditEvidenceLogic({ items: [
-        { id: 'AE-4', kind: 'algebraic', equations: ['x^2+y^2=25', 'x+y=7'], claimed: { x: 3, y: 4 } },
-        { id: 'AE-5', kind: 'algebraic', equations: ['x^2+y^2=25', 'x+y=7'], claimed: { x: 5, y: 0 } },
-      ] });
-      T('audit-evidence-algebraic', ae3.items[0].verdict === 'verified' && ae3.items[1].verdict === 'refuted',
-        'AE-4=' + ae3.items[0].verdict + ' AE-5=' + ae3.items[1].verdict + ' engine=' + (ae3.items[0].engine || '?'));
-    } else {
-      degraded.push('audit-evidence-algebraic :: 可选依赖 lingshu-solver 未安装/未全认证，algebraic 路径诚实降级为 unverified（非内核缺陷）');
-    }
-    // 数值安全诚实性回归（2026-09-30 加固 #A-005）：M2 候选反例必须经独立确定性回代确认，
-    // 否则诚实降级 𝕌，绝不把 residual 候选当"已证伪"。下面三条锁住该行为，防回退。
+    // 灵脑=推理-only（2026-10-07）：audit-evidence 的 algebraic 路径已移除（计算归灵数 lingshu-solver 独立产品）。
+    // 灵脑=推理-only（2026-10-07）：M2 的 Krawczyk 数值认证需计算引擎（灵数），灵脑不接入、不委派
+    // ⇒ 对数值安全不变式诚实降级 𝕌（不假装求解/认证）。下面两条锁住"推理-only 下 M2 必须诚实降级而非谎称 verified/refuted"。
     const _nsUnsafe = _auditOneNumericSafety({ hExpr: '1 - (x^2 + y^2)', vars: ['x', 'y'], domain: { x: [-1, 1], y: [-1, 1] } });
-    T('numeric-safety-refuted-via-backs', _nsUnsafe.verdict === 'refuted' && /独立确定性回代确认/.test(_nsUnsafe.reason),
-      'verdict=' + _nsUnsafe.verdict + ' :: ' + _nsUnsafe.reason.slice(0, 90));
+    T('numeric-safety-reasoning-only-degrade', _nsUnsafe.verdict === 'unverified' && _nsUnsafe.U === true && /诚实降级/.test(_nsUnsafe.reason || ''),
+      'verdict=' + _nsUnsafe.verdict + ' :: ' + (_nsUnsafe.reason || '').slice(0, 90));
     const _nsSafe = _auditOneNumericSafety({ hExpr: '1 - (x^2 + y^2)', vars: ['x', 'y'], domain: { x: [-0.5, 0.5], y: [-0.5, 0.5] } });
-    T('numeric-safety-true-verified', _nsSafe.verdict === 'verified',
+    T('numeric-safety-reasoning-only-degrade-safe', _nsSafe.verdict === 'unverified' && _nsSafe.U === true && /诚实降级/.test(_nsSafe.reason || ''),
       'verdict=' + _nsSafe.verdict + ' :: ' + String(_nsSafe.reason || '').slice(0, 60));
     // 抗 overclaim 硬锁：若 M2 返回"违反"但候选反例是假的（代入 h≥0），灵脑必须独立核验后诚实降级 𝕌，而非盲信 candidate
     const _origCSI = K.certifySafetyInvariant;
@@ -2752,7 +2533,7 @@ function selftest() {
         '不计入绿色通过，如实披露；接入 KB 后才可用）：');
       unimpl.forEach(u => console.log('  ○ ' + u));
       console.log('注：上述 ' + unimpl.length + ' 项为"已知未实现"能力，selftest 不谎称其已可用；' +
-        '产品对外仅暴露 1 个网关工具 lingnao（内含 ' + TOOLS.length + ' 项能力）；能力清单中含这些项时须同步标注"需接入 KB"。');
+        '产品对外仅暴露 1 个网关工具 lingnao（推理-only，内含 ' + TOOLS.length + ' 项推理子能力）；能力清单中含这些项时须同步标注"需接入 KB"。');
     }
     process.exit(0);
   }
@@ -2767,7 +2548,7 @@ if (SELFTEST) {
   // 仅当以 `node lingnao-mcp.js` 直接运行（而非被 require）时，才启动 stdio 服务
   process.stdin.on('data', c => { buf = Buffer.concat([buf, c]); pump(); });
   process.stdin.on('end', () => { /* 等 stdout 自然 flush */ });
-  process.stderr.write('[lingnao-mcp] 已启动，内核载入: ' + K.getWorld().nodes.length + ' 节点 / ' + K.getWorld().edges.length + ' 边；对外 1 个网关工具 lingnao（内含 ' + TOOLS.length + ' 项能力，op 分发）\n');
+  process.stderr.write('[lingnao-mcp] 已启动，内核载入: ' + K.getWorld().nodes.length + ' 节点 / ' + K.getWorld().edges.length + ' 边；对外 1 个网关工具 lingnao（推理-only，内含 ' + TOOLS.length + ' 项推理子能力，op 分发）\n');
 }
 
 // 库导出：让 examples / 第三方 `require('./lingnao-mcp')` 直接拿到内核（不自启 stdio 服务）

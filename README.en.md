@@ -57,15 +57,15 @@ node build-umd.js                   # rebuild UMD from the real kernel source
 | Soundness | ten deterministic traps (Baire/compactness/variety/van der Waerden/Cauchy-Lipschitz/Bertrand/Pigeonhole/Hall matching/Erdős–Szekeres/Euler path), guaranteed by real theorems |
 | No hallucination | LLM only at perception (NL→JSON) and explanation, forced `UNVERIFIED_LLM` + `mayHallucinate`, **never in the reasoning chain** |
 | Embodied | declarative capability contract; plan → SAFE-STOP → execute → bounded replan loop |
-| Tool exposure | **1 gateway tool `lingnao`** (`op` parameter, 51 reasoning capabilities); 6 need KB attached (listed honestly, not counted as passing) |
+| Tool exposure | **1 gateway tool `lingnao`** (`op` parameter, reasoning sub-capabilities: planning / causality / soundness / embodied decision); LingNao = reasoning-only, no calculation |
 | Self-test | `--selftest` → core pass + 6 honestly-disclosed unimplemented (KB not attached) |
-| Dependencies | zero third-party runtime deps; LingShu solver is **optional** (`algebraic_solve` degrades honestly if absent) |
+| Dependencies | zero third-party runtime deps; LingNao = reasoning-only, **no calculation engine attached or delegated** (equation solving/verification belongs to LingShu lingshu-solver, a separate product) |
 
 **Not guaranteed**: absolute safety, absolute correctness, completeness, connectivity to all real hardware. These are honest design boundaries, not defects.
 
-## Capability catalogue (51 reasoning ops, single gateway `lingnao`)
+## Reasoning capabilities (single gateway `lingnao`, `op` dispatch)
 
-`world_info` · `set_world` · `perceive` · `reason` · `carrier_report` · `learn` · `knowledge_query` · `knowledge_add` · `meta` · `perceive_belief` · `knowledge_ann` · `knowledge_distill` · `cog_graph` · `algebraic_solve` · `world_model` · `counterfactual` · `causal_effect` · `dmcts` · `goal_directed` · `pac_bound` · `ask` · `explain` · `causal` · `event_publish` · `knowledge_fabric` · `ima_load` · `ima_query` · `sl_record` · `sl_discover` · `sl_monitor` · `sl_status` · `attach_body` · `capabilities` · `get_state` · `set_state` · `state_diff` · `h_max` · `plan_task` · `execute_task` · `positioning` · `bertrand_trap` · `compactness_trap` · `van_der_waerden_trap` · `baire_trap` · `variety_trap` · `cauchy_lipschitz_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`
+`world_info` · `set_world` · `perceive` · `reason` · `carrier_report` · `learn` · `knowledge_query` · `knowledge_add` · `meta` · `perceive_belief` · `knowledge_ann` · `knowledge_distill` · `cog_graph` · `world_model` · `counterfactual` · `causal_effect` · `dmcts` · `goal_directed` · `pac_bound` · `ask` · `explain` · `causal` · `event_publish` · `knowledge_fabric` · `ima_load` · `ima_query` · `sl_record` · `sl_discover` · `sl_monitor` · `sl_status` · `attach_body` · `capabilities` · `get_state` · `set_state` · `state_diff` · `h_max` · `plan_task` · `execute_task` · `positioning` · `bertrand_trap` · `compactness_trap` · `van_der_waerden_trap` · `baire_trap` · `variety_trap` · `cauchy_lipschitz_trap` · `pigeonhole_trap` · `hall_trap` · `erdos_szekeres_trap` · `euler_path_trap` · `run_deterministic_traps`
 
 ## Two separate products (do not confuse)
 
@@ -74,7 +74,7 @@ node build-umd.js                   # rebuild UMD from the real kernel source
 | **LingNao** (this) | **reasoning engine**: perception / planning / causality / world model / soundness / embodied decision | genesis-plan/lingnao | lingnao-mcp |
 | **LingShu** | **solver**: real roots of equation systems (interval contraction + Krawczyk) | genesis-plan/lingshu-solver | lingshu-solver |
 
-LingNao reimplements no solving logic: `algebraic_solve` **delegates** to LingShu. LingShu is an **optional dependency**.
+LingNao = **reasoning-only**: perception / planning / causality / soundness / embodied decision — no calculation, no solving, no delegation. Equation solving/verification belongs to **LingShu lingshu-solver** (separate product); the two are decoupled and never delegate to each other.
 
 ## License (summary)
 

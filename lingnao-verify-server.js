@@ -9,7 +9,7 @@
  *   · 不靠再问一个 AI（第二个 AI 也会错）；灵脑自己不生成答案，只当裁判抓错。
  *
  * 合规护城河（铁律，不可绕过）：
- *   · 只接可结构化的数字 / 算式 / 逻辑（kind ∈ algebraic / constraint），
+ *   · 只接可结构化的推理声明（kind ∈ consistency / constraint），
  *     不接 factual / causal（主观/因果，内核诚实 𝕌 也不暴露给 C 端）。
  *   · 凡 text 命中持牌领域（医疗 / 心理 / 教育 / 金融建议 / 法律）→ 直接拒绝，
  *     明确告知「这块不在服务范围」。灵脑绝不进那四格。
@@ -32,9 +32,8 @@ const PLAYGROUND = path.join(ROOT, 'verify-playground.html');
 const PORT = Number(process.argv[2] || process.env.PORT || 8088);
 const MAX_ITEMS = 10;
 
-// 原生 lite 精确有理数判定引擎（灵数不可达/需精确时的边缘兜底；零依赖）
+// 灵脑 = 推理-only（2026-10-07 裁定）：不接入原生 lite 计算引擎、不委派灵数。计算归灵数 lingshu-solver 独立产品。
 let LINGNAO_LITE = null;
-try { LINGNAO_LITE = require('./lingnao-lite-math'); } catch (_e) { /* 无原生兜底，退回内核 */ }
 
 // ── 合规护城河：持牌领域关键词（命中即拒，不进那四格）──────────────────────
 const RED_FLAGS = [
@@ -168,7 +167,6 @@ function looksEnglish(text) {
 // 内核 reason（中文）→ 英文对照（前缀匹配；未命中的保留原文）
 const EN_REASONS_PREFIX = [
   ['未提供 claimed', 'No claimed value was provided: the true solution set was computed, but there is nothing to compare against, so the verdict is honestly unverified (U).'],
-  ['algebraic 载荷缺 equations', 'The algebraic payload is missing "equations" (a non-empty array of strings).'],
   ['constraint 载荷缺', 'The constraint payload is missing required fields.'],
   ['载荷缺', 'The payload is missing required fields.'],
 ];
@@ -181,8 +179,8 @@ function enReasonFor(reason) {
 }
 
 // ── 请求校验 + 合规护栏 ──────────────────────────────────────────────────
-// 1.4.0：新增 membership / entail / consistency 三个判定原语（membership=集合归属，entail=∀ 边界蕴含，consistency=多声明互斥）
-const ALLOWED_KIND = new Set(['algebraic', 'membership', 'entail', 'consistency', 'constraint']);
+// 灵脑=推理-only（2026-10-07 裁定）：C 端仅暴露推理原语 consistency / constraint；algebraic / membership / entail（计算/求解委派）已移除，归灵数 lingshu-solver 独立产品。
+const ALLOWED_KIND = new Set(['consistency', 'constraint']);  // 灵脑=推理-only（2026-10-07）：仅推理原语，计算/求解归灵数 lingshu-solver 独立产品
 
 function validateItems(body) {
   if (!body || !Array.isArray(body.items)) return { error: 'items 必须为数组' };
@@ -195,7 +193,7 @@ function validateItems(body) {
     const merged = (it.payload && typeof it.payload === 'object') ? Object.assign({}, it, it.payload) : it;
     const kind = merged.kind || it.kind;
     if (!ALLOWED_KIND.has(kind)) {
-      return { error: 'kind="' + String(kind) + '" 不在 C 端可核验范围（可核：algebraic / membership / entail / consistency / constraint）。主观/事实/因果类灵脑诚实 𝕌，不在网页暴露。' };
+      return { error: 'kind="' + String(kind) + '" 不在 C 端可核验范围（可核：consistency / constraint，均属推理）。计算/求解归灵数 lingshu-solver 独立产品，灵脑只做推理。' };
     }
     const flag = isRedFlag(merged.text) || isRedFlag(it.text);
     if (flag) {
@@ -298,43 +296,7 @@ const server = http.createServer((req, res) => {
       try { body = JSON.parse(raw || '{}'); } catch (e) { return sendJSON(res, 400, { ok: false, error: '请求体不是合法 JSON' }); }
       const v = validateItems(body);
       if (v.error) return sendJSON(res, 422, { ok: false, error: v.error, compliance: true });
-      // ── 边缘原生 lite 精确判定预处理（sound：仅精确可判定片段，灵数不可达也能恢复结论）──
-      //   · 单条 algebraic / membership 且带 claimed ⇒ 先用精确有理数代入验证；
-      //   · 命中 verified/refuted 即短路返回（不依赖灵数求解器，无浮点误差）；
-      //   · 其余（多条目 / 无 claimed / 非线性未决）一律退回内核，不抢判。
-      if (LINGNAO_LITE && v.items.length === 1) {
-        const it = v.items[0];
-        // 不强制 claimed：0 变量算术（2+2=4）无 claimed 也能精确判定；有变量无 claimed 时 lite 返回 U 自动退回内核
-        if ((it.kind === 'algebraic' || it.kind === 'membership') && Array.isArray(it.equations) && it.equations.length) {
-          const dec = LINGNAO_LITE.decideClaim({ equations: it.equations, variables: it.variables, claimed: (it.claimed && typeof it.claimed === 'object') ? it.claimed : undefined });
-          if (dec.verdict !== 'U') {
-            const verdict = dec.verdict; // 'verified' | 'refuted'
-            const varNames = dec.varNames || (Array.isArray(it.variables) ? it.variables : []);
-            const witness = dec.point || [];
-            const rid = 'lite-' + Date.now().toString(36);
-            const out = {
-              ok: true, overall: verdict, reportId: rid, reportIdFull: rid,
-              summary: { honesty: 'Three verdicts only: verified / refuted / unverified (U).', hallucinationRisk: 'none-detected', note: dec.reason },
-              kernel: { engine: 'lingnao-lite-exact', nativeLite: true },
-              budget: v.budget || null,
-              compositionLaw: '单条代数声明：原生精确有理数判定（不依赖灵数求解器）',
-              items: [{
-                idx: 0, id: it.id, kind: it.kind, text: it.text, depends: it.depends,
-                verdict: verdict, U: false, abstainedBy: null, reason: dec.reason,
-                engine: 'lingnao-lite-exact (原生精确有理数)',
-                numeric: { tol: 0, tolBasis: 'exact', declaredByCaller: false, maxAllowed: 0 },
-                proofObject: { method: 'exact-rational-substitution', decidable: dec.decidable === true, witness: witness },
-                evidence: {
-                  engine: 'lingnao-lite-exact', resultTypeName: verdict === 'verified' ? 'finite' : 'empty',
-                  solutionCount: verdict === 'verified' ? 1 : 0, certified: true,
-                  solutions: verdict === 'verified' ? [{ values: witness, text: varNames.map((vn, i) => `${vn}=${witness[i]}`).join(', '), certified: true, tier: 'native-lite-certified', residual: 0 }] : []
-                }
-              }]
-            };
-            return sendJSON(res, 200, out);
-          }
-        }
-      }
+      // 灵脑=推理-only（2026-10-07）：原生 lite 计算预处理已移除；algebraic/membership 类请求已被 ALLOWED_KIND 拒于合规护栏之外（计算归灵数 lingshu-solver）。
       try {
         const rep = await callAudit(v.items, body.caseLabel || 'C端验真', v.budget);
         // 精简返回：保留判定所需字段，去掉重复的 aiucReference 体积
@@ -388,7 +350,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log('灵脑验真服务已启动： http://localhost:' + PORT + '/');
-  console.log('  · 只核验数字 / 公式 / 逻辑对错（kind ∈ algebraic / constraint）');
+  console.log('  · 只核验推理声明对错（kind ∈ entail / consistency / constraint，灵脑=推理-only）');
   console.log('  · 医疗 / 心理 / 教育 / 金融建议 / 法律 一律拒绝（护城河）');
   startKernel();
 });
