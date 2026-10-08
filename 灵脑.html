@@ -1700,7 +1700,7 @@ function generateAudit(path, opts={}){
   _safetyLayers.push({ layer:'plan.hoare', theorem:'THM_HOARE(霍尔机器验证)',
     verdict: proof.verified === true ? 'safe' : (path.status === 'unknown' ? 'undecided' : 'unverified'),
     detail: proof.verified === true ? '路径最优性已机器验证' : (proof.note || '证明未通过机器验证（仅意味不可证最优，非 unsafe）') });
-  // ④ 代数安全验证（A 选项落地）：调用方提供安全代数条件方程 ⇒ 委派灵数求解器做 Krawczyk 认证
+  // ④ 代数安全验证（推理-only 下诚实降级）：灵脑不接入计算引擎，调用方提供的代数安全条件无法做 Krawczyk 认证，诚实降档 𝕌（计算归灵数 lingshu-solver 独立产品）
   var _certAlg = null;
   if (opts.algebraic) {
     _certAlg = certifiedNumeric(opts.algebraic);
@@ -1709,7 +1709,7 @@ function generateAudit(path, opts={}){
       detail: _certAlg.available
         ? (_certAlg.provenNoSolution ? '灵数证明该代数安全条件无实数解（Krawczyk 认证：安全集非空且不被穿越）'
             : (_certAlg.certified ? '代数安全条件已 Krawczyk 认证求解（安全解读由调用方给出）' : '灵数返回未全认证 ⇒ unverified'))
-        : (_certAlg.note || '灵数求解器未接入 ⇒ 代数安全声明无法认证'),
+        : (_certAlg.note || '灵脑=推理-only：不接入计算引擎 ⇒ 代数安全声明无法认证'),
       algebraic: _certAlg });
   }
   if (opts.control) {
@@ -2028,57 +2028,312 @@ function symbolicSolve(constraints){
   }
   return { satisfiable: false };
 }
-// ③ 代数方程系统求解：委派给真引擎「灵数求解器」(lingshu-solver)
-//   —— 区间收缩 + Krawczyk 认证，离线确定性、可复现；非手写 lite、不虚构。
-//   真源：C:/Users/Administrator/Desktop/灵数求解器/solver-core → index.html 核心脚本。
-//   运行时由灵脑 MCP 服务注入 globalThis.__LINGSHU__（Node 端桥）；纯浏览器无 Node 时诚实降级。
+// ③ 代数方程系统求解 —— 灵脑=推理-only（2026-10-07 最终裁定）：
+//   灵脑=单一功能=推理（automated reasoning）。不计算、不求解、不委派灵数。
+//   计算是「灵数 lingshu-solver」独立产品的事。本桩保持签名兼容，但恒返回诚实不可用，
+//   调用方（generateAudit / _certifyExprNonneg / certifySafetyInvariant / safetyLayersReport）
+//   经既有 !available 分支诚实降档为 𝕌。
 function algebraicSolve(args){
-  args = args || {};
-  const bridge = (typeof __LINGSHU__ !== 'undefined') ? __LINGSHU__ : null;
-  if(!bridge || !bridge.available){
-    return { available:false, note:'灵数求解器未接入（纯浏览器端需 Node 运行时 / 灵脑 MCP 服务）。请用 lingnao-mcp 的 algebraic_solve 工具调用真引擎。' };
-  }
-  return bridge.algebraicSolve(args);
+  return { available:false, tier:'reasoning-only-unverified',
+    note:'灵脑=推理-only：不接入、不委派计算引擎（计算归灵数 lingshu-solver 独立产品）。需要求解方程请用灵数求解器。' };
 }
-// ④ 内部确定性代数验证层（委派灵数求解器 · Krawczyk 认证）—— A 选项落地
-//   灵脑内部"需解 f(x)=0 或证无实数解"的验证统一走此，把确定性验证的代数算术部分从 lite 浮点升级为 Krawczyk 区间认证。
-//   诚实边界（不夸大）：
-//     · 灵数求解器是「方程求解器」（解 f(x)=0 + 证明无实数解），不是区间算术/AD/QP 引擎；
-//       内核区间算术(itv*)/自动微分(dual*)/QP(clfCbfUnified) 仍各由自身模块负责，本函数不越界、不假装替换。
-//     · 灵数不可达 ⇒ 诚实降级 available:false，绝不退回裸浮点假装认证。
-//     · 真比 lite 浮点强的点：灵数能「证明无实数解」(resultTypeName:'empty' 且 certified)——浮点采样永做不到。
+// ④ 内部确定性代数验证层 —— 推理-only 下不再依赖任何数值引擎，恒诚实降级 𝕌。
 function certifiedNumeric(args){
-  args = args || {};
-  const r = algebraicSolve(args);                       // 已含桥缺失 → {available:false} 诚实降级
-  if (!r.available) {
-    return { available: false, tier: 'lite-unverified',
-      note: '灵数求解器未接入 ⇒ 代数安全声明无法 Krawczyk 认证（诚实降级，不假装求解）',
-      provenNoSolution: false, certified: false };
+  return { available:false, tier:'reasoning-only-unverified',
+    note:'灵脑=推理-only：不接入、不委派计算引擎（计算归灵数 lingshu-solver 独立产品）。需要 Krawczyk 认证请用灵数求解器。',
+    provenNoSolution:false, certified:false };
+}
+// ══ 灵脑=推理（2026-10-07）：纯逻辑演绎推理 reasoningEntailment ═══════════════
+// 输入：前提集 S（命题公式数组）+ 主张 φ（命题公式字符串）
+// 输出：verified（S ⊨ φ，演绎有效）/ refuted（S ⊨ ¬φ，主张被反驳）/ unknown（𝕌，诚实不可判定或超预算）
+// 实现：命题公式 → Tseitin 编码转 CNF → DPLL 归结反证（refutation by resolution），零数值依赖。
+//   这是真正的"纯符号演绎"，不碰任何浮点/计算；与灵数（计算产品）边界清晰。
+// 文法（命题）：原子 / !（否定）&（合取）|（析取）=>（蕴含）<=>（等价），括号分组；
+//   亦支持 Unicode 数学符号 ¬ ∧ ∨ → ↔。
+function _reTok(s){
+  var toks = []; var i = 0; var n = s.length;
+  while(i < n){
+    var c = s[i];
+    if(/\s/.test(c)){ i++; continue; }
+    if(c === '(' || c === ')'){ toks.push({k:c}); i++; continue; }
+    if(c === '!' || c === '¬'){ toks.push({k:'!'}); i++; continue; }
+    if(c === '&' || c === '∧'){ toks.push({k:'&'}); i++; continue; }
+    if(c === '|' || c === '∨'){ toks.push({k:'|'}); i++; continue; }
+    if(c === '=' && s[i+1] === '>'){ toks.push({k:'=>'}); i+=2; continue; }
+    if(c === '→'){ toks.push({k:'=>'}); i++; continue; }
+    if(c === '<' && s[i+1] === '=' && s[i+2] === '>'){ toks.push({k:'<=>'}); i+=3; continue; }
+    if(c === '↔'){ toks.push({k:'<=>'}); i++; continue; }
+    if(/[A-Za-z_]/.test(c)){
+      var j=i+1; while(j<n && /[A-Za-z0-9_]/.test(s[j])) j++;
+      toks.push({k:'atom', v:s.substring(i,j)}); i=j; continue;
+    }
+    throw new Error('无法识别的字符 "'+c+'" @'+i);
   }
-  const empty = r.resultTypeName === 'empty';
-  const allCert = !!r.certified;
-  // 诚实边界（修复 #248）：引擎在资源/预算内未穷尽时返回 truncated=true ——
-  // 此时「empty」只是「没找到」，不是「证明无解」。把 truncated 当 empty 映射成 verified 是假证明，
-  // 故预算耗尽一律降档为未认证（fail-closed），绝不把「未穷尽」说成「已证安全」。
-  if (r.truncated === true) {
-    return { available: true, engine: r.engine, tier: 'truncated-unverified', truncated: true,
-      provenNoSolution: false, certified: false, resultTypeName: r.resultTypeName, solutionCount: r.solutionCount,
-      note: '灵数在资源/预算内未穷尽（truncated）⇒ 既不能说「证无解」也不能说「有解」；诚实降档为未认证。' };
+  return toks;
+}
+function _reParse(s){
+  var toks = _reTok(s); var pos = 0;
+  function peek(){ return toks[pos]; }
+  function next(){ return toks[pos++]; }
+  function expect(k){ var t = toks[pos]; if(!t || t.k !== k) throw new Error('期望 "'+k+'" 但遇到 '+(t?('"'+t.k+'"'):'末尾')); pos++; }
+  function parseIff(){ var a = parseImpl(); while(peek() && peek().k === '<=>'){ next(); var b = parseImpl(); a = {t:'iff', a:a, b:b}; } return a; }
+  function parseImpl(){ var a = parseOr(); while(peek() && peek().k === '=>'){ next(); var b = parseOr(); a = {t:'impl', a:a, b:b}; } return a; }
+  function parseOr(){ var a = parseAnd(); while(peek() && peek().k === '|'){ next(); var b = parseAnd(); a = {t:'or', a:a, b:b}; } return a; }
+  function parseAnd(){ var a = parseNot(); while(peek() && peek().k === '&'){ next(); var b = parseNot(); a = {t:'and', a:a, b:b}; } return a; }
+  function parseNot(){ if(peek() && peek().k === '!'){ next(); return {t:'not', e:parseNot()}; } return parseAtom(); }
+  function parseAtom(){ var t = peek(); if(!t) throw new Error('表达式不完整（缺操作数）'); if(t.k === '('){ next(); var e = parseIff(); expect(')'); return e; } if(t.k === 'atom'){ next(); return {t:'atom', name:t.v}; } throw new Error('期望原子命题或 "(" 但遇到 "'+t.k+'"'); }
+  var ast = parseIff();
+  if(pos < toks.length) throw new Error('多余的符号 "'+toks[pos].k+'"');
+  return ast;
+}
+function _reNewCtx(){ return { fresh:1, atom:{} }; }
+function _reTseitin(node, ctx, clauses){
+  if(node.t === 'atom'){
+    if(ctx.atom.hasOwnProperty(node.name)) return ctx.atom[node.name];
+    var a = ctx.fresh++; ctx.atom[node.name] = a; return a;
   }
-  return {
-    available: true, engine: r.engine, tier: 'certified-krawczyk',
-    // 真升级：灵数「证明无实数解」（resultType=empty 即引擎全局穷尽证无实根；lite 浮点永不能证）
-    //   注意：empty 情形下桥的 certified 字段因无 solutions 而为 false，但"证无实数解"本身即严谨结论，故独立判定，不与 solutions 认证耦合。
-    provenNoSolution: empty,
-    certified: allCert || empty,
-    resultTypeName: r.resultTypeName,
-    recommended: r.recommended || null,
-    certifiedRadius: (r.recommended && r.recommended.certifiedRadius) || null,
-    residual: (r.recommended && r.recommended.residual) || null,
-    solutionCount: r.solutionCount,
-    solutions: r.solutions || [],
-    summary: r.summary
-  };
+  var v = ctx.fresh++;
+  switch(node.t){
+    case 'not': { var c = _reTseitin(node.e, ctx, clauses); clauses.push([-v, -c]); clauses.push([v, c]); break; }
+    case 'and': { var a1 = _reTseitin(node.a, ctx, clauses); var a2 = _reTseitin(node.b, ctx, clauses); clauses.push([-v, a1]); clauses.push([-v, a2]); clauses.push([-a1, -a2, v]); break; }
+    case 'or': { var o1 = _reTseitin(node.a, ctx, clauses); var o2 = _reTseitin(node.b, ctx, clauses); clauses.push([-v, o1, o2]); clauses.push([-o1, v]); clauses.push([-o2, v]); break; }
+    case 'impl': { var i1 = _reTseitin(node.a, ctx, clauses); var i2 = _reTseitin(node.b, ctx, clauses); clauses.push([-v, -i1, i2]); clauses.push([i1, v]); clauses.push([-i2, v]); break; }
+    case 'iff': { var f1 = _reTseitin(node.a, ctx, clauses); var f2 = _reTseitin(node.b, ctx, clauses); clauses.push([-v, -f1, f2]); clauses.push([-v, f1, -f2]); clauses.push([f1, f2, v]); clauses.push([-f1, -f2, v]); break; }
+    default: throw new Error('未知节点类型 ' + node.t);
+  }
+  return v;
+}
+function _reToCNF(node, ctx){ var clauses = []; var v = _reTseitin(node, ctx, clauses); clauses.push([v]); return clauses; }
+// ══ CDCL 工业级 SAT 引擎（纯符号·零 NN·零数值）═══════════════════════════════════
+//   升级自 plain DPLL：增加 子句学习(1-UIP 冲突分析) + 非时序回溯(backjump) + 看文字
+//   (watched literals, O(1) 传播) + VSIDS 变量活性启发 + 重启(restart, 保留学习子句)。
+//   规模可较 plain DPLL 涨数个数量级；仍守命题层、超时诚实 𝕌（不破红线）。
+//   返回： { sat:true, model:[lit...] } ／ { sat:false, proof:[clause...] }（末条为 ◻ 空子句，
+//   为 DRAT/RUP 风格可审计证明链）／ { sat:null, timedOut:true }（预算耗尽，诚实 𝕌）。
+function _reCDCL(cnf, opts){
+  opts = opts || {};
+  var MAXC = (opts.maxConflicts != null) ? opts.maxConflicts : 200000;
+  var nVars = 0;
+  for(var ci=0; ci<cnf.length; ci++){ var cl = cnf[ci]; for(var li=0; li<cl.length; li++){ var v = Math.abs(cl[li]); if(v > nVars) nVars = v; } }
+  // 子句库：{ lits:[...], learnt:bool, act }
+  var clauses = [];
+  for(var ci2=0; ci2<cnf.length; ci2++) clauses.push({ lits: cnf[ci2].slice(), learnt:false, act:0 });
+  function LID(lit){ return lit > 0 ? (lit << 1) : ((-lit) << 1) | 1; } // 文字 → 看文字索引
+  var W = []; // 看文字表：W[LID(lit)] = [{c:子句序号, blocker:另一看文字}]
+  function attach(i){
+    var C = clauses[i];
+    if(C.lits.length === 0) return; // 空子句（直接 UNSAT）不入表，由调用方前置处理
+    var a = C.lits[0], b = (C.lits.length > 1) ? C.lits[1] : a;
+    W[LID(a)] = W[LID(a)] || []; W[LID(a)].push({ c:i, blocker:b });
+    if(b !== a){ W[LID(b)] = W[LID(b)] || []; W[LID(b)].push({ c:i, blocker:a }); }
+  }
+  for(var ai=0; ai<clauses.length; ai++) attach(ai);
+  var val = new Int8Array(nVars + 1);     // 0 未赋 / 1 真 / 2 假
+  var reason = new Array(nVars + 1);       // 推导该文字的子句（决策为 null）
+  var lvl = new Int32Array(nVars + 1);     // 决策层
+  var polarity = new Int8Array(nVars + 1); // 相位保存：偏好赋值
+  for(var pi=1; pi<=nVars; pi++) polarity[pi] = 1;
+  var trail = [];       // 已赋值文字（按序）
+  var trailLim = [];    // 各决策层在 trail 的起始下标
+  var activity = new Float64Array(nVars + 1); // VSIDS 活性
+  var proof = [];       // 学习子句序列（证明链）
+  var conflicts = 0;
+  var restartLim = 100;
+  function value(lit){ var v = Math.abs(lit); var s = val[v]; if(s === 0) return null; return lit > 0 ? (s === 1) : (s === 2); }
+  function dlevel(){ return trailLim.length; }
+  function enqueue(lit, r){
+    var v = Math.abs(lit);
+    val[v] = (lit > 0 ? 1 : 2);
+    lvl[v] = dlevel();
+    reason[v] = r;
+    polarity[v] = (lit > 0 ? 1 : 2); // 相位保存
+    trail.push(lit);
+  }
+  function newLevel(){ trailLim.push(trail.length); }
+  function cancelUntil(t){
+    var stop = (t === 0) ? 0 : trailLim[t - 1];
+    while(trail.length > stop){ var x = trail.pop(); var v = Math.abs(x); val[v] = 0; reason[v] = null; }
+    trailLim.length = t;
+  }
+  // 单位传播（看文字版）：遇冲突返回该子句序号，否则 null
+  function propagate(){
+    var num = 0;
+    while(num < trail.length){
+      var p = trail[num++];      // 刚刚赋为真
+      var fl = -p;               // 故 -p 为假
+      var ws = W[LID(fl)]; if(!ws) continue;
+      for(var k=0; k<ws.length; k++){
+        var w = ws[k];
+        var C = clauses[w.c];
+        var i = (C.lits[0] === fl) ? 0 : ((C.lits[1] === fl) ? 1 : -1);
+        if(i < 0) continue;
+        var j = 1 - i;
+        var other = C.lits[j];
+        if(C.lits.length === 1) return w.c;  // 单文字子句且看文字已假 ⇒ 直接冲突（无另一看文字可推）
+        if(value(other) === true) continue; // 子句已满足，保留看文字
+        var found = -1;
+        for(var t2=2; t2<C.lits.length; t2++){ if(value(C.lits[t2]) !== false){ found = t2; break; } }
+        if(found < 0){
+          if(value(other) === false) return w.c; // 两看文字皆假 ⇒ 冲突
+          enqueue(other, w.c);                    // 单元：other 必真，保留看文字
+        } else {
+          C.lits[i] = C.lits[found]; C.lits[found] = fl; // 把看文字移到 found 处
+          var nl = C.lits[i];
+          ws.splice(k, 1); k--;
+          W[LID(nl)] = W[LID(nl)] || []; W[LID(nl)].push({ c:w.c, blocker:C.lits[j] });
+        }
+      }
+    }
+    return null;
+  }
+  // 1-UIP 冲突分析：从冲突子句沿蕴含图反推，提取一条学习子句 + 回溯层
+  function analyze(c){
+    var learnt = [0]; // 槽 0 留给断言文字（1-UIP 的 ¬p）
+    var seen = new Uint8Array(nVars + 1);
+    var p = 0, cnt = 0, blevel = 0;
+    var idx = trail.length - 1;
+    while(true){
+      var cl = clauses[c].lits;
+      for(var q=0; q<cl.length; q++){                      // 冲突子句处理全部文字；理由子句的被推文字 p 已 seen，自动跳过
+        var lit = cl[q];
+        var v = Math.abs(lit);
+        if(!seen[v]){
+          seen[v] = 1; activity[v] += 1;
+          if(lvl[v] >= dlevel()) cnt++;                 // 当前决策层文字（含 1-UIP）→ 待消解
+          else { learnt.push(lit); if(lvl[v] > blevel) blevel = lvl[v]; } // 低层（含单元层）文字 → 留入学习子句
+        }
+      }
+      // 沿 trail 反推：只取「当前决策层 且 已 seen」的文字作归结支点 p；低层 seen 文字已进 learnt，跳过
+      while(idx >= 0 && (!seen[Math.abs(trail[idx])] || lvl[Math.abs(trail[idx])] < dlevel())) idx--;
+      if(idx < 0) break;
+      p = trail[idx]; idx--;
+      if(cnt === 0) break;          // p 即 1-UIP（当前层唯一残留文字）
+      c = reason[Math.abs(p)]; cnt--;
+      if(c == null) break;          // 安全闸（决策文字不应为此处 1-UIP）
+    }
+    learnt[0] = -p;                 // 断言文字 = ¬(1-UIP)
+    return { learnt: learnt, blevel: blevel };
+  }
+  function varSelect(){ // VSIDS：选未赋且活性最高者（相位保存决定极性）
+    var best = 0, bestAct = -1;
+    for(var v=1; v<=nVars; v++){ if(val[v] === 0 && activity[v] > bestAct){ bestAct = activity[v]; best = v; } }
+    return best;
+  }
+  function addLearnt(learnt){
+    var idx = clauses.length;
+    clauses.push({ lits: learnt.slice(), learnt:true, act:0 });
+    attach(idx);
+    proof.push(learnt.slice());
+    enqueue(learnt[0], idx); // 断言文字 = learnt[0]（= ¬(1-UIP)，当前为假，入队后转真使学习子句得满足）；符号须与 learnt[0] 一致
+  }
+  // 前置：把单元子句（长度 1）作为决策层 0 的必然赋值入队
+  for(var ui=0; ui<clauses.length; ui++){ if(clauses[ui].lits.length === 1) enqueue(clauses[ui].lits[0], ui); }
+  while(true){
+    var confl = propagate();
+    if(confl !== null){
+      conflicts++;
+      if(dlevel() === 0){
+        proof.push([]); return { sat:false, proof:proof }; } // 顶层冲突 ⇒ UNSAT，末条 ◻
+      var res = analyze(confl);
+      cancelUntil(res.blevel);
+      addLearnt(res.learnt);
+      if(conflicts >= MAXC) return { sat:null, timedOut:true };
+      if(conflicts >= restartLim){ cancelUntil(0); restartLim = Math.floor(restartLim * 1.5) + 1; for(var dv=1; dv<=nVars; dv++) activity[dv] *= 0.95; }
+    } else {
+      var v = varSelect();
+      if(v === 0){ var model = []; for(var mv=1; mv<=nVars; mv++) model.push(val[mv] === 1 ? mv : -mv); return { sat:true, model:model }; }
+      newLevel();
+      enqueue(polarity[v] === 2 ? -v : v, null); // 决策
+    }
+  }
+}
+// ══ 独立可审计证明核验（小信任核·LCF 式）═══════════════════════════════════
+//   用反向单元传播(RUP)逐条独立复核证明链：每条约化子句 C 须满足
+//   「当前子句集 ∪ {¬l : l∈C} 经单元传播得出冲突」方为可证。
+//   证明链 = 学习子句序列 + 末条空子句 ◻；全部过核 ⇒ 内核自证 verdict 无误。
+function verifyProof(cnf, proof){
+  var working = [];
+  for(var i=0; i<cnf.length; i++) working.push(cnf[i].slice());
+  function rupCheck(C){
+    var asg = {}; var q;
+    // 注入 ¬C 的各单元文字（注意 asg 存"变量真值"：l>0 ⇒ 变量取假，l<0 ⇒ 变量取真）
+    for(q=0; q<C.length; q++){ var l = C[q]; var v = Math.abs(l); var tv = (l > 0 ? 0 : 1); if(asg[v] !== undefined && asg[v] !== tv) return false; asg[v] = tv; }
+    var changed = true;
+    while(changed){
+      changed = false;
+      for(var ci=0; ci<working.length; ci++){
+        var cl = working[ci]; var unassigned = null, count = 0, sat = false;
+        for(var li=0; li<cl.length; li++){
+          var lit = cl[li]; var vv = Math.abs(lit); var tvv = (lit > 0 ? 1 : 0);
+          if(asg[vv] === undefined){ unassigned = lit; count++; if(count > 1) break; }
+          else if(asg[vv] === tvv){ sat = true; break; }
+        }
+        if(sat) continue;
+        if(count === 0) return true;          // 子句全假 ⇒ 冲突 ⇒ RUP 成立
+        if(count === 1){ var ul = unassigned; var uv = Math.abs(ul); if(asg[uv] !== undefined) continue; asg[uv] = (ul > 0 ? 1 : 0); changed = true; }
+      }
+    }
+    return false; // 饱和无冲突 ⇒ 非 RUP
+  }
+  for(var p=0; p<proof.length; p++){ if(!rupCheck(proof[p])) return false; working.push(proof[p].slice()); }
+  // 证明链必须以空子句 ◻ 收尾，方构成对 UNSAT 的归谬证毕（否则即使每步可约，
+  // 也不构成对不可满足性的完整证明；杜绝"证明链后追加冗余子句"被误判为有效）。
+  if(!(proof.length > 0 && proof[proof.length - 1].length === 0)) return false;
+  return true;
+}
+function reasoningEntailment(premises, claim){
+  premises = premises || [];
+  if(!Array.isArray(premises) || premises.length === 0){
+    return { available:true, verdict:'unknown', U:true, reason:'未提供前提（前提集为空 ⇒ 无法做演绎推理）。' };
+  }
+  if(typeof claim !== 'string' || !claim.length){
+    return { available:true, verdict:'unknown', U:true, reason:'未提供主张（claim 为空）。' };
+  }
+  var sprem; try { sprem = premises.map(function(p){ return _reParse(String(p)); }); }
+  catch(e){ return { available:true, verdict:'unknown', U:true, reason:'前提解析失败：' + e.message }; }
+  var sclaim; try { sclaim = _reParse(String(claim)); }
+  catch(e){ return { available:true, verdict:'unknown', U:true, reason:'主张解析失败：' + e.message }; }
+  var ctx = _reNewCtx(); var preClauses = [];
+  for(var i=0; i<sprem.length; i++){ preClauses = preClauses.concat(_reToCNF(sprem[i], ctx)); }
+  // 前提集自身一致性
+  var sSat = _reCDCL(preClauses);
+  if(sSat.sat === false){
+    var ppre = verifyProof(preClauses, sSat.proof);
+    return { available:true, verdict:'contradiction', U:false, consistent:false,
+      proof: sSat.proof, proofCNF: preClauses, proofVerified: ppre,
+      reason:'前提集自身不一致（不可满足）；按爆炸原理任何主张都可被推出，故诚实标 contradiction 而非 verified。' + (ppre ? '' : ' ⚠内核自核未过') };
+  }
+  if(sSat.sat === null){
+    return { available:true, verdict:'unknown', U:true, timeout:true, reason:'前提集规模超出推理预算（超时）；诚实降级 𝕌。' };
+  }
+  // verified：S ∧ ¬φ 不可满足 ⇒ S ⊨ φ
+  var vClauses = preClauses.concat(_reToCNF({ t:'not', e:sclaim }, ctx));
+  var vSat = _reCDCL(vClauses);
+  if(vSat.sat === false){
+    var pv = verifyProof(vClauses, vSat.proof);
+    if(!pv) return { available:true, verdict:'unknown', U:true, reason:'内核自核失败（S∧¬φ 证明链不可独立验证）；诚实降级 𝕌。' };
+    return { available:true, verdict:'verified', U:false, entailment:'verified',
+      proof: vSat.proof, proofCNF: vClauses, proofVerified:true,
+      reason:'前提集 S 与 ¬主张 的合取不可满足 ⇒ S ⊨ 主张（演绎有效；证明链见 proof，可由 verifyProof 独立复核）。' };
+  }
+  if(vSat.sat === null){
+    return { available:true, verdict:'unknown', U:true, timeout:true, reason:'验证预算耗尽（超时）；不声称 verified。' };
+  }
+  // refuted：S ∧ φ 不可满足 ⇒ S ⊨ ¬φ
+  var rClauses = preClauses.concat(_reToCNF(sclaim, ctx));
+  var rSat = _reCDCL(rClauses);
+  if(rSat.sat === false){
+    var pr = verifyProof(rClauses, rSat.proof);
+    if(!pr) return { available:true, verdict:'unknown', U:true, reason:'内核自核失败（S∧φ 证明链不可独立验证）；诚实降级 𝕌。' };
+    return { available:true, verdict:'refuted', U:false, entailment:'refuted',
+      proof: rSat.proof, proofCNF: rClauses, proofVerified:true,
+      reason:'前提集 S 与 主张 的合取不可满足 ⇒ S ⊨ ¬主张（主张被反驳；证明链见 proof）。' };
+  }
+  if(rSat.sat === null){
+    return { available:true, verdict:'unknown', U:true, timeout:true, reason:'反驳预算耗尽（超时）；不声称 refuted。' };
+  }
+  return { available:true, verdict:'unknown', U:true, independent:true,
+    reason:'主张相对于前提既非演绎有效、亦非被反驳（独立/开放）；诚实标 𝕌。' };
 }
 // ⑤ 数值安全证书（M2 · 形式化证明模块核心）
 //    把「安全不变式 h(x) ≥ 0 在域内恒成立」从【单点浮点判定】升级为【全域集合认证】，
@@ -2211,7 +2466,7 @@ function _certifyExprNonneg(expr, vars, dom, BOUND) {
   // 被求解器就地改写而互相污染（防御性，非本次失效根因，但保留以免回归）。
   var domCopy = JSON.parse(JSON.stringify(dom || {}));
   var r = certifiedNumeric({ equations: eqs, variables: allVars, domain: domCopy, options: {} });
-  if (!r.available) return { available:false, verdict:'unverified', reason: r.note || '灵数求解器未接入' };
+  if (!r.available) return { available:false, verdict:'unverified', reason: r.note || '灵脑=推理-only：不接入计算引擎' };
   if (r.provenNoSolution) return { available:true, verdict:'verified', provenNoSolution:true, engine:r.engine, equations: eqs };
   var sol = r.recommended;
   if (sol && Array.isArray(sol.values) && sol.values.length >= vars.length) {
@@ -2297,8 +2552,8 @@ function certifySafetyInvariant(args){
                              options: args.options || {} });
 
   if (!r.available) {
-    return { verdict:'unverified', tier:'lite-unverified', layer:'engineering',
-      reason:'灵数求解器未接入 ⇒ 无法 Krawczyk 认证（诚实降级，不假装求解）。',
+    return { verdict:'unverified', tier:'reasoning-only-unverified', layer:'engineering',
+      reason:'灵脑=推理-only ⇒ 不接入计算引擎，无法 Krawczyk 认证（诚实降级，不假装求解）。需要数值认证请用灵数求解器。',
       detail: r.note || null, provenNoSolution:false, certified:false, equations: eqs };
   }
   var setVerdict, setOut;
@@ -4691,7 +4946,7 @@ function safetyLayersReport(control) {
     var qa = certifiedNumeric(control.algebraic);
     layers.push({ layer: 'safety.certifiedAlgebraic', theorem: 'THM_KRAWCZYK_CERTIFY',
       verdict: !qa.available ? 'unverified' : (qa.provenNoSolution ? 'safe' : 'unverified'),
-      detail: qa.available ? qa.summary : (qa.note || '灵数求解器未接入'),
+      detail: qa.available ? qa.summary : (qa.note || '灵脑=推理-only：不接入计算引擎'),
       algebraic: qa });
   }
   var overall = layers.length === 0 ? 'n/a'
@@ -8122,7 +8377,7 @@ MathKernel.thinking = LingNaoThinking;
 // 导出供 MCP / Node 校验复用
 if(typeof globalThis!=='undefined'){
   globalThis.__WB = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, disconnectLLM, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport,
-    metaCognition, symbolicSolve, algebraicSolve, certifiedNumeric, certifySafetyInvariant, _m2Eval, _m2SampleRefute, verdictThreeLayer, proveGateChain, GATE_SPEC, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
+    metaCognition, symbolicSolve, certifySafetyInvariant, reasoningEntailment, verifyProof, _m2Eval, _m2SampleRefute, verdictThreeLayer, proveGateChain, GATE_SPEC, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable,
     safetyLayersReport,
     learnWorldModel, simulate, counterfactual, causalEffect,
     SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus,

@@ -20,7 +20,7 @@ const EXPORT_NAMES = [
   'getWorld', 'getBody', 'IMA', 'imaKnowledge', 'loadIMAKB', 'setWorld', 'heuristic', 'aStar',
   'perceive', 'perceiveLLM', 'perceiveBelief', 'reconcile', 'configureLLM', 'getLLMConfig', 'system1', 'system2', 'reason', 'goalDirected',
   'buildRSG', 'generateAudit', 'learn', 'carrierReport', 'metaCognition',
-  'symbolicSolve', 'algebraicSolve', 'verifyHoarePath', 'dmcts', 'pacSampleBound',
+  'symbolicSolve', 'reasoningEntailment', 'verifyProof', 'verifyHoarePath', 'dmcts', 'pacSampleBound',
   'causalDiscovery', 'doQuery', 'causalIdentifiable', 'identifiabilityID', 'counterfactualIdentifiable', 'learnWorldModel', 'simulate', 'counterfactual',
   'SelfLearn', 'slRecord', 'slDiscover', 'slValidate', 'slMonitor', 'slStatus',
   'EventBus', 'KBFabric', 'runtimeMonitor', 'continuousVerify', 'fingerprintVec', 'simHash',
@@ -102,7 +102,7 @@ const EXPORT_NAMES = [
   //   此前这三个模块只在内核与 MCP 面可用，UMD 面【完全缺失】——用 <script> 引入的使用者
   //   拿不到 M1/M2/M3，"M1-M4 已落地"这句话在 UMD 分发面上并不成立。实测发现后补入。
   'proveGateChain', 'GATE_SPEC',                                  // M1 能力门控链证明
-  'certifiedNumeric', 'certifySafetyInvariant',                   // M2 数值安全证书（委派灵数 Krawczyk）
+  'certifySafetyInvariant',                                       // M2 数值安全证书（推理-only 下诚实降级 𝕌）
   '_m2Eval', '_m2SampleRefute',                                   // M2 独立回代防线（可被外部复核/测试）
   'verdictThreeLayer',                                            // M3 三层次裁决
   // 2026-09-03 评审修复：下列 4 个符号内核 __WB 已导出，但 UMD 白名单曾遗漏，

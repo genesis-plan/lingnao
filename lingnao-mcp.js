@@ -81,7 +81,7 @@ if (SELFTEST) sandbox.fetch = mockFetchOpenRouter;
 sandbox.__LINGSHU__ = lingShuBridge;   // 灵脑=推理-only：注入永久不可用的计算桩（内核若调 algebraicSolve 将诚实降级 𝕌，不计算）
 const ctx = vm.createContext(sandbox);
   vm.runInContext(
-  kernelSrc + '\nglobalThis.__exp = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport, metaCognition, symbolicSolve, algebraicSolve, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable, identifiabilityID, counterfactualIdentifiable, learnWorldModel, simulate, counterfactual, SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus, EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED, explainWithLLM, askBrain, causalEffect, groundingMeta, GROUNDING, validateWorld, Memory, bootMemory, confirmObservation, exploreAlternatives, Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch, planTransport, applyAllocations, allPairsCost, reconstructPath, transportation, quantifyUncertainty, Brain, Layers, brainManifest, evaluateProposition, edgeHolds, attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, getBody};',
+  kernelSrc + '\nglobalThis.__exp = {getWorld, IMA, imaKnowledge, loadIMAKB, setWorld, heuristic, aStar, perceive, perceiveLLM, perceiveBelief, reconcile, configureLLM, getLLMConfig, system1, system2, reason, goalDirected, buildRSG, generateAudit, learn, carrierReport, metaCognition, symbolicSolve, reasoningEntailment, verifyProof, verifyHoarePath, dmcts, pacSampleBound, causalDiscovery, doQuery, causalIdentifiable, identifiabilityID, counterfactualIdentifiable, learnWorldModel, simulate, counterfactual, SelfLearn, slRecord, slDiscover, slValidate, slMonitor, slStatus, EventBus, KBFabric, runtimeMonitor, continuousVerify, fingerprintVec, simHash, ALGO_VERSION, SEED, explainWithLLM, askBrain, causalEffect, groundingMeta, GROUNDING, validateWorld, Memory, bootMemory, confirmObservation, exploreAlternatives, Capabilities, cognitiveCycle, attachResources, discoverMismatch, coordinateMismatch, planTransport, applyAllocations, allPairsCost, reconstructPath, transportation, quantifyUncertainty, Brain, Layers, brainManifest, evaluateProposition, edgeHolds, attachBody, capabilities, getState, setState, stateDiff, checkHard, hMax, planTask, execute, doWork, POSITIONING, getBody};',
   ctx
 );
 const K = sandbox.__exp;
@@ -202,7 +202,7 @@ K.BrainTuple = sandbox.__exp.BrainTuple;
 // MCP 一个都调不到 —— 等于外部智能体/审计者无法要求灵脑"出证明"。在此接出。
 const _PROOF_MODULE = [
   'proveGateChain', 'GATE_SPEC',        // M1 能力/意图门控证明（正确性）
-  'certifySafetyInvariant',             // M2 数值安全证书（灵数 Krawczyk 全域认证）
+  'certifySafetyInvariant',             // M2 数值安全证书（推理-only 下诚实降级 𝕌）
   'verdictThreeLayer',                  // M3 三层次裁决（逻辑/计算/工程分离）
   'proveCompleteMediation',             // M4 完全中介证明（完备性）
   'EffectGate', 'EFFECT_KINDS'          // M4 机制：副作用唯一出口
@@ -1183,7 +1183,7 @@ const TOOLS = [
   },
   {
     name: 'certify_safety_invariant',
-    description: 'M2 数值安全证书：把不等式安全验证翻译成方程无解判定，委派灵数求解器给出【真数学证明】。要证 ∀x∈域 h(x)≥0，等价于证违反系统 {h(x)+s²=0, s·w=1} 在域内无实数解；灵数能证明无实根，这是单点浮点判定永远做不到的。verdict: verified(certified-krawczyk 真证明) / violated(候选反例，需回代校验) / unverified(证不了——按 fail-closed 处理，不等于安全)。硬约束：只吃方程字符串(JS 函数形态 h 诚实降级 unverified，绝不退回浮点假装认证)、盒式区间域、状态维数≤4。  / EN: M2 numeric safety certificate — reduces ∀x∈D h(x)≥0 to proving the violation system has no real solution, delegated to lingshu-solver (Krawczyk). unverified ≠ safe (fail-closed).',
+    description: 'M2 数值安全证书（推理-only 下诚实降级）：把不等式安全验证翻译成方程无解判定，本需灵数求解器做 Krawczyk 全域认证；但灵脑=推理-only 不接入计算引擎，故恒诚实返回 unverified（不假装求解/认证）。verdict: unverified(灵脑=推理-only 不接入计算引擎，恒诚实降级；需要 Krawczyk 真证明请用灵数求解器 lingshu-solver)。硬约束：只吃方程字符串、盒式区间域、状态维数≤4。  / EN: M2 numeric safety certificate — under 灵脑=reasoning-only, always honestly returns unverified (no compute engine); use lingshu-solver for real Krawczyk proofs.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -1194,6 +1194,30 @@ const TOOLS = [
         options: { type: 'object', description: '（可选）透传灵数 options', properties: {} },
       },
       required: ['hExpr', 'vars'],
+    },
+  },
+  {
+    name: 'reasoning_entailment',
+    description: '纯逻辑演绎推理（灵脑=推理-only 的核心能力）：给定前提集 S + 主张 φ，返回 verified(S ⊨ φ 演绎有效) / refuted(S ⊨ ¬φ 主张被反驳) / unknown(𝕌 诚实不可判定或超预算)。实现：命题公式 → Tseitin 编码转 CNF → DPLL 归结反证，零数值依赖，是真正的纯符号演绎。文法：原子 / !(¬) 否定 / &(∧) 合取 / |(∨) 析取 / =>(→) 蕴含 / <=>(↔) 等价，括号分组；支持 Unicode ¬∧∨→↔。前提自身矛盾 ⇒ contradiction（不谎称 verified）。  / EN: Pure logical entailment — propositional CNF + DPLL resolution refutation. verified / refuted / unknown.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        premises: { type: 'array', description: '前提集 S（命题公式字符串数组），例 ["P => Q", "P"]', items: { type: 'string' } },
+        claim: { type: 'string', description: '主张 φ（命题公式字符串），例 "Q"' },
+      },
+      required: ['premises', 'claim'],
+    },
+  },
+  {
+    name: 'verify_proof',
+    description: '独立复核灵脑产出的可审计证明链（小信任核·LCF 式 RUP 反向单元传播核验）。输入 proofCNF（被证明不可满足的子句集，数组的数组，文字用整数变元编码）+ proof（reasoning_entailment 返回的 proof 字段，学习子句序列 + 末条空子句 ◻）。返回 verified=true 当且仅当证明链可被独立复核。用途：第三方/外部智能体不信任灵脑内核时，可用此函数对 verdict 的证明做零信任复核。  / EN: Independently re-check a DRAT/RUP proof chain produced by reasoning_entailment via reverse unit propagation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        cnf: { type: 'array', description: '被证明不可满足的子句集（整数文字编码，例 [[1,2],[-1]]）', items: { type: 'array', items: { type: 'number' } } },
+        proof: { type: 'array', description: '证明链（学习子句序列 + 末条空子句 []），即 reasoning_entailment 返回的 proof', items: { type: 'array', items: { type: 'number' } } },
+      },
+      required: ['cnf', 'proof'],
     },
   },
   {
@@ -1337,6 +1361,22 @@ function certifySafetyInvariantLogic(args) {
     options: (args && args.options) || undefined,
   });
   return Object.assign({ module: 'M2', kind: '数值安全证书（全域集合认证）' }, r);
+}
+function reasoningEntailmentLogic(args) {
+  if (typeof K.reasoningEntailment !== 'function') {
+    return { ok: false, verdict: 'unavailable', reason: 'reasoningEntailment 未在内核中导出' };
+  }
+  const r = K.reasoningEntailment((args && args.premises) || [], (args && args.claim) || '');
+  return Object.assign({ module: 'RE', kind: '纯逻辑演绎推理（命题 CNF + CDCL 归结反证 + 1-UIP 学习）' }, r);
+}
+function verifyProofLogic(args) {
+  if (typeof K.verifyProof !== 'function') {
+    return { ok: false, reason: 'verifyProof 未在内核中导出' };
+  }
+  const cnf = (args && args.cnf) || [];
+  const proof = (args && args.proof) || [];
+  const verified = K.verifyProof(cnf, proof);
+  return { ok: true, verified: verified, cnfLen: cnf.length, proofLen: proof.length };
 }
 function verdictThreeLayerLogic(args) {
   if (typeof K.verdictThreeLayer !== 'function') {
@@ -2102,6 +2142,8 @@ function callTool(name, args) {
     // ── 形式化证明模块 M1..M4 ──
     case 'prove_gate_chain': return proveGateChainLogic(args);
     case 'certify_safety_invariant': return certifySafetyInvariantLogic(args);
+    case 'reasoning_entailment': return reasoningEntailmentLogic(args);
+    case 'verify_proof': return verifyProofLogic(args);
     case 'verdict_three_layer': return verdictThreeLayerLogic(args);
     case 'prove_complete_mediation': return proveCompleteMediationLogic(args);
     case 'effect_gate_report': return effectGateReportLogic(args);
@@ -2377,6 +2419,35 @@ function selftest() {
     K.certifySafetyInvariant = _origCSI;
     T('numeric-safety-independent-verify', _nsPlanted.verdict === 'unverified' && _nsPlanted.U === true,
       'verdict=' + _nsPlanted.verdict + ' :: ' + _nsPlanted.reason.slice(0, 90));
+    // 灵脑=推理（2026-10-07）：纯逻辑演绎推理 reasoningEntailment 三态真打
+    const _reV = reasoningEntailmentLogic({ premises: ['P => Q', 'P'], claim: 'Q' });
+    T('reasoning-entailment-verified', _reV.verdict === 'verified' && _reV.U === false, 'v=' + _reV.verdict);
+    const _reR = reasoningEntailmentLogic({ premises: ['P'], claim: '!P' });
+    T('reasoning-entailment-refuted', _reR.verdict === 'refuted' && _reR.U === false, 'v=' + _reR.verdict);
+    const _reU = reasoningEntailmentLogic({ premises: ['P => Q', 'P'], claim: 'R' });
+    T('reasoning-entailment-unknown', _reU.verdict === 'unknown' && _reU.U === true, 'v=' + _reU.verdict);
+    const _reC = reasoningEntailmentLogic({ premises: ['P', '!P'], claim: 'Q' });
+    T('reasoning-entailment-contradiction', _reC.verdict === 'contradiction' && _reC.U === false, 'v=' + _reC.verdict);
+    const _reE = reasoningEntailmentLogic({ premises: [], claim: 'Q' });
+    T('reasoning-entailment-empty-premises', _reE.verdict === 'unknown' && _reE.U === true, 'v=' + _reE.verdict);
+    // 可审计证明链：verified/refuted 须带 DRAT/RUP 证明链且内核自核通过
+    const _reV2 = reasoningEntailmentLogic({ premises: ['P => Q', 'P'], claim: 'Q' });
+    T('reasoning-entailment-proof-verified', _reV2.verdict === 'verified' && _reV2.proofVerified === true && Array.isArray(_reV2.proof) && _reV2.proof.length >= 1 && _reV2.proof[_reV2.proof.length - 1].length === 0,
+      'v=' + _reV2.verdict + ' proofLen=' + (_reV2.proof ? _reV2.proof.length : -1));
+    const _reR2 = reasoningEntailmentLogic({ premises: ['P'], claim: '!P' });
+    T('reasoning-entailment-proof-refuted', _reR2.verdict === 'refuted' && _reR2.proofVerified === true && _reR2.proof[_reR2.proof.length - 1].length === 0,
+      'v=' + _reR2.verdict + ' proofLen=' + (_reR2.proof ? _reR2.proof.length : -1));
+    // verify_proof 工具：独立复核有效证明链须 accepted；篡改后须 rejected
+    const _vpOk = verifyProofLogic({ cnf: _reV2.proofCNF, proof: _reV2.proof });
+    T('verify-proof-accept-valid', _vpOk.ok === true && _vpOk.verified === true, 'verified=' + _vpOk.verified);
+    // 篡改①：替换首条学习子句为无关子句 [999] ⇒ 首步即非 RUP ⇒ 拒绝
+    const _vpBad0 = _reV2.proof.slice(); _vpBad0[0] = [999];
+    const _vpRej0 = verifyProofLogic({ cnf: _reV2.proofCNF, proof: _vpBad0 });
+    T('verify-proof-reject-tampered-early', _vpRej0.ok === true && _vpRej0.verified === false, 'verified=' + _vpRej0.verified);
+    // 篡改②：在空子句 ◻ 之后再追加冗余子句 ⇒ 不再以 ◻ 收尾 ⇒ 拒绝
+    const _vpBad1 = _reV2.proof.concat([[999]]);
+    const _vpRej1 = verifyProofLogic({ cnf: _reV2.proofCNF, proof: _vpBad1 });
+    T('verify-proof-reject-tampered-append', _vpRej1.ok === true && _vpRej1.verified === false, 'verified=' + _vpRej1.verified);
     // 决策可信裁判（certify_decision，2026-09-24 产品定位"证明决策"）：运动员提议、裁判判定，结构性 verdict + 防篡改 reportId
     const _cdTrustedArgs = { action: '去 C 区', context: { node: 'CHARGE' }, claimedProperties: [
       { property: '两区间约束可同时满足', class: 'constraint', payload: { constraints: [{ id: 'a', interval: [0, 1] }, { id: 'b', interval: [0.5, 2] }] } },
