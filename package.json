@@ -2,7 +2,7 @@
   "name": "lingnao-mcp",
   "version": "1.4.1",
   "mcpName": "io.github.genesis-plan/lingnao",
-  "description": "LingNao - a deterministic reasoning SERVICE for ANY AI agent: deliberate planning (A*/deterministic MCTS), causal inference (do-calculus), PAC bounds, and mathematical soundness stress-tests (Baire/compactness/variety/van der Waerden/Cauchy-Lipschitz/Bertrand - each a real theorem). No neural net in the loop, no hallucination, reproducible. Single MCP gateway `lingnao`, zero dependencies.",
+  "description": "LingNao — the certified deterministic reasoning layer for AI agents: entailment/contradiction/consistency verification, mathematical soundness stress-tests (each a real theorem), and auditable derivations. No neural net in the loop, cannot hallucinate, fail-closed. The tool agents call to verify a conclusion instead of reasoning about it themselves. Single MCP gateway `lingnao`.",
   "keywords": [
     "mcp",
     "model-context-protocol",
@@ -16,7 +16,13 @@
     "灵脑",
     "世界通用大脑",
     "确定性推理",
-    "物理载体"
+    "物理载体",
+    "certified-reasoning",
+    "no-hallucination",
+    "auditable",
+    "formal-proof",
+    "entailment",
+    "verification"
   ],
   "bin": {
     "lingnao-mcp": "lingnao-mcp.js"

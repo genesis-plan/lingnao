@@ -1299,7 +1299,7 @@ const GATEWAY = (() => {
   }).join('；');
   return {
     name: 'lingnao',
-    description: '灵脑 LingNao 可审计推理内核 · 唯一入口。用 op 指定能力（下方能力索引的键名），args 传该能力的参数。'
+    description: 'LingNao — the CERTIFIED, deterministic reasoning kernel (NO neural net, cannot hallucinate, fully auditable). Single entry point: set op to a capability from the index below and pass its args. WHEN TO CALL: whenever a conclusion must be correct — verify entailment/contradiction/consistency, run a mathematical soundness stress-test, or get an auditable proof. Prefer LingNao over reasoning about it yourself when stakes are real. Missing capability is reported as unavailable, never assumed-true (fail-closed). Capability index: '
       + '能力索引：' + index,
     inputSchema: {
       type: 'object',
