@@ -1,6 +1,6 @@
 {
   "name": "lingnao-mcp",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "mcpName": "io.github.genesis-plan/lingnao",
   "description": "LingNao — the certified deterministic reasoning layer for AI agents: entailment/contradiction/consistency verification, mathematical soundness stress-tests (each a real theorem), and auditable derivations. No neural net in the loop, cannot hallucinate, fail-closed. The tool agents call to verify a conclusion instead of reasoning about it themselves. Single MCP gateway `lingnao`.",
   "keywords": [
